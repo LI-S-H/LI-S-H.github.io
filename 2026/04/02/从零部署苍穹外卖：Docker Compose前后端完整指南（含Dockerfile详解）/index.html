@@ -1,0 +1,329 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="dark"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>从零部署苍穹外卖：Docker Compose前后端完整指南（含Dockerfile详解） | 青山木</title><meta name="author" content="青山木"><meta name="copyright" content="青山木"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#0d1117"><meta name="description" content="一、云服务器购买1. 云服务器厂家选择一般选择阿里云或者腾讯云即可,我选择的是阿里云,下面演示阿里云服务器购买配置 2.云服务器配置按照图片依次点击选项,进入到云服务购买页面  在快速购买选项下可以按照我图所示的选项进行购买,选择2vCPU,2GB即可,系统选择乌班图,付费类型根据需要选择,如果只是为了学习部署,带宽计费方式和付费类型都可以选择按量计费,价格右下角可以参考,在不使用的时候将服务器关">
+<meta property="og:type" content="article">
+<meta property="og:title" content="从零部署苍穹外卖：Docker Compose前后端完整指南（含Dockerfile详解）">
+<meta property="og:url" content="https://li-s-h.github.io/2026/04/02/%E4%BB%8E%E9%9B%B6%E9%83%A8%E7%BD%B2%E8%8B%8D%E7%A9%B9%E5%A4%96%E5%8D%96%EF%BC%9ADocker%20Compose%E5%89%8D%E5%90%8E%E7%AB%AF%E5%AE%8C%E6%95%B4%E6%8C%87%E5%8D%97%EF%BC%88%E5%90%ABDockerfile%E8%AF%A6%E8%A7%A3%EF%BC%89/index.html">
+<meta property="og:site_name" content="青山木">
+<meta property="og:description" content="一、云服务器购买1. 云服务器厂家选择一般选择阿里云或者腾讯云即可,我选择的是阿里云,下面演示阿里云服务器购买配置 2.云服务器配置按照图片依次点击选项,进入到云服务购买页面  在快速购买选项下可以按照我图所示的选项进行购买,选择2vCPU,2GB即可,系统选择乌班图,付费类型根据需要选择,如果只是为了学习部署,带宽计费方式和付费类型都可以选择按量计费,价格右下角可以参考,在不使用的时候将服务器关">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://li-s-h.github.io/img/title-picture/docker.png">
+<meta property="article:published_time" content="2026-04-01T18:12:01.000Z">
+<meta property="article:modified_time" content="2026-05-20T17:44:57.827Z">
+<meta property="article:author" content="青山木">
+<meta property="article:tag" content="Docker">
+<meta property="article:tag" content="Docker Compose">
+<meta property="article:tag" content="部署">
+<meta property="article:tag" content="苍穹外卖">
+<meta property="article:tag" content="后端">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://li-s-h.github.io/img/title-picture/docker.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "从零部署苍穹外卖：Docker Compose前后端完整指南（含Dockerfile详解）",
+  "url": "https://li-s-h.github.io/2026/04/02/%E4%BB%8E%E9%9B%B6%E9%83%A8%E7%BD%B2%E8%8B%8D%E7%A9%B9%E5%A4%96%E5%8D%96%EF%BC%9ADocker%20Compose%E5%89%8D%E5%90%8E%E7%AB%AF%E5%AE%8C%E6%95%B4%E6%8C%87%E5%8D%97%EF%BC%88%E5%90%ABDockerfile%E8%AF%A6%E8%A7%A3%EF%BC%89/",
+  "image": "https://li-s-h.github.io/img/title-picture/docker.png",
+  "datePublished": "2026-04-01T18:12:01.000Z",
+  "dateModified": "2026-05-20T17:44:57.827Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "青山木",
+      "url": "https://LI-S-H.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/%E5%A4%B4%E5%83%8F.jpg"><link rel="canonical" href="https://li-s-h.github.io/2026/04/02/%E4%BB%8E%E9%9B%B6%E9%83%A8%E7%BD%B2%E8%8B%8D%E7%A9%B9%E5%A4%96%E5%8D%96%EF%BC%9ADocker%20Compose%E5%89%8D%E5%90%8E%E7%AB%AF%E5%AE%8C%E6%95%B4%E6%8C%87%E5%8D%97%EF%BC%88%E5%90%ABDockerfile%E8%AF%A6%E8%A7%A3%EF%BC%89/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="stylesheet" href="/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d1117')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', 'ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '从零部署苍穹外卖：Docker Compose前后端完整指南（含Dockerfile详解）',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><style>
+  /* 提亮全局字体颜色 */
+  body { color: rgba(255,255,255,0.92); }
+  #body-wrap { color: rgba(255,255,255,0.92); }
+  #article-container,
+  .post-content,
+  article { color: rgba(255,255,255,0.95); }
+  /* 标题更白更显眼 */
+  #article-container h1,
+  #article-container h2,
+  #article-container h3 { color: #ffffff; }
+  /* 侧边栏文字 */
+  #aside-content .card-widget { color: rgba(255,255,255,0.88); }
+  /* meta 信息微提亮 */
+  .post-meta,
+  .article-meta { color: rgba(255,255,255,0.65); }
+
+  /* ===== 首页简洁卡片 ===== */
+  .recent-post-item {
+    border-radius: 8px;
+    border: 1px solid rgba(58,111,216,0.12);
+    transition: all .25s ease;
+    background: rgba(18,18,18,0.85);
+    padding: 18px 20px;
+    margin-bottom: 16px;
+  }
+  .recent-post-item:hover {
+    border-color: rgba(58,111,216,0.35);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px rgba(24,49,106,0.25);
+  }
+  .recent-post-item .article-title {
+    font-size: 1.08em;
+    font-weight: 600;
+  }
+  .recent-post-item .content {
+    font-size: 0.85em;
+    color: rgba(255,255,255,0.68);
+    margin-top: 4px;
+    line-height: 1.6;
+  }
+</style>
+<meta name="generator" content="Hexo 7.3.0"></head><body><div class="bg-animation" id="web_bg" style="background-image: url(/img/%E8%83%8C%E6%99%AF%E5%9B%BE.webp);"></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(/img/title-picture/docker.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">青山木</span></a><a class="nav-page-title" href="/"><span class="site-name">从零部署苍穹外卖：Docker Compose前后端完整指南（含Dockerfile详解）</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">从零部署苍穹外卖：Docker Compose前后端完整指南（含Dockerfile详解）</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-04-01T18:12:01.000Z" title="发表于 2026-04-02 02:12:01">2026-04-02</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-05-20T17:44:57.827Z" title="更新于 2026-05-21 01:44:57">2026-05-21</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/%E5%90%8E%E7%AB%AF%E5%BC%80%E5%8F%91/">后端开发</a></span></div><div class="meta-secondline"></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h2 id="一、云服务器购买"><a href="#一、云服务器购买" class="headerlink" title="一、云服务器购买"></a>一、云服务器购买</h2><h3 id="1-云服务器厂家选择"><a href="#1-云服务器厂家选择" class="headerlink" title="1. 云服务器厂家选择"></a>1. 云服务器厂家选择</h3><p>一般选择阿里云或者腾讯云即可,我选择的是阿里云,下面演示阿里云服务器购买配置</p>
+<h3 id="2-云服务器配置"><a href="#2-云服务器配置" class="headerlink" title="2.云服务器配置"></a>2.云服务器配置</h3><p>按照图片依次点击选项,进入到云服务购买页面</p>
+<p><img src="/img/%E9%83%A8%E7%BD%B2%E8%8B%8D%E7%A9%B9/%E5%9B%BE1.png" alt="进入云服务器购买页面"></p>
+<p>在快速购买选项下可以按照我图所示的选项进行购买,选择2vCPU,2GB即可,系统选择乌班图,付费类型根据需要选择,如果只是为了学习部署,带宽计费方式和付费类型都可以选择按量计费,价格右下角可以参考,在不使用的时候将服务器关闭即可,否则会一直计费,请注意!!!地域则选择离自己所在地近一点的即可</p>
+<p><img src="/img/%E9%83%A8%E7%BD%B2%E8%8B%8D%E7%A9%B9/%E5%9B%BE2.png" alt="云服务器配置选择"></p>
+<p>购买成功之后点击个人账号旁边的控制台,找到云服务器选项,点击进入可以看到下面的信息,然后里面有公网ip等基础信息,可以浏览一下,然后点击重置密码,设置连接你服务器的密码,这点在后面连接服务器很重要,一定要记住!!!</p>
+<p><img src="/img/%E9%83%A8%E7%BD%B2%E8%8B%8D%E7%A9%B9/%E5%9B%BE3.png" alt="重置服务器密码"></p>
+<p>下一步是配置安全组,选择安全组选项卡,你可以看到下面的界面,你需要开放对应端口的安全组,不然你的访问会被拦截,如果你需要使用DataGrip这种数据库连接查看数据库,则需要开放MySQL的3306端口,但是请把访问来源设置成本机,redis同理</p>
+<p><img src="/img/%E9%83%A8%E7%BD%B2%E8%8B%8D%E7%A9%B9/%E5%9B%BE4.png" alt="配置安全组规则"></p>
+<p>点击新增规则之后进行下面配置</p>
+<p><img src="/img/%E9%83%A8%E7%BD%B2%E8%8B%8D%E7%A9%B9/%E5%9B%BE5.png" alt="新增安全组规则"></p>
+<h3 id="3-Docker和Dockercompose安装"><a href="#3-Docker和Dockercompose安装" class="headerlink" title="3.Docker和Dockercompose安装"></a>3.Docker和Dockercompose安装</h3><h4 id="1-远程工具选择"><a href="#1-远程工具选择" class="headerlink" title="1.远程工具选择"></a>1.远程工具选择</h4><p>先选择一款远程连接工具如XShell,FinalShell等,可以实现本机操控远程服务器.我选择的是FinalShell,因为下方有文件夹可视化图且可以在window本机上直接拖动文件或者文件夹上传,左边有服务器资源监控图,相对方便轻量,但是是使用Java编写,所以有时候可能会卡顿</p>
+<h4 id="2-远程工具配置"><a href="#2-远程工具配置" class="headerlink" title="2. 远程工具配置"></a>2. 远程工具配置</h4><p>这一步需要连接上云服务器,下面看图操作</p>
+<p><img src="/img/%E9%83%A8%E7%BD%B2%E8%8B%8D%E7%A9%B9/%E5%9B%BE6.png" alt="远程连接配置1"></p>
+<p><img src="/img/%E9%83%A8%E7%BD%B2%E8%8B%8D%E7%A9%B9/%E5%9B%BE7.png" alt="远程连接配置2"></p>
+<h4 id="3-Docker和Dockercompose安装-1"><a href="#3-Docker和Dockercompose安装-1" class="headerlink" title="3. Docker和Dockercompose安装"></a>3. Docker和Dockercompose安装</h4><p>我之前选择的Linux是乌班图,所以下面的命令都是乌班图下载的命令,如果是其他系统的需要去官网查看文档进行安装,官网网址:安装 |Docker 文档 — Install | Docker Docs<a target="_blank" rel="noopener" href="https://docs.docker.com/engine/install/">https://docs.docker.com/engine/install/</a></p>
+<p>由于操作固定,请直接无脑复制粘贴即可</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 执行以下命令卸载所有冲突包</span></span><br><span class="line"><span class="built_in">sudo</span> apt remove $(dpkg --get-selections docker.io docker-compose docker-compose-v2 docker-doc podman-docker containerd runc | <span class="built_in">cut</span> -f1)</span><br><span class="line"></span><br><span class="line"><span class="comment"># 更新</span></span><br><span class="line"><span class="built_in">sudo</span> apt update</span><br><span class="line"><span class="built_in">sudo</span> apt install -y ca-certificates curl gnupg lsb-release</span><br><span class="line"></span><br><span class="line"><span class="comment"># 添加Docker官方仓库</span></span><br><span class="line">curl -fsSL https://mirrors.aliyun.com/docker-ce/linux/ubuntu/gpg | <span class="built_in">sudo</span> gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg</span><br><span class="line"></span><br><span class="line"><span class="built_in">echo</span> <span class="string">&quot;deb [arch=<span class="subst">$(dpkg --print-architecture)</span> signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://mirrors.aliyun.com/docker-ce/linux/ubuntu <span class="subst">$(lsb_release -cs)</span> stable&quot;</span> | <span class="built_in">sudo</span> <span class="built_in">tee</span> /etc/apt/sources.list.d/docker.list &gt; /dev/null</span><br><span class="line"></span><br><span class="line"><span class="comment"># 安装 Docker CE</span></span><br><span class="line"><span class="built_in">sudo</span> apt update</span><br><span class="line"><span class="built_in">sudo</span> apt install -y docker-ce docker-ce-cli containerd.io</span><br><span class="line"></span><br><span class="line"><span class="comment"># 启动并设置开机自启</span></span><br><span class="line"><span class="built_in">sudo</span> systemctl start docker</span><br><span class="line"><span class="built_in">sudo</span> systemctl <span class="built_in">enable</span> docker</span><br><span class="line"></span><br><span class="line"><span class="comment"># 配置 Docker 镜像加速器（国内）随时间会进行变更,要及时更换镜像源</span></span><br><span class="line"><span class="built_in">sudo</span> <span class="built_in">mkdir</span> -p /etc/docker</span><br><span class="line"><span class="built_in">sudo</span> <span class="built_in">tee</span> /etc/docker/daemon.json &lt;&lt;<span class="string">&#x27;EOF&#x27;</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="string">&quot;registry-mirrors&quot;</span>: [</span><br><span class="line">    <span class="string">&quot;https://mirror.ccs.tencentyun.com&quot;</span>,</span><br><span class="line">    <span class="string">&quot;https://docker.mirrors.ustc.edu.cn&quot;</span>,</span><br><span class="line">    <span class="string">&quot;https://hub-mirror.c.163.com&quot;</span></span><br><span class="line">  ]</span><br><span class="line">&#125;</span><br><span class="line">EOF</span><br><span class="line"></span><br><span class="line"><span class="comment"># 重新加载 systemd 配置</span></span><br><span class="line"><span class="built_in">sudo</span> systemctl daemon-reload</span><br><span class="line"></span><br><span class="line"><span class="comment"># 重启 Docker 服务</span></span><br><span class="line"><span class="built_in">sudo</span> systemctl restart docker</span><br><span class="line"></span><br><span class="line"><span class="comment"># 输出应该是刚刚配置的镜像源,如果不是,则配置失败</span></span><br><span class="line">docker info</span><br><span class="line"></span><br><span class="line"><span class="comment"># 更新包索引</span></span><br><span class="line"><span class="built_in">sudo</span> apt update</span><br><span class="line"></span><br><span class="line"><span class="comment"># 安装 Docker Compose 插件</span></span><br><span class="line"><span class="built_in">sudo</span> apt-get install docker-compose-plugin</span><br><span class="line"></span><br><span class="line"><span class="comment"># 检查版本,应该输出Docker Compose version vx.xx.x,只要输出,说明安装成功</span></span><br><span class="line">docker compose version</span><br></pre></td></tr></table></figure>
+
+
+<p>注意 : 如果途中安装失败,大概率是镜像问题,可以问ai有什么镜像源可以更替让其帮你生成对应命令执行即可</p>
+<h2 id="二、基础准备"><a href="#二、基础准备" class="headerlink" title="二、基础准备"></a>二、基础准备</h2><h3 id="1-服务器准备-前端采用nginx反向代理"><a href="#1-服务器准备-前端采用nginx反向代理" class="headerlink" title="1. 服务器准备(前端采用nginx反向代理)"></a>1. 服务器准备(前端采用nginx反向代理)</h3><p>建议项目文件夹存放路径: &#x2F;usr&#x2F;local&#x2F;项目文件夹(后续讲解基于此目录)</p>
+<p>项目文件夹结构:</p>
+<ul>
+<li>项目名nginxconf放nginx的配置文件nginx.confhtml放vue项目执行build之后的dist文件夹下面所有东西,直接粘贴进来就行mysqlconf空data空init放数据库导出来的sql脚本(.sql)Dockerfiledocker-compose.yml后端项目jar包</li>
+</ul>
+<h3 id="2-前端准备"><a href="#2-前端准备" class="headerlink" title="2. 前端准备"></a>2. 前端准备</h3><ol>
+<li>前端项目build: 在终端执行build指令后,找到dist文件夹,将里面的全部文件上传到服务器的&#x2F;usr&#x2F;local&#x2F;项目文件夹&#x2F;nginx&#x2F;html中</li>
+<li>编写nginx.conf文件: 根据项目中原来的vite.conf文件改写,将反向代理的请求路径中的localhost改为对应后端项目的容器名字,端口好也要对应改写</li>
+</ol>
+<h3 id="3-后端准备"><a href="#3-后端准备" class="headerlink" title="3. 后端准备"></a>3. 后端准备</h3><ol>
+<li>pom文件修改: 若为多模块项目,需要修改注意对应的pom文件中有没有下面的配置,没有要添加</li>
+</ol>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">&lt;build&gt;  </span><br><span class="line">    &lt;plugins&gt;        </span><br><span class="line">	    &lt;plugin&gt;            </span><br><span class="line">		    &lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;  </span><br><span class="line">            &lt;artifactId&gt;spring-boot-maven-plugin&lt;/artifactId&gt;  </span><br><span class="line">        &lt;/plugin&gt;        </span><br><span class="line">	    &lt;plugin&gt;            </span><br><span class="line">		    &lt;groupId&gt;org.apache.maven.plugins&lt;/groupId&gt;  </span><br><span class="line">            &lt;artifactId&gt;maven-compiler-plugin&lt;/artifactId&gt;  </span><br><span class="line">            &lt;configuration&gt;                </span><br><span class="line">	            &lt;source&gt;9&lt;/source&gt;  </span><br><span class="line">                &lt;target&gt;9&lt;/target&gt;  </span><br><span class="line">            &lt;/configuration&gt;        </span><br><span class="line">        &lt;/plugin&gt;    </span><br><span class="line">    &lt;/plugins&gt;</span><br><span class="line">&lt;/build&gt;</span><br></pre></td></tr></table></figure>
+
+
+<ol>
+<li>application.yml修改:若有多环境配置,再导出jar包之前应该将生效配置换好重新编写一个application-production.yml文件,并把其中需要到时候从服务器中环境变量读取的数据进行替换,换为${环境变量名},如MYSQL_ROOT_PASSWORD等,对应的连接的容器名也是,到时候编写docker-compose要对照该配置编写,一定要一一对应</li>
+</ol>
+<p><img src="/img/%E9%83%A8%E7%BD%B2%E8%8B%8D%E7%A9%B9/%E5%9B%BE8.png" alt="application.yml环境变量配置"></p>
+<p><img src="/img/%E9%83%A8%E7%BD%B2%E8%8B%8D%E7%A9%B9/%E5%9B%BE9.png" alt="docker-compose与application.yml对照"></p>
+<ol start="2">
+<li>导出jar包: 先找到启动类所在的模块下,然后将测试环节禁用,使用maven打包,把启动类所在模块下的jar包上传到服务器(&#x2F;usr&#x2F;local&#x2F;项目文件夹)下</li>
+</ol>
+<h3 id="4-数据库准备"><a href="#4-数据库准备" class="headerlink" title="4. 数据库准备"></a>4. 数据库准备</h3><p>操作总览 : 导出对应数据库的sql脚本,并在其首行加入下面代码之后放入&#x2F;usr&#x2F;local&#x2F;项目文件夹&#x2F;mysql&#x2F;init中</p>
+<p>导出操作:选择对应要导出的数据库,右键选择以下选项</p>
+<p><img src="/img/%E9%83%A8%E7%BD%B2%E8%8B%8D%E7%A9%B9/%E5%9B%BE10.png" alt="导出数据库操作"></p>
+<p>然后选择以下配置,如果Path to executable是空的,且你的mysql是默认安装位置的,则可以按着图片所示路径寻找,如果是自定义的,可以使用everything工具查找mysqldump.exe,把对应路径粘贴进去即可</p>
+<p><img src="/img/%E9%83%A8%E7%BD%B2%E8%8B%8D%E7%A9%B9/%E5%9B%BE11.png" alt="mysqldump导出配置"></p>
+<p>sql脚本导出之后是默认没有创建数据库的,所以需要在首行添加以下代码,请注意,数据库名字一定要和你java代码中的application中配置的数据库名一样</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">-- 设置字符集和外键检查</span><br><span class="line">SET NAMES utf8mb4;</span><br><span class="line">SET FOREIGN_KEY_CHECKS = 0;</span><br><span class="line"></span><br><span class="line">-- 创建数据库（如果不存在）</span><br><span class="line">CREATE DATABASE IF NOT EXISTS `数据库名` </span><br><span class="line">CHARACTER SET utf8mb4 </span><br><span class="line">COLLATE utf8mb4_unicode_ci;</span><br><span class="line"></span><br><span class="line">-- 使用数据库</span><br><span class="line">USE `数据库名`;</span><br></pre></td></tr></table></figure>
+
+
+<h2 id="三、Dockerfile以及dockercompose-yml文件编写"><a href="#三、Dockerfile以及dockercompose-yml文件编写" class="headerlink" title="三、Dockerfile以及dockercompose.yml文件编写"></a>三、Dockerfile以及dockercompose.yml文件编写</h2><h3 id="1-Dockerfile编写"><a href="#1-Dockerfile编写" class="headerlink" title="1. Dockerfile编写"></a>1. Dockerfile编写</h3><ul>
+<li>FROM选择基础镜像选择</li>
+<li>ENV设置运行时环境变量</li>
+<li>RUNWORKDIR创建应用目录</li>
+<li>COPY复制应用文件</li>
+<li>EXPOSE声明服务端口</li>
+<li>ENTRYPOINT定义启动命令基础编写思路</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>步骤</th>
+<th>目的</th>
+<th>是否通用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1. 选择基础镜像FROM eclipse-temurin:xx或openjdk:xx</td>
+<td>提供 Java 运行环境</td>
+<td>几乎所有 Java 镜像都如此</td>
+</tr>
+<tr>
+<td>2. 设置工作目录WORKDIR &#x2F;app</td>
+<td>隔离应用文件，避免污染根目录</td>
+<td>强烈推荐，已成为惯例</td>
+</tr>
+<tr>
+<td>3. 复制应用制品COPY app.jar app.jar</td>
+<td>将编译好的 JAR 放入容器</td>
+<td>核心操作，必不可少</td>
+</tr>
+<tr>
+<td>4. 声明端口EXPOSE 8080</td>
+<td>文档化服务端口</td>
+<td>虽非强制，但广泛使用</td>
+</tr>
+<tr>
+<td>5. 定义启动命令ENTRYPOINT [“java”, “-jar”, “…”]</td>
+<td>指定容器主进程</td>
+<td>必须有，形式略有差异</td>
+</tr>
+<tr>
+<td>6.（可选）设置环境变量&#x2F;用户&#x2F;时区等</td>
+<td>适配运行环境</td>
+<td>按需配置，但常见</td>
+</tr>
+</tbody></table>
+<p>代码示例</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"># 直接使用 Eclipse Temurin 提供的官方 JDK 21 镜像（基于 Ubuntu/Alpine）</span><br><span class="line"># 使用自己的项目JDK版本</span><br><span class="line">FROM eclipse-temurin:21-jre</span><br><span class="line"></span><br><span class="line">#设置你在后端程序中需要读取的环境变量</span><br><span class="line">ENV OSS_ACCESS_KEY_ID=your_id</span><br><span class="line">ENV OSS_ACCESS_KEY_SECRET=your_secret</span><br><span class="line">ENV MYSQL_ROOT_PASSWORD=your_root_password</span><br><span class="line">ENV REDIS_PASSWORD=your_password</span><br><span class="line"></span><br><span class="line">#统一编码</span><br><span class="line">ENV LANG=en_US.UTF-8</span><br><span class="line">ENV LANGUAGE=en_US:en</span><br><span class="line">ENV LC_ALL=en_US.UTF-8</span><br><span class="line"></span><br><span class="line"># 创建应用目录</span><br><span class="line"># 在镜像中创建一个名为 `/sky` 的目录(自由填写)</span><br><span class="line">RUN mkdir -p /sky</span><br><span class="line"># 将 `/sky` 目录设置为工作目录 </span><br><span class="line"># 此后的所有指令（如 `RUN`、`COPY`、`ADD`、`CMD`、`ENTRYPOINT` 等）都会在这个目录下执行</span><br><span class="line">WORKDIR /sky</span><br><span class="line"></span><br><span class="line"># 复制应用 JAR 文件到容器</span><br><span class="line">COPY  sky-server.jar  sky-server.jar</span><br><span class="line"></span><br><span class="line"># 暴露端口</span><br><span class="line">EXPOSE 8080</span><br><span class="line"></span><br><span class="line"># 运行命令</span><br><span class="line">ENTRYPOINT [&quot;java&quot;,&quot;-jar&quot;,&quot;/sky/sky-server.jar&quot;]</span><br></pre></td></tr></table></figure>
+
+
+<h3 id="2-docker-compose-yml编写"><a href="#2-docker-compose-yml编写" class="headerlink" title="2. docker-compose.yml编写"></a>2. docker-compose.yml编写</h3><p>重点:</p>
+<ul>
+<li>每个服务必须有 image 或 build</li>
+<li>多服务架构必须配置 networks 实现通信</li>
+<li>数据库必须配置 environment 和 volumes</li>
+<li>Web 应用必须配置 ports 暴露服务</li>
+<li>反向代理必须配置 volumes 挂载配置文件通用思路:</li>
+<li>services:顶级关键字,作用是：定义一组需要协同运行的容器化服务（即应用组件）。编写对应的容器服务名,如redis,mysql等指定该服务使用的镜像image或者build(要自己编写dockerfile)image需要去官网查询对应的版本,然后使用image: 对应镜像名字buildcontext:来指定上下文位置,这样子Docker 在构建镜像时，会把整个 context 目录的内容（包括子目录）打包发送给 Docker 引擎（daemon）;这个上下文就是 Dockerfile 中所有 COPY、ADD 指令的“文件来源范围”dockerfile:则是指定使用Dockerfile的名字container_name:来指定容器名字,方便后续联通port:指定端口映射command:如果要自定义镜像启动命令,就要该命令,使用具体参数官网查找下面配置数据卷volumes:,查找官网找到对应的参数,实现映射之后,在主机对应的映射位置放入文件,可以实现数据库初始化,nginx静态资源替换,nginx配置,mysql数据持久化等等network:指定加入网络实现容器互通depends_on:告知构建顺序,避免构建错误,比如后端必须依赖mysql和redis构建</li>
+<li>network:定义你这个项目共用的网络</li>
+</ul>
+<p>代码示例</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br><span class="line">117</span><br><span class="line">118</span><br><span class="line">119</span><br><span class="line">120</span><br><span class="line">121</span><br><span class="line">122</span><br><span class="line">123</span><br><span class="line">124</span><br><span class="line">125</span><br><span class="line">126</span><br><span class="line">127</span><br><span class="line">128</span><br><span class="line">129</span><br><span class="line">130</span><br><span class="line">131</span><br><span class="line">132</span><br><span class="line">133</span><br><span class="line">134</span><br><span class="line">135</span><br><span class="line">136</span><br><span class="line">137</span><br><span class="line">138</span><br><span class="line">139</span><br><span class="line">140</span><br><span class="line">141</span><br><span class="line">142</span><br><span class="line">143</span><br><span class="line">144</span><br><span class="line">145</span><br><span class="line">146</span><br><span class="line">147</span><br><span class="line">148</span><br><span class="line">149</span><br><span class="line">150</span><br><span class="line">151</span><br><span class="line">152</span><br><span class="line">153</span><br><span class="line">154</span><br><span class="line">155</span><br><span class="line">156</span><br><span class="line">157</span><br><span class="line">158</span><br><span class="line">159</span><br><span class="line">160</span><br><span class="line">161</span><br><span class="line">162</span><br><span class="line">163</span><br><span class="line">164</span><br></pre></td><td class="code"><pre><span class="line">services:</span><br><span class="line"></span><br><span class="line">- Redis 服务配置</span><br><span class="line">  redis:</span><br><span class="line">  </span><br><span class="line">    - 使用官方 Redis 7 版本镜像作为容器基础</span><br><span class="line">    image: redis:7</span><br><span class="line">    </span><br><span class="line">	- 指定启动后的容器名称为 &quot;redis&quot;</span><br><span class="line">    container_name: redis</span><br><span class="line">    </span><br><span class="line">	- 开始端口映射配置块</span><br><span class="line">    ports:</span><br><span class="line">    </span><br><span class="line">	- 将主机的 6379 端口映射到容器的 6379 端口</span><br><span class="line">      - &quot;6379:6379&quot;</span><br><span class="line">        </span><br><span class="line">    - 作用：覆盖镜像默认启动命令，设置 Redis 访问密码</span><br><span class="line">		参数说明：</span><br><span class="line">		redis-server：Redis 启动命令</span><br><span class="line">		--requirepass：设置密码参数</span><br><span class="line">		123456 ：实际密码值</span><br><span class="line">    command: [&quot;redis-server&quot;,&quot;--requirepass&quot;,&quot;123456&quot;]</span><br><span class="line">    </span><br><span class="line">	- 开始数据卷挂载配置块</span><br><span class="line">    volumes:</span><br><span class="line">    </span><br><span class="line">	  - 将主机目录 /usr/local/sky/redis/data 挂载到容器的 /data 目录</span><br><span class="line">      - &quot;/usr/local/sky/redis/data:/data&quot;</span><br><span class="line">	- 开始网络配置块</span><br><span class="line">    networks:</span><br><span class="line">	  - 将 Redis 服务加入名为 &quot;sky-net&quot; 的自定义网络</span><br><span class="line">      - sky-net</span><br><span class="line"></span><br><span class="line">  - 定义名为 &quot;mysql&quot; 的服务块开始</span><br><span class="line">  mysql:</span><br><span class="line">  </span><br><span class="line">    - 使用官方 MySQL 8 版本镜像</span><br><span class="line">    image: mysql:8</span><br><span class="line">	</span><br><span class="line">	- 指定容器名称为 &quot;mysql&quot;</span><br><span class="line">    container_name: my</span><br><span class="line">	- 开始端口映射配置</span><br><span class="line">    ports:</span><br><span class="line">	  </span><br><span class="line">	  - 映射 MySQL 默认端口 3306，外部可通过 localhost:3306 连接数据库</span><br><span class="line">      - &quot;3306:3306&quot;</span><br><span class="line"></span><br><span class="line">    - 开始环境变量配置块</span><br><span class="line">    environment:</span><br><span class="line">	  </span><br><span class="line">	  - 设置容器时区为上海时区，避免时间显示问题</span><br><span class="line">      TZ: Asia/Shanghai</span><br><span class="line">	  </span><br><span class="line">	  - 作用：设置 MySQL root 用户密码为 &quot;123456&quot;</span><br><span class="line">	  - 重要性：这是 MySQL 镜像必需的环境变量，否则容器无法启动</span><br><span class="line">      MYSQL_ROOT_PASSWORD: 123456</span><br><span class="line">      </span><br><span class="line">	- 开始数据卷挂载配置（三个挂载点,必须挂载）</span><br><span class="line">    volumes:</span><br><span class="line">    </span><br><span class="line">	  - 作用：挂载自定义 MySQL 配置目录</span><br><span class="line">	  - 用途：可在主机的 conf 目录放置 .cnf 文件来自定义 MySQL 配置</span><br><span class="line">      - &quot;/usr/local/sky/mysql/conf:/etc/mysql/conf.d&quot;</span><br><span class="line">	  </span><br><span class="line">	  - 作用：挂载 MySQL 数据存储目录</span><br><span class="line">	  - 重要性：MySQL 实际数据存储在此目录，挂载后实现数据持久化</span><br><span class="line">      - &quot;/usr/local/sky/mysql/data:/var/lib/mysql&quot;</span><br><span class="line">	  </span><br><span class="line">	  - 作用：挂载数据库初始化脚本目录</span><br><span class="line">	  - 功能：容器首次启动时，自动执行此目录下的 .sql 或 .sh 脚本，用于创建数据库、表结构等</span><br><span class="line">      - &quot;/usr/local/sky/mysql/init:/docker-entrypoint-initdb.d&quot;</span><br><span class="line">	</span><br><span class="line">	- 网络配置</span><br><span class="line">    networks:</span><br><span class="line">	  </span><br><span class="line">	  - 加入 &quot;sky-net&quot; 自定义网络</span><br><span class="line">      - sky-net</span><br><span class="line"></span><br><span class="line">  - 定义名为 &quot;sky&quot; 的自定义应用服务块开始</span><br><span class="line">  sky:</span><br><span class="line">	- 作用：开始镜像构建配置块</span><br><span class="line">    build:</span><br><span class="line">    </span><br><span class="line">	  - 作用：指定构建上下文为当前目录（. 表示当前目录）</span><br><span class="line">	  - 说明：Docker 构建时会将此目录下的文件发送到 Docker daemon</span><br><span class="line">      context: .</span><br><span class="line">	  </span><br><span class="line">	  - 作用：指定使用的 Dockerfile 文件名</span><br><span class="line">	  - 说明：从当前目录的 Dockerfile 构建自定义镜像</span><br><span class="line">      dockerfile: Dockerfile</span><br><span class="line">	</span><br><span class="line">	- 作用：指定容器名称为 &quot;sky-server&quot;</span><br><span class="line">    container_name: sky-server</span><br><span class="line">	</span><br><span class="line">	- 作用：端口映射配置</span><br><span class="line">    ports:</span><br><span class="line">	  </span><br><span class="line">	  - 作用：映射应用端口，假设 Spring Boot 应用运行在 8080 端口</span><br><span class="line">      - &quot;8080:8080&quot;</span><br><span class="line">	</span><br><span class="line">	- 作用：网络配置</span><br><span class="line">    networks:</span><br><span class="line">	  </span><br><span class="line">	  - 作用：加入 &quot;sky-net&quot; 网络</span><br><span class="line">      - sky-net</span><br><span class="line">	</span><br><span class="line">	- 作用：开始依赖关系配置</span><br><span class="line">    depends_on:</span><br><span class="line">	  </span><br><span class="line">	  - 作用：声明依赖 MySQL 服务</span><br><span class="line">	  - 效果：确保 MySQL 容器先于 Sky 应用启动</span><br><span class="line">	  - 注意：仅控制启动顺序，不等待 MySQL 完全就绪</span><br><span class="line">      - my</span><br><span class="line">  - 作用：定义名为 &quot;nginx&quot; 的反向代理服务块开始</span><br><span class="line">  nginx:</span><br><span class="line">  </span><br><span class="line">	- 作用：使用指定版本的 Nginx 镜像（1.20.2 版本）</span><br><span class="line">    image: nginx:1.20.2</span><br><span class="line">	</span><br><span class="line">	- 作用：指定容器名称为 &quot;nginx-sky&quot;</span><br><span class="line">    container_name: nginx-sky</span><br><span class="line">  </span><br><span class="line">	- 作用：端口映射配置</span><br><span class="line">    ports:</span><br><span class="line">	  </span><br><span class="line">	  - 作用：映射 HTTP 默认端口 80，外部可通过 localhost:80 或直接域名访问</span><br><span class="line">      - &quot;80:80&quot;</span><br><span class="line">	</span><br><span class="line">	- 作用：数据卷挂载配置（两个挂载点）</span><br><span class="line">    volumes:</span><br><span class="line">	  </span><br><span class="line">	  - 作用：挂载自定义 Nginx 配置文件</span><br><span class="line">	  - 说明：完全替换容器内的默认 nginx.conf 配置</span><br><span class="line">      - &quot;/usr/local/sky/nginx/conf/nginx.conf:/etc/nginx/nginx.conf&quot;</span><br><span class="line">	  - 作用：挂载静态文件目录</span><br><span class="line">	  - 说明：Nginx 默认从此目录提供静态网页文件</span><br><span class="line">      - &quot;/usr/local/sky/nginx/html/sky:/usr/share/nginx/html&quot;</span><br><span class="line">	</span><br><span class="line">	- 作用：依赖关系配置</span><br><span class="line">    depends_on:</span><br><span class="line">	  </span><br><span class="line">	  - 作用：声明依赖 Sky 应用服务</span><br><span class="line">	  - 效果：确保 Sky 应用先启动，再启动 Nginx</span><br><span class="line">      - sky</span><br><span class="line">  </span><br><span class="line">    - 作用：网络配置</span><br><span class="line">    networks:</span><br><span class="line">	  </span><br><span class="line">	  - 作用：加入 &quot;sky-net&quot; 网络</span><br><span class="line">      - sky-net</span><br><span class="line"></span><br><span class="line">- 作用：开始网络定义块</span><br><span class="line">networks:</span><br><span class="line"></span><br><span class="line">  - 作用：定义名为 &quot;sky-net&quot; 的网络配置</span><br><span class="line">  sky-net:</span><br><span class="line">  </span><br><span class="line">    - 作用：指定实际创建的 Docker 网络名称为 &quot;Li-sky&quot;</span><br><span class="line">	  优势：</span><br><span class="line">		服务间可通过服务名直接通信（如 Sky 应用连接 mysql:3306）</span><br><span class="line">		与默认 bridge 网络隔离，提高安全性</span><br><span class="line">		支持自动 DNS 解析</span><br><span class="line">    name: Li-sky</span><br></pre></td></tr></table></figure>
+
+<hr>
+<blockquote>
+<p>版权声明：本文为CSDN博主「青山木」的原创文章，遵循CC 4.0 BY-SA版权协议，转载请附上原文出处链接及本声明。<br>原文链接：<a target="_blank" rel="noopener" href="https://blog.csdn.net/LI_124301012/article/details/159738414">https://blog.csdn.net/LI_124301012/article/details/159738414</a></p>
+</blockquote>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://LI-S-H.github.io">青山木</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://li-s-h.github.io/2026/04/02/%E4%BB%8E%E9%9B%B6%E9%83%A8%E7%BD%B2%E8%8B%8D%E7%A9%B9%E5%A4%96%E5%8D%96%EF%BC%9ADocker%20Compose%E5%89%8D%E5%90%8E%E7%AB%AF%E5%AE%8C%E6%95%B4%E6%8C%87%E5%8D%97%EF%BC%88%E5%90%ABDockerfile%E8%AF%A6%E8%A7%A3%EF%BC%89/">https://li-s-h.github.io/2026/04/02/%E4%BB%8E%E9%9B%B6%E9%83%A8%E7%BD%B2%E8%8B%8D%E7%A9%B9%E5%A4%96%E5%8D%96%EF%BC%9ADocker%20Compose%E5%89%8D%E5%90%8E%E7%AB%AF%E5%AE%8C%E6%95%B4%E6%8C%87%E5%8D%97%EF%BC%88%E5%90%ABDockerfile%E8%AF%A6%E8%A7%A3%EF%BC%89/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://LI-S-H.github.io" target="_blank">青山木</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/Docker/">Docker</a><a class="post-meta__tags" href="/tags/Docker-Compose/">Docker Compose</a><a class="post-meta__tags" href="/tags/%E9%83%A8%E7%BD%B2/">部署</a><a class="post-meta__tags" href="/tags/%E8%8B%8D%E7%A9%B9%E5%A4%96%E5%8D%96/">苍穹外卖</a><a class="post-meta__tags" href="/tags/%E5%90%8E%E7%AB%AF/">后端</a></div><div class="post-share"><div class="social-share" data-image="/img/title-picture/docker.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/2026/04/04/MyBatis%E6%95%B4%E5%90%88Spring%E5%85%A8%E6%B5%81%E7%A8%8B%E8%A7%A3%E6%9E%90/" title="MyBatis整合Spring全流程解析"><img class="cover" src="/img/title-picture/mybatis.png" onerror="onerror=null;src='/img/404.jpg'" alt="cover of previous post"><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">MyBatis整合Spring全流程解析</div></div><div class="info-2"><div class="info-item-1">原生 MyBatis 的执行流程在未整合 Spring 时，MyBatis 的使用需要手动管理所有资源：  创建 SqlSessionFactory（工厂）首先需要加载 MyBatis 配置文件，通过 SqlSessionFactoryBuilder 构建一个 SqlSessionFactory 对象。这个工厂是单例的，负责创建后续的 SqlSession，整个应用生命周期内只需要初始化一次...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/2026/04/04/MyBatis%E6%95%B4%E5%90%88Spring%E5%85%A8%E6%B5%81%E7%A8%8B%E8%A7%A3%E6%9E%90/" title="MyBatis整合Spring全流程解析"><img class="cover" src="/img/title-picture/mybatis.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-04-04</div><div class="info-item-2">MyBatis整合Spring全流程解析</div></div><div class="info-2"><div class="info-item-1">原生 MyBatis 的执行流程在未整合 Spring 时，MyBatis 的使用需要手动管理所有资源：  创建 SqlSessionFactory（工厂）首先需要加载 MyBatis 配置文件，通过 SqlSessionFactoryBuilder 构建一个 SqlSessionFactory 对象。这个工厂是单例的，负责创建后续的 SqlSession，整个应用生命周期内只需要初始化一次...</div></div></div></a><a class="pagination-related" href="/2026/04/26/Redis%E6%A0%B8%E5%BF%83%E5%AE%9E%E6%88%98%EF%BC%9A%E4%BB%8E%E7%BC%93%E5%AD%98%E8%AE%BE%E8%AE%A1%E5%88%B0%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81%E7%9A%84%E6%B7%B1%E5%BA%A6%E8%A7%A3%E6%9E%90/" title="Redis核心实战：从缓存设计到分布式锁的深度解析"><img class="cover" src="/img/title-picture/redis.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-04-26</div><div class="info-item-2">Redis核心实战：从缓存设计到分布式锁的深度解析</div></div><div class="info-2"><div class="info-item-1">文章概要本文将从实际场景入手,系统讲解Redis的核心知识：第一部分介绍Redis的核心应用场景，包括无使用Redis在实际场景中出现的问题以及使用后的优势；第二部分介绍缓存设计基础，包括为什么使用缓存、什么数据适合缓存、Key设计规范；第三部分深入分析缓存带来的问题及解决方案，包括数据不一致、缓存击穿&#x2F;穿透&#x2F;雪崩；第四部分实战讲解秒杀和一人一单等业务场景下的分布式锁应用...</div></div></div></a><a class="pagination-related" href="/2026/04/11/Maven%E5%A4%9A%E6%A8%A1%E5%9D%97%E9%A1%B9%E7%9B%AE%E7%AE%A1%E7%90%86-%E5%9F%BA%E4%BA%8ESpringBoot%E5%8D%95%E4%BD%93%E9%A1%B9%E7%9B%AE%E7%9A%84%E7%BB%A7%E6%89%BF%E4%B8%8E%E8%81%9A%E5%90%88%E5%AE%9E%E6%88%98%E6%8C%87%E5%8D%97/" title="Maven多模块项目管理：基于SpringBoot单体项目的继承与聚合实战指南"><img class="cover" src="/img/title-picture/maven.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-04-11</div><div class="info-item-2">Maven多模块项目管理：基于SpringBoot单体项目的继承与聚合实战指南</div></div><div class="info-2"><div class="info-item-1">文章结构概览本文将从三个核心部分系统讲解Maven在SpringBoot单体项目中的多模块管理，需要有一点maven的基础，各位可以选择自己想看的部分进行观看 第一部分：Maven继承与聚合机制基础  深入理解Maven继承机制及其配置要素 掌握Maven聚合机制的工作原理 解析父POM为什么必须设置packaging为pom  第二部分：SpringBoot起步依赖的版本控制策略  理解S...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/%E5%A4%B4%E5%83%8F.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">青山木</div><div class="author-info-description">正在学习Java后端开发＋Python智能体开发，希望能与大家多多交流</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">4</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">12</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">1</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/LI-S-H"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/LI-S-H" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">欢迎来到我的博客，记录学习与成长的点滴。</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%80%E3%80%81%E4%BA%91%E6%9C%8D%E5%8A%A1%E5%99%A8%E8%B4%AD%E4%B9%B0"><span class="toc-number">1.</span> <span class="toc-text">一、云服务器购买</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1-%E4%BA%91%E6%9C%8D%E5%8A%A1%E5%99%A8%E5%8E%82%E5%AE%B6%E9%80%89%E6%8B%A9"><span class="toc-number">1.1.</span> <span class="toc-text">1. 云服务器厂家选择</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-%E4%BA%91%E6%9C%8D%E5%8A%A1%E5%99%A8%E9%85%8D%E7%BD%AE"><span class="toc-number">1.2.</span> <span class="toc-text">2.云服务器配置</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-Docker%E5%92%8CDockercompose%E5%AE%89%E8%A3%85"><span class="toc-number">1.3.</span> <span class="toc-text">3.Docker和Dockercompose安装</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#1-%E8%BF%9C%E7%A8%8B%E5%B7%A5%E5%85%B7%E9%80%89%E6%8B%A9"><span class="toc-number">1.3.1.</span> <span class="toc-text">1.远程工具选择</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#2-%E8%BF%9C%E7%A8%8B%E5%B7%A5%E5%85%B7%E9%85%8D%E7%BD%AE"><span class="toc-number">1.3.2.</span> <span class="toc-text">2. 远程工具配置</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#3-Docker%E5%92%8CDockercompose%E5%AE%89%E8%A3%85-1"><span class="toc-number">1.3.3.</span> <span class="toc-text">3. Docker和Dockercompose安装</span></a></li></ol></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%8C%E3%80%81%E5%9F%BA%E7%A1%80%E5%87%86%E5%A4%87"><span class="toc-number">2.</span> <span class="toc-text">二、基础准备</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1-%E6%9C%8D%E5%8A%A1%E5%99%A8%E5%87%86%E5%A4%87-%E5%89%8D%E7%AB%AF%E9%87%87%E7%94%A8nginx%E5%8F%8D%E5%90%91%E4%BB%A3%E7%90%86"><span class="toc-number">2.1.</span> <span class="toc-text">1. 服务器准备(前端采用nginx反向代理)</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-%E5%89%8D%E7%AB%AF%E5%87%86%E5%A4%87"><span class="toc-number">2.2.</span> <span class="toc-text">2. 前端准备</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-%E5%90%8E%E7%AB%AF%E5%87%86%E5%A4%87"><span class="toc-number">2.3.</span> <span class="toc-text">3. 后端准备</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-%E6%95%B0%E6%8D%AE%E5%BA%93%E5%87%86%E5%A4%87"><span class="toc-number">2.4.</span> <span class="toc-text">4. 数据库准备</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%89%E3%80%81Dockerfile%E4%BB%A5%E5%8F%8Adockercompose-yml%E6%96%87%E4%BB%B6%E7%BC%96%E5%86%99"><span class="toc-number">3.</span> <span class="toc-text">三、Dockerfile以及dockercompose.yml文件编写</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1-Dockerfile%E7%BC%96%E5%86%99"><span class="toc-number">3.1.</span> <span class="toc-text">1. Dockerfile编写</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-docker-compose-yml%E7%BC%96%E5%86%99"><span class="toc-number">3.2.</span> <span class="toc-text">2. docker-compose.yml编写</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/2026/04/26/Redis%E6%A0%B8%E5%BF%83%E5%AE%9E%E6%88%98%EF%BC%9A%E4%BB%8E%E7%BC%93%E5%AD%98%E8%AE%BE%E8%AE%A1%E5%88%B0%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81%E7%9A%84%E6%B7%B1%E5%BA%A6%E8%A7%A3%E6%9E%90/" title="Redis核心实战：从缓存设计到分布式锁的深度解析"><img src="/img/title-picture/redis.png" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Redis核心实战：从缓存设计到分布式锁的深度解析"/></a><div class="content"><a class="title" href="/2026/04/26/Redis%E6%A0%B8%E5%BF%83%E5%AE%9E%E6%88%98%EF%BC%9A%E4%BB%8E%E7%BC%93%E5%AD%98%E8%AE%BE%E8%AE%A1%E5%88%B0%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81%E7%9A%84%E6%B7%B1%E5%BA%A6%E8%A7%A3%E6%9E%90/" title="Redis核心实战：从缓存设计到分布式锁的深度解析">Redis核心实战：从缓存设计到分布式锁的深度解析</a><time datetime="2026-04-26T02:00:00.000Z" title="发表于 2026-04-26 10:00:00">2026-04-26</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/04/11/Maven%E5%A4%9A%E6%A8%A1%E5%9D%97%E9%A1%B9%E7%9B%AE%E7%AE%A1%E7%90%86-%E5%9F%BA%E4%BA%8ESpringBoot%E5%8D%95%E4%BD%93%E9%A1%B9%E7%9B%AE%E7%9A%84%E7%BB%A7%E6%89%BF%E4%B8%8E%E8%81%9A%E5%90%88%E5%AE%9E%E6%88%98%E6%8C%87%E5%8D%97/" title="Maven多模块项目管理：基于SpringBoot单体项目的继承与聚合实战指南"><img src="/img/title-picture/maven.png" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Maven多模块项目管理：基于SpringBoot单体项目的继承与聚合实战指南"/></a><div class="content"><a class="title" href="/2026/04/11/Maven%E5%A4%9A%E6%A8%A1%E5%9D%97%E9%A1%B9%E7%9B%AE%E7%AE%A1%E7%90%86-%E5%9F%BA%E4%BA%8ESpringBoot%E5%8D%95%E4%BD%93%E9%A1%B9%E7%9B%AE%E7%9A%84%E7%BB%A7%E6%89%BF%E4%B8%8E%E8%81%9A%E5%90%88%E5%AE%9E%E6%88%98%E6%8C%87%E5%8D%97/" title="Maven多模块项目管理：基于SpringBoot单体项目的继承与聚合实战指南">Maven多模块项目管理：基于SpringBoot单体项目的继承与聚合实战指南</a><time datetime="2026-04-11T04:45:19.000Z" title="发表于 2026-04-11 12:45:19">2026-04-11</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/04/04/MyBatis%E6%95%B4%E5%90%88Spring%E5%85%A8%E6%B5%81%E7%A8%8B%E8%A7%A3%E6%9E%90/" title="MyBatis整合Spring全流程解析"><img src="/img/title-picture/mybatis.png" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="MyBatis整合Spring全流程解析"/></a><div class="content"><a class="title" href="/2026/04/04/MyBatis%E6%95%B4%E5%90%88Spring%E5%85%A8%E6%B5%81%E7%A8%8B%E8%A7%A3%E6%9E%90/" title="MyBatis整合Spring全流程解析">MyBatis整合Spring全流程解析</a><time datetime="2026-04-04T07:27:18.000Z" title="发表于 2026-04-04 15:27:18">2026-04-04</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/04/02/%E4%BB%8E%E9%9B%B6%E9%83%A8%E7%BD%B2%E8%8B%8D%E7%A9%B9%E5%A4%96%E5%8D%96%EF%BC%9ADocker%20Compose%E5%89%8D%E5%90%8E%E7%AB%AF%E5%AE%8C%E6%95%B4%E6%8C%87%E5%8D%97%EF%BC%88%E5%90%ABDockerfile%E8%AF%A6%E8%A7%A3%EF%BC%89/" title="从零部署苍穹外卖：Docker Compose前后端完整指南（含Dockerfile详解）"><img src="/img/title-picture/docker.png" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="从零部署苍穹外卖：Docker Compose前后端完整指南（含Dockerfile详解）"/></a><div class="content"><a class="title" href="/2026/04/02/%E4%BB%8E%E9%9B%B6%E9%83%A8%E7%BD%B2%E8%8B%8D%E7%A9%B9%E5%A4%96%E5%8D%96%EF%BC%9ADocker%20Compose%E5%89%8D%E5%90%8E%E7%AB%AF%E5%AE%8C%E6%95%B4%E6%8C%87%E5%8D%97%EF%BC%88%E5%90%ABDockerfile%E8%AF%A6%E8%A7%A3%EF%BC%89/" title="从零部署苍穹外卖：Docker Compose前后端完整指南（含Dockerfile详解）">从零部署苍穹外卖：Docker Compose前后端完整指南（含Dockerfile详解）</a><time datetime="2026-04-01T18:12:01.000Z" title="发表于 2026-04-02 02:12:01">2026-04-02</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By 青山木</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.5.4"></script><script src="/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script id="canvas_nest" defer="defer" color="107,159,255" opacity="0.6" zIndex="-1" count="99" mobile="false" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/dist/canvas-nest.min.js"></script></div></body></html>
