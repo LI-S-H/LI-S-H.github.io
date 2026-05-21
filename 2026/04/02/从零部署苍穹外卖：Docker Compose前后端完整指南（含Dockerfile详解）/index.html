@@ -212,9 +212,26 @@
   a:hover { color: #8bbfff !important; }
   /* 表格 */
   table, th, td { color: rgba(255,255,255,0.88) !important; }
-  /* 首页卡片保持独立 */
-  .recent-post-item {
-    background: rgba(18,18,18,0.85) !important;
+  /* 首页卡片——强制深色背景 + 浅色文字 */
+  #recent-posts .recent-post-item,
+  #recent-posts .recent-post-item .recent-post-info,
+  #recent-posts .recent-post-item .article-title a,
+  #recent-posts .recent-post-item a.article-title {
+    background: #0d1117 !important;
+    color: rgba(255,255,255,0.92) !important;
+  }
+  #recent-posts .recent-post-item .article-meta-wrap,
+  #recent-posts .recent-post-item .article-meta-wrap *,
+  #recent-posts .recent-post-item .article-meta,
+  #recent-posts .recent-post-item time,
+  #recent-posts .recent-post-item .post-meta-date {
+    color: rgba(255,255,255,0.65) !important;
+  }
+  #recent-posts .recent-post-item .content {
+    color: rgba(255,255,255,0.78) !important;
+  }
+  #recent-posts .recent-post-item:hover {
+    background: #121a24 !important;
   }
 
   /* ===== 首页卡片 ===== */
