@@ -170,21 +170,44 @@
     font-size: 1.1em !important;
   }
 
-  /* 提亮全局字体颜色 */
-  body { color: rgba(255,255,255,0.92); }
-  #body-wrap { color: rgba(255,255,255,0.92); }
-  #article-container,
-  .post-content,
-  article { color: rgba(255,255,255,0.95); }
-  /* 标题更白更显眼 */
+  /* 强制提亮所有文字——防止暗色主题覆盖 */
+  html, body, #body-wrap, #web_bg, #page, .page,
+  #content-inner, #post, #article-container, .post-content,
+  .layout, main, article, #article-container *,
+  .markdown-body, .article-content {
+    color: rgba(255,255,255,0.92) !important;
+  }
+  /* 文章标题纯白 */
   #article-container h1,
   #article-container h2,
-  #article-container h3 { color: #ffffff; }
+  #article-container h3,
+  #article-container h4,
+  #article-container h5,
+  #article-container h6,
+  .post-title, .article-title {
+    color: #ffffff !important;
+  }
+  /* 文章内容区域背景强制透明 */
+  #article-container, .post-content, #post, article,
+  .layout, #content-inner, main {
+    background: transparent !important;
+  }
   /* 侧边栏文字 */
-  #aside-content .card-widget { color: rgba(255,255,255,0.88); }
-  /* meta 信息微提亮 */
-  .post-meta,
-  .article-meta { color: rgba(255,255,255,0.65); }
+  #aside-content .card-widget { color: rgba(255,255,255,0.88) !important; }
+  /* meta 信息 */
+  .post-meta, .article-meta, .post-meta-date, time,
+  .article-meta-wrap *, .post-meta-wrap * {
+    color: rgba(255,255,255,0.65) !important;
+  }
+  /* 代码块内保持原样，不覆盖 */
+  pre, code, .highlight, .hljs, .hljs * {
+    color: revert !important;
+  }
+  /* 链接保持蓝色 */
+  a { color: #6b9fff !important; }
+  a:hover { color: #8bbfff !important; }
+  /* 表格文字 */
+  table, th, td { color: rgba(255,255,255,0.88) !important; }
 
   /* ===== 首页卡片 ===== */
   .recent-post-item {
