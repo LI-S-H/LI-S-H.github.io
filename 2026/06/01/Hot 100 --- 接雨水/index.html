@@ -1,0 +1,518 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="dark"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>Hot 100 --- 接雨水 | 青山木</title><meta name="author" content="青山木"><meta name="copyright" content="青山木"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#0d1117"><meta name="description" content="本文以LeetCode经典题目&quot;接雨水&quot;为例，从暴力解法入手，逐步优化到动态规划（左右数组）解法，再进一步优化空间复杂度到O(1)的双指针解法，系统讲解如何利用&quot;木桶效应&quot;计算每个位置的接水量">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Hot 100 --- 接雨水">
+<meta property="og:url" content="https://li-s-h.github.io/2026/06/01/Hot%20100%20---%20%E6%8E%A5%E9%9B%A8%E6%B0%B4/index.html">
+<meta property="og:site_name" content="青山木">
+<meta property="og:description" content="本文以LeetCode经典题目&quot;接雨水&quot;为例，从暴力解法入手，逐步优化到动态规划（左右数组）解法，再进一步优化空间复杂度到O(1)的双指针解法，系统讲解如何利用&quot;木桶效应&quot;计算每个位置的接水量">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://li-s-h.github.io/img/title-picture/%E5%8A%9B%E6%89%A3.jpg">
+<meta property="article:published_time" content="2026-06-01T04:00:00.000Z">
+<meta property="article:modified_time" content="2026-06-01T09:49:34.783Z">
+<meta property="article:author" content="青山木">
+<meta property="article:tag" content="双指针">
+<meta property="article:tag" content="算法">
+<meta property="article:tag" content="leetcode">
+<meta property="article:tag" content="动态规划">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://li-s-h.github.io/img/title-picture/%E5%8A%9B%E6%89%A3.jpg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Hot 100 --- 接雨水",
+  "url": "https://li-s-h.github.io/2026/06/01/Hot%20100%20---%20%E6%8E%A5%E9%9B%A8%E6%B0%B4/",
+  "image": "https://li-s-h.github.io/img/title-picture/%E5%8A%9B%E6%89%A3.jpg",
+  "datePublished": "2026-06-01T04:00:00.000Z",
+  "dateModified": "2026-06-01T09:49:34.783Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "青山木",
+      "url": "https://LI-S-H.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/%E5%A4%B4%E5%83%8F.jpg"><link rel="canonical" href="https://li-s-h.github.io/2026/06/01/Hot%20100%20---%20%E6%8E%A5%E9%9B%A8%E6%B0%B4/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="stylesheet" href="/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d1117')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', 'ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: 'Hot 100 --- 接雨水',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><style>
+  #site-title { font-size: 1.76em !important; }
+  #subtitle { font-size: 0.88em !important; }
+
+  /* 卡片悬停放大 + 辉光 */
+  #recent-posts .recent-post-item {
+    transition: transform .3s ease, box-shadow .3s ease, border-color .3s ease;
+  }
+  #recent-posts .recent-post-item:hover {
+    transform: scale(1.025) !important;
+    border-color: rgba(107,159,255,0.5) !important;
+    box-shadow: 0 0 0 1px rgba(107,159,255,0.15),
+                0 0 45px rgba(107,159,255,0.12),
+                0 8px 30px rgba(0,0,0,0.4) !important;
+  }
+
+  /* 首页标题上方头像 */
+  #site-info .avatar-img {
+    display: block;
+    width: 144px;
+    height: 144px;
+    border-radius: 50%;
+    margin: 0 auto 20px;
+    border: 3px solid rgba(107,159,255,0.6);
+    box-shadow: 0 0 30px rgba(107,159,255,0.35),
+                0 0 60px rgba(107,159,255,0.15),
+                0 4px 20px rgba(0,0,0,0.25);
+    object-fit: cover;
+    transition: box-shadow .4s ease, border-color .4s ease;
+  }
+  #site-info .avatar-img:hover {
+    border-color: rgba(107,159,255,0.9);
+    box-shadow: 0 0 40px rgba(107,159,255,0.5),
+                0 0 80px rgba(107,159,255,0.25),
+                0 4px 20px rgba(0,0,0,0.25);
+  }
+</style>
+<meta name="generator" content="Hexo 7.3.0"></head><body><div class="bg-animation" id="web_bg" style="background-image: url(/img/%E8%83%8C%E6%99%AF%E5%9B%BE.webp);"></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(/img/title-picture/%E5%8A%9B%E6%89%A3.jpg);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">青山木</span></a><a class="nav-page-title" href="/"><span class="site-name">Hot 100 --- 接雨水</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">Hot 100 --- 接雨水</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-06-01T04:00:00.000Z" title="发表于 2026-06-01 12:00:00">2026-06-01</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-06-01T09:49:34.783Z" title="更新于 2026-06-01 17:49:34">2026-06-01</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/LeetCode-%E7%83%AD%E9%A2%98-HOT-100/">LeetCode 热题 HOT 100</a></span></div><div class="meta-secondline"></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><blockquote>
+<p><strong>本文概览</strong>：本文以LeetCode经典题目”接雨水”为例，从暴力解法入手，逐步优化到动态规划（左右数组）解法，再进一步优化空间复杂度到 O(1) 的双指针解法，系统讲解如何利用”木桶效应”计算每个位置的接水量</p>
+</blockquote>
+<hr>
+<h3 id="一、题目"><a href="#一、题目" class="headerlink" title="一、题目"></a>一、题目</h3><p><img src="/img/hot%20100%20%E6%8E%A5%E9%9B%A8%E6%B0%B4/%E6%8E%A5%E9%9B%A8%E6%B0%B4%E9%A2%98%E7%9B%AE.png" alt="接雨水题目"></p>
+<h3 id="二、题目分析"><a href="#二、题目分析" class="headerlink" title="二、题目分析"></a>二、题目分析</h3><p>给定一个非负整数数组 <code>height</code>，其中 <code>height[i]</code> 表示第 <code>i</code> 根柱子的高度。柱子之间可以接住雨水，求整个数组能接住多少雨水</p>
+<p>目标：计算<strong>所有位置能接住的雨水总量</strong></p>
+<p><strong>核心原理：木桶效应</strong></p>
+<p>对于位置 <code>i</code>，它能接住的雨水量取决于它<strong>左右两边最高柱子中较矮的那个</strong>（即木桶的短板），再减去当前位置柱子本身的高度。即：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">位置 i 的接水量 = min(左边最高柱子, 右边最高柱子) - height[i]</span><br></pre></td></tr></table></figure>
+
+<p>如果这个值 ≤ 0，说明当前位置无法接水（柱子本身比两边的”挡板”还高）</p>
+<h3 id="思路概览"><a href="#思路概览" class="headerlink" title="思路概览"></a>思路概览</h3><p>Java实现代码如下</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="type">int</span> <span class="title function_">trap</span><span class="params">(<span class="type">int</span>[] height)</span> &#123;</span><br><span class="line">    <span class="comment">//如果只有两个格子，则无法存水  </span></span><br><span class="line">	<span class="keyword">if</span> (height.length &lt; <span class="number">3</span> ) &#123;  </span><br><span class="line">	    <span class="keyword">return</span> <span class="number">0</span>;  </span><br><span class="line">	&#125;  </span><br><span class="line">	<span class="comment">//左右指针  </span></span><br><span class="line">	<span class="type">int</span> <span class="variable">left</span> <span class="operator">=</span> <span class="number">0</span> , right = height.length - <span class="number">1</span>;  </span><br><span class="line">	<span class="comment">//左指针左边的最大值，右指针右边的最大值  </span></span><br><span class="line">	<span class="type">int</span> <span class="variable">leftMax</span> <span class="operator">=</span> height[left], rightMax = height[right];  </span><br><span class="line">	<span class="comment">//最左和最有的格子无法存水  </span></span><br><span class="line">	left ++;  </span><br><span class="line">	right --;  </span><br><span class="line">	<span class="type">int</span> <span class="variable">res</span> <span class="operator">=</span> <span class="number">0</span>;  </span><br><span class="line">	<span class="comment">//向中间靠近  </span></span><br><span class="line">	<span class="keyword">while</span> (left &lt;= right) &#123;  </span><br><span class="line">	    leftMax = Math.max(leftMax, height[left]);  </span><br><span class="line">	    rightMax = Math.max(rightMax, height[right]);  </span><br><span class="line">	    <span class="keyword">if</span>(leftMax &lt; rightMax)&#123;  </span><br><span class="line">	        <span class="comment">//如果left指针此时的max&lt;=右指针的max  </span></span><br><span class="line">	        <span class="comment">//说明右边必然有大于leftMax高度的木板  </span></span><br><span class="line">	        <span class="comment">//left指针位置的水位由leftMax决定  </span></span><br><span class="line">	        res += leftMax - height[left];  </span><br><span class="line">	        left ++;  </span><br><span class="line">	    &#125; <span class="keyword">else</span> &#123;  </span><br><span class="line">	        <span class="comment">//此时rightMax&lt;=leftMax  </span></span><br><span class="line">	        <span class="comment">//说明左边必然有大于rightMax高度的木板  </span></span><br><span class="line">	        <span class="comment">//右指针位置的水位由rightMax决定  </span></span><br><span class="line">	        res += rightMax - height[right];  </span><br><span class="line">	        right --;  </span><br><span class="line">	    &#125;  </span><br><span class="line">	&#125;  </span><br><span class="line">	<span class="keyword">return</span> res;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>思路简要说明</strong></p>
+<ol>
+<li><p><strong>双指针从两端向中间收缩</strong>：<code>left</code> 从左往右，<code>right</code> 从右往左</p>
+</li>
+<li><p><strong>维护左右两侧的最大值</strong>：<code>leftMax</code> 记录左指针左侧的最高柱子，<code>rightMax</code> 记录右指针右侧的最高柱子</p>
+</li>
+<li><p><strong>比较左右最大值决定移动哪边</strong>：哪边的最大值更小，就先处理哪边。因为较小的一侧决定了该位置的水位上限，且另一侧必然有更高的柱子作为”挡板”</p>
+</li>
+</ol>
+<h3 id="三、思路详解"><a href="#三、思路详解" class="headerlink" title="三、思路详解"></a>三、思路详解</h3><h4 id="暴力解法入手"><a href="#暴力解法入手" class="headerlink" title="暴力解法入手"></a>暴力解法入手</h4><p>最自然的想法是：对于数组中的每个位置 <code>i</code>，向左扫描找到左边的最高柱子，向右扫描找到右边的最高柱子，然后取两者中的较小值作为水位上限，减去当前柱子高度就是该位置的接水量</p>
+<p>显然可以得出以下结论</p>
+<ul>
+<li><strong>时间复杂度</strong>：O(n²)，对每个位置都要向左右各扫描一遍</li>
+<li><strong>核心瓶颈</strong>：大量<strong>重复计算</strong>，每次计算某个位置的左右最大值时，都在重复扫描已经扫过的区域</li>
+<li><strong>关键思考</strong>：能否<strong>预先计算</strong>好每个位置的左右最大值，避免重复扫描？</li>
+</ul>
+<h4 id="动态规划解法（左右数组）"><a href="#动态规划解法（左右数组）" class="headerlink" title="动态规划解法（左右数组）"></a>动态规划解法（左右数组）</h4><p><strong>思路分析</strong></p>
+<p>暴力解法的问题在于每次都要重新扫描左右两侧来找最大值。如果我们能<strong>提前把每个位置的左右最大值都算好</strong>，那每个位置的接水量就可以 O(1) 得出</p>
+<p>具体做法是使用两个数组：</p>
+<ul>
+<li><code>maxLeft[i]</code>：位置 <code>i</code> 左侧（不含 <code>i</code>）的最高柱子高度</li>
+<li><code>maxRight[i]</code>：位置 <code>i</code> 右侧（不含 <code>i</code>）的最高柱子高度</li>
+</ul>
+<p>这两个数组可以通过<strong>递推</strong>来填充：</p>
+<ul>
+<li><code>maxLeft[i] = max(maxLeft[i-1], height[i-1])</code>，从左往右扫一遍</li>
+<li><code>maxRight[i] = max(maxRight[i+1], height[i+1])</code>，从右往左扫一遍</li>
+</ul>
+<p>有了这两个数组后，每个位置的接水量就是 <code>min(maxLeft[i], maxRight[i]) - height[i]</code></p>
+<p>Java实现代码如下</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="type">int</span> <span class="title function_">trap</span><span class="params">(<span class="type">int</span>[] height)</span> &#123;</span><br><span class="line">    <span class="type">int</span> <span class="variable">sum</span> <span class="operator">=</span> <span class="number">0</span>;</span><br><span class="line">    <span class="type">int</span>[] maxLeft = <span class="keyword">new</span> <span class="title class_">int</span>[height.length];</span><br><span class="line">    <span class="type">int</span>[] maxRight = <span class="keyword">new</span> <span class="title class_">int</span>[height.length];</span><br><span class="line"></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> <span class="variable">i</span> <span class="operator">=</span> <span class="number">1</span>; i &lt; height.length - <span class="number">1</span>; i++) &#123;</span><br><span class="line">        maxLeft[i] = Math.max(maxLeft[i - <span class="number">1</span>], height[i - <span class="number">1</span>]);</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> <span class="variable">i</span> <span class="operator">=</span> height.length - <span class="number">2</span>; i &gt;= <span class="number">0</span>; i--) &#123;</span><br><span class="line">        maxRight[i] = Math.max(maxRight[i + <span class="number">1</span>], height[i + <span class="number">1</span>]);</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> <span class="variable">i</span> <span class="operator">=</span> <span class="number">1</span>; i &lt; height.length - <span class="number">1</span>; i++) &#123;</span><br><span class="line">        <span class="type">int</span> <span class="variable">min</span> <span class="operator">=</span> Math.min(maxLeft[i], maxRight[i]);</span><br><span class="line">        <span class="keyword">if</span> (min &gt; height[i]) &#123;</span><br><span class="line">            sum = sum + (min - height[i]);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> sum;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>举例说明</strong></p>
+<p>以 <code>height = [0,1,0,2,1,0,1,3,2,1,2,1]</code> 为例</p>
+<p>先计算 <code>maxLeft</code>（从左往右递推）：</p>
+<table>
+<thead>
+<tr>
+<th>位置 i</th>
+<th>0</th>
+<th>1</th>
+<th>2</th>
+<th>3</th>
+<th>4</th>
+<th>5</th>
+<th>6</th>
+<th>7</th>
+<th>8</th>
+<th>9</th>
+<th>10</th>
+<th>11</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>height</td>
+<td>0</td>
+<td>1</td>
+<td>0</td>
+<td>2</td>
+<td>1</td>
+<td>0</td>
+<td>1</td>
+<td>3</td>
+<td>2</td>
+<td>1</td>
+<td>2</td>
+<td>1</td>
+</tr>
+<tr>
+<td>maxLeft</td>
+<td>0</td>
+<td>0</td>
+<td>1</td>
+<td>1</td>
+<td>2</td>
+<td>2</td>
+<td>2</td>
+<td>2</td>
+<td>3</td>
+<td>3</td>
+<td>3</td>
+<td>3</td>
+</tr>
+</tbody></table>
+<p>再计算 <code>maxRight</code>（从右往左递推）：</p>
+<table>
+<thead>
+<tr>
+<th>位置 i</th>
+<th>0</th>
+<th>1</th>
+<th>2</th>
+<th>3</th>
+<th>4</th>
+<th>5</th>
+<th>6</th>
+<th>7</th>
+<th>8</th>
+<th>9</th>
+<th>10</th>
+<th>11</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>maxRight</td>
+<td>3</td>
+<td>3</td>
+<td>3</td>
+<td>3</td>
+<td>3</td>
+<td>3</td>
+<td>3</td>
+<td>2</td>
+<td>2</td>
+<td>2</td>
+<td>1</td>
+<td>0</td>
+</tr>
+</tbody></table>
+<p>然后对每个位置计算 <code>min(maxLeft, maxRight) - height</code>：</p>
+<ul>
+<li>位置 1：<code>min(0, 3) - 1 = -1</code> → 0（无法接水）</li>
+<li>位置 2：<code>min(1, 3) - 0 = 1</code> → 接水 1</li>
+<li>位置 4：<code>min(2, 3) - 1 = 1</code> → 接水 1</li>
+<li>位置 5：<code>min(2, 3) - 0 = 2</code> → 接水 2</li>
+<li>位置 6：<code>min(2, 3) - 1 = 1</code> → 接水 1</li>
+<li>…</li>
+</ul>
+<p>总计接水量为 6</p>
+<ul>
+<li><strong>时间复杂度</strong>：O(n)，三次遍历</li>
+<li><strong>空间复杂度</strong>：O(n)，需要两个额外数组</li>
+</ul>
+<h4 id="双指针优化解法"><a href="#双指针优化解法" class="headerlink" title="双指针优化解法"></a>双指针优化解法</h4><p><strong>思路分析</strong></p>
+<p>动态规划解法虽然时间复杂度已经是最优的 O(n)，但空间复杂度为 O(n)。我们真的需要<strong>精确知道每个位置的左右最大值</strong>吗？</p>
+<p>仔细想想，其实不需要。我们只需要在遍历过程中<strong>动态地维护</strong>实时左右最大值，然后根据<strong>哪边的最大值更小</strong>来决定处理哪边</p>
+<p>关键观察：<strong>我们只需要知道左右最大值中较小的那个</strong></p>
+<p>对于位置 <code>i</code>，其接水量 &#x3D; <code>min(左侧最高, 右侧最高) - height[i]</code>。如果我们知道 <code>leftMax &lt; rightMax</code>，那么位置 <code>i</code> 的接水量就由 <code>leftMax</code> 决定，因为水位不会超过左右两侧中较矮的那个。此时我们甚至不需要知道右侧的确切最高值是多少，只需要知道<strong>右侧一定存在一个比 <code>leftMax</code> 更高的柱子</strong>就够了</p>
+<p><strong>为什么 <code>leftMax &lt; rightMax</code> 时，右指针右侧必然有高于 <code>leftMax</code> 的柱子？</strong></p>
+<p>因为 <code>rightMax</code> 本身就是右指针右侧的最高柱子高度，而 <code>rightMax &gt; leftMax</code>，所以右侧必然有柱子的高度 ≥ <code>rightMax &gt; leftMax</code>。这意味着左指针位置的”右挡板”一定够高，水位完全由左挡板（即 <code>leftMax</code>）决定</p>
+<p>同理，当 <code>rightMax ≤ leftMax</code> 时，左指针左侧必然有高于 <code>rightMax</code> 的柱子，右指针位置的水位由 <code>rightMax</code> 决定</p>
+<p><strong>具体做法</strong></p>
+<ol>
+<li>左右指针分别从两端出发，<code>leftMax</code> 和 <code>rightMax</code> 分别记录左右指针扫过区域的最大值</li>
+<li>每次比较 <code>leftMax</code> 和 <code>rightMax</code>：<ul>
+<li>若 <code>leftMax &lt; rightMax</code>：左指针位置的水位由 <code>leftMax</code> 决定，计算接水量后 <code>left++</code></li>
+<li>若 <code>leftMax &gt;= rightMax</code>：右指针位置的水位由 <code>rightMax</code> 决定，计算接水量后 <code>right--</code></li>
+</ul>
+</li>
+<li>两指针相遇时结束</li>
+</ol>
+<p>Java实现代码如下</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="type">int</span> <span class="title function_">trap</span><span class="params">(<span class="type">int</span>[] height)</span> &#123;</span><br><span class="line">    <span class="comment">//如果只有两个格子，则无法存水  </span></span><br><span class="line">	<span class="keyword">if</span> (height.length &lt; <span class="number">3</span> ) &#123;  </span><br><span class="line">	    <span class="keyword">return</span> <span class="number">0</span>;  </span><br><span class="line">	&#125;  </span><br><span class="line">	<span class="comment">//左右指针  </span></span><br><span class="line">	<span class="type">int</span> <span class="variable">left</span> <span class="operator">=</span> <span class="number">0</span> , right = height.length - <span class="number">1</span>;  </span><br><span class="line">	<span class="comment">//左指针左边的最大值，右指针右边的最大值  </span></span><br><span class="line">	<span class="type">int</span> <span class="variable">leftMax</span> <span class="operator">=</span> height[left], rightMax = height[right];  </span><br><span class="line">	<span class="comment">//最左和最有的格子无法存水  </span></span><br><span class="line">	left ++;  </span><br><span class="line">	right --;  </span><br><span class="line">	<span class="type">int</span> <span class="variable">res</span> <span class="operator">=</span> <span class="number">0</span>;  </span><br><span class="line">	<span class="comment">//向中间靠近  </span></span><br><span class="line">	<span class="keyword">while</span> (left &lt;= right) &#123;  </span><br><span class="line">	    leftMax = Math.max(leftMax, height[left]);  </span><br><span class="line">	    rightMax = Math.max(rightMax, height[right]);  </span><br><span class="line">	    <span class="keyword">if</span>(leftMax &lt; rightMax)&#123;  </span><br><span class="line">	        <span class="comment">//如果left指针此时的max&lt;=右指针的max  </span></span><br><span class="line">	        <span class="comment">//说明右边必然有大于leftMax高度的木板  </span></span><br><span class="line">	        <span class="comment">//left指针位置的水位由leftMax决定  </span></span><br><span class="line">	        res += leftMax - height[left];  </span><br><span class="line">	        left ++;  </span><br><span class="line">	    &#125; <span class="keyword">else</span> &#123;  </span><br><span class="line">	        <span class="comment">//此时rightMax&lt;=leftMax  </span></span><br><span class="line">	        <span class="comment">//说明左边必然有大于rightMax高度的木板  </span></span><br><span class="line">	        <span class="comment">//右指针位置的水位由rightMax决定  </span></span><br><span class="line">	        res += rightMax - height[right];  </span><br><span class="line">	        right --;  </span><br><span class="line">	    &#125;  </span><br><span class="line">	&#125;  </span><br><span class="line">	<span class="keyword">return</span> res;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>举例说明</strong></p>
+<p>以 <code>height = [0,1,0,2,1,0,1,3,2,1,2,1]</code> 为例</p>
+<p>初始：<code>left = 1, right = 10, leftMax = 0, rightMax = 1</code></p>
+<table>
+<thead>
+<tr>
+<th>步骤</th>
+<th>left</th>
+<th>right</th>
+<th>leftMax</th>
+<th>rightMax</th>
+<th>比较</th>
+<th>处理位置</th>
+<th>接水量</th>
+<th>操作</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>1</td>
+<td>10</td>
+<td>1</td>
+<td>2</td>
+<td>leftMax &lt; rightMax</td>
+<td>left&#x3D;1</td>
+<td>1-1&#x3D;0</td>
+<td>left++</td>
+</tr>
+<tr>
+<td>2</td>
+<td>2</td>
+<td>10</td>
+<td>1</td>
+<td>2</td>
+<td>leftMax &lt; rightMax</td>
+<td>left&#x3D;2</td>
+<td>1-0&#x3D;1</td>
+<td>left++</td>
+</tr>
+<tr>
+<td>3</td>
+<td>3</td>
+<td>10</td>
+<td>2</td>
+<td>2</td>
+<td>leftMax &gt;&#x3D; rightMax</td>
+<td>right&#x3D;10</td>
+<td>2-2&#x3D;0</td>
+<td>right–</td>
+</tr>
+<tr>
+<td>4</td>
+<td>3</td>
+<td>9</td>
+<td>2</td>
+<td>2</td>
+<td>leftMax &gt;&#x3D; rightMax</td>
+<td>right&#x3D;9</td>
+<td>2-1&#x3D;1</td>
+<td>right–</td>
+</tr>
+<tr>
+<td>5</td>
+<td>3</td>
+<td>8</td>
+<td>2</td>
+<td>2</td>
+<td>leftMax &gt;&#x3D; rightMax</td>
+<td>right&#x3D;8</td>
+<td>2-2&#x3D;0</td>
+<td>right–</td>
+</tr>
+<tr>
+<td>6</td>
+<td>3</td>
+<td>7</td>
+<td>2</td>
+<td>3</td>
+<td>leftMax &lt; rightMax</td>
+<td>left&#x3D;3</td>
+<td>2-2&#x3D;0</td>
+<td>left++</td>
+</tr>
+<tr>
+<td>7</td>
+<td>4</td>
+<td>7</td>
+<td>2</td>
+<td>3</td>
+<td>leftMax &lt; rightMax</td>
+<td>left&#x3D;4</td>
+<td>2-1&#x3D;1</td>
+<td>left++</td>
+</tr>
+<tr>
+<td>8</td>
+<td>5</td>
+<td>7</td>
+<td>2</td>
+<td>3</td>
+<td>leftMax &lt; rightMax</td>
+<td>left&#x3D;5</td>
+<td>2-0&#x3D;2</td>
+<td>left++</td>
+</tr>
+<tr>
+<td>9</td>
+<td>6</td>
+<td>7</td>
+<td>2</td>
+<td>3</td>
+<td>leftMax &lt; rightMax</td>
+<td>left&#x3D;6</td>
+<td>2-1&#x3D;1</td>
+<td>left++</td>
+</tr>
+<tr>
+<td>10</td>
+<td>7</td>
+<td>7</td>
+<td>3</td>
+<td>3</td>
+<td>leftMax &gt;&#x3D; rightMax</td>
+<td>right&#x3D;7</td>
+<td>3-3&#x3D;0</td>
+<td>right–</td>
+</tr>
+</tbody></table>
+<p>总计接水量：0+1+0+1+0+0+1+2+1+0 &#x3D; <strong>6</strong></p>
+<ul>
+<li><strong>时间复杂度</strong>：O(n)，双指针各遍历一次</li>
+<li><strong>空间复杂度</strong>：O(1)，只用了常数个变量</li>
+</ul>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://LI-S-H.github.io">青山木</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://li-s-h.github.io/2026/06/01/Hot%20100%20---%20%E6%8E%A5%E9%9B%A8%E6%B0%B4/">https://li-s-h.github.io/2026/06/01/Hot%20100%20---%20%E6%8E%A5%E9%9B%A8%E6%B0%B4/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://LI-S-H.github.io" target="_blank">青山木</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E5%8F%8C%E6%8C%87%E9%92%88/">双指针</a><a class="post-meta__tags" href="/tags/%E7%AE%97%E6%B3%95/">算法</a><a class="post-meta__tags" href="/tags/leetcode/">leetcode</a><a class="post-meta__tags" href="/tags/%E5%8A%A8%E6%80%81%E8%A7%84%E5%88%92/">动态规划</a></div><div class="post-share"><div class="social-share" data-image="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/2026/06/01/Hot%20100%20---%20%E4%B8%89%E6%95%B0%E4%B9%8B%E5%92%8C/" title="Hot 100 --- 三数之和"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="onerror=null;src='/img/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">Hot 100 --- 三数之和</div></div><div class="info-2"><div class="info-item-1">本文以LeetCode经典题目"三数之和"为例，系统讲解排序+双指针的解题思路，深入剖析三重去重机制和剪枝优化的实现细节，并详细解释为何固定最小元素是最优策略</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/2026/06/01/Hot%20100%20---%20%E7%9B%9B%E6%9C%80%E5%A4%9A%E6%B0%B4%E7%9A%84%E5%AE%B9%E5%99%A8/" title="Hot 100 --- 盛最多水的容器"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-06-01</div><div class="info-item-2">Hot 100 --- 盛最多水的容器</div></div><div class="info-2"><div class="info-item-1">本文以LeetCode经典题目"盛最多水的容器"为例，从暴力解法入手逐步推导双指针贪心策略，深入讲解如何通过移动短板缩小检索范围，将时间复杂度从O(n²)优化至O(n)</div></div></div></a><a class="pagination-related" href="/2026/06/01/Hot%20100%20---%20%E4%B8%89%E6%95%B0%E4%B9%8B%E5%92%8C/" title="Hot 100 --- 三数之和"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-06-01</div><div class="info-item-2">Hot 100 --- 三数之和</div></div><div class="info-2"><div class="info-item-1">本文以LeetCode经典题目"三数之和"为例，系统讲解排序+双指针的解题思路，深入剖析三重去重机制和剪枝优化的实现细节，并详细解释为何固定最小元素是最优策略</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/%E5%A4%B4%E5%83%8F.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">青山木</div><div class="author-info-description">正在学习Java后端开发＋Python智能体开发，希望能与大家多多交流</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">8</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">17</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">3</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/LI-S-H"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/LI-S-H" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">欢迎来到我的博客，记录学习与成长的点滴。</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%80%E3%80%81%E9%A2%98%E7%9B%AE"><span class="toc-number">1.</span> <span class="toc-text">一、题目</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BA%8C%E3%80%81%E9%A2%98%E7%9B%AE%E5%88%86%E6%9E%90"><span class="toc-number">2.</span> <span class="toc-text">二、题目分析</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%80%9D%E8%B7%AF%E6%A6%82%E8%A7%88"><span class="toc-number">3.</span> <span class="toc-text">思路概览</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%89%E3%80%81%E6%80%9D%E8%B7%AF%E8%AF%A6%E8%A7%A3"><span class="toc-number">4.</span> <span class="toc-text">三、思路详解</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E6%9A%B4%E5%8A%9B%E8%A7%A3%E6%B3%95%E5%85%A5%E6%89%8B"><span class="toc-number">4.1.</span> <span class="toc-text">暴力解法入手</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%8A%A8%E6%80%81%E8%A7%84%E5%88%92%E8%A7%A3%E6%B3%95%EF%BC%88%E5%B7%A6%E5%8F%B3%E6%95%B0%E7%BB%84%EF%BC%89"><span class="toc-number">4.2.</span> <span class="toc-text">动态规划解法（左右数组）</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%8F%8C%E6%8C%87%E9%92%88%E4%BC%98%E5%8C%96%E8%A7%A3%E6%B3%95"><span class="toc-number">4.3.</span> <span class="toc-text">双指针优化解法</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/2026/06/01/Hot%20100%20---%20%E6%8E%A5%E9%9B%A8%E6%B0%B4/" title="Hot 100 --- 接雨水"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 接雨水"/></a><div class="content"><a class="title" href="/2026/06/01/Hot%20100%20---%20%E6%8E%A5%E9%9B%A8%E6%B0%B4/" title="Hot 100 --- 接雨水">Hot 100 --- 接雨水</a><time datetime="2026-06-01T04:00:00.000Z" title="发表于 2026-06-01 12:00:00">2026-06-01</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/06/01/Hot%20100%20---%20%E4%B8%89%E6%95%B0%E4%B9%8B%E5%92%8C/" title="Hot 100 --- 三数之和"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 三数之和"/></a><div class="content"><a class="title" href="/2026/06/01/Hot%20100%20---%20%E4%B8%89%E6%95%B0%E4%B9%8B%E5%92%8C/" title="Hot 100 --- 三数之和">Hot 100 --- 三数之和</a><time datetime="2026-05-31T17:20:00.000Z" title="发表于 2026-06-01 01:20:00">2026-06-01</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/06/01/Hot%20100%20---%20%E7%9B%9B%E6%9C%80%E5%A4%9A%E6%B0%B4%E7%9A%84%E5%AE%B9%E5%99%A8/" title="Hot 100 --- 盛最多水的容器"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 盛最多水的容器"/></a><div class="content"><a class="title" href="/2026/06/01/Hot%20100%20---%20%E7%9B%9B%E6%9C%80%E5%A4%9A%E6%B0%B4%E7%9A%84%E5%AE%B9%E5%99%A8/" title="Hot 100 --- 盛最多水的容器">Hot 100 --- 盛最多水的容器</a><time datetime="2026-05-31T16:14:00.000Z" title="发表于 2026-06-01 00:14:00">2026-06-01</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2026/05/26/2026%20AI%20Agent%E5%9B%9B%E5%A4%A7%E4%BA%A7%E5%93%81%E6%B7%B1%E5%BA%A6%E8%A7%A3%E6%9E%90%EF%BC%9A%E4%BB%8E%E4%BB%A3%E7%A0%81%E5%8A%A9%E6%89%8B%E5%88%B0%E7%B3%BB%E7%BB%9F%E7%BA%A7%E6%99%BA%E8%83%BD%E4%BD%93%E7%9A%84%E6%BC%94%E8%BF%9B/" title="2026 AI Agent四大产品深度解析：从代码助手到系统级智能体的演进">2026 AI Agent四大产品深度解析：从代码助手到系统级智能体的演进</a><time datetime="2026-05-26T14:00:00.000Z" title="发表于 2026-05-26 22:00:00">2026-05-26</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/04/26/Redis%E6%A0%B8%E5%BF%83%E5%AE%9E%E6%88%98%EF%BC%9A%E4%BB%8E%E7%BC%93%E5%AD%98%E8%AE%BE%E8%AE%A1%E5%88%B0%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81%E7%9A%84%E6%B7%B1%E5%BA%A6%E8%A7%A3%E6%9E%90/" title="Redis核心实战：从缓存设计到分布式锁的深度解析"><img src="/img/title-picture/redis.png" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Redis核心实战：从缓存设计到分布式锁的深度解析"/></a><div class="content"><a class="title" href="/2026/04/26/Redis%E6%A0%B8%E5%BF%83%E5%AE%9E%E6%88%98%EF%BC%9A%E4%BB%8E%E7%BC%93%E5%AD%98%E8%AE%BE%E8%AE%A1%E5%88%B0%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81%E7%9A%84%E6%B7%B1%E5%BA%A6%E8%A7%A3%E6%9E%90/" title="Redis核心实战：从缓存设计到分布式锁的深度解析">Redis核心实战：从缓存设计到分布式锁的深度解析</a><time datetime="2026-04-26T02:00:00.000Z" title="发表于 2026-04-26 10:00:00">2026-04-26</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By 青山木</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.5.4"></script><script src="/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script>
+(function() {
+  /* 仅在首页标题上方插入头像 */
+  if (window.location.pathname !== '/' && !window.location.pathname.endsWith('/index.html')) return;
+  var siteTitle = document.getElementById('site-title');
+  if (siteTitle) {
+    var avatar = document.createElement('img');
+    avatar.src = '/img/头像.jpg';
+    avatar.alt = 'avatar';
+    avatar.className = 'avatar-img';
+    siteTitle.parentNode.insertBefore(avatar, siteTitle);
+  }
+})();
+</script>
+<script id="canvas_nest" defer="defer" color="107,159,255" opacity="0.6" zIndex="-1" count="99" mobile="false" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/dist/canvas-nest.min.js"></script></div></body></html>
