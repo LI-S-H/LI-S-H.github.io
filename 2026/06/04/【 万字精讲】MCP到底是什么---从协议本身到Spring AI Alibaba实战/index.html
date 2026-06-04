@@ -1,0 +1,1228 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="dark"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>【 万字精讲】MCP到底是什么---从协议本身到Spring AI Alibaba实战 | 青山木</title><meta name="author" content="青山木"><meta name="copyright" content="青山木"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#0d1117"><meta name="description" content="MCP 是 Anthropic 提出的开放协议,被称为&quot;AI 应用的 USB-C 接口&quot;。本文从 MCP 出现的背景讲起,系统讲清楚它解决了 Function Calling 时代哪些痛点、Host&#x2F;Client&#x2F;Server 三者真实关系、数据层与传输层的分工、原语与生命周期,以及为什么连一个远程 MCP 本机也要起一个 server。最后用 Spring AI Alibaba 同时演示本地 s">
+<meta property="og:type" content="article">
+<meta property="og:title" content="【 万字精讲】MCP到底是什么---从协议本身到Spring AI Alibaba实战">
+<meta property="og:url" content="https://li-s-h.github.io/2026/06/04/%E3%80%90%20%E4%B8%87%E5%AD%97%E7%B2%BE%E8%AE%B2%E3%80%91MCP%E5%88%B0%E5%BA%95%E6%98%AF%E4%BB%80%E4%B9%88---%E4%BB%8E%E5%8D%8F%E8%AE%AE%E6%9C%AC%E8%BA%AB%E5%88%B0Spring%20AI%20Alibaba%E5%AE%9E%E6%88%98/index.html">
+<meta property="og:site_name" content="青山木">
+<meta property="og:description" content="MCP 是 Anthropic 提出的开放协议,被称为&quot;AI 应用的 USB-C 接口&quot;。本文从 MCP 出现的背景讲起,系统讲清楚它解决了 Function Calling 时代哪些痛点、Host&#x2F;Client&#x2F;Server 三者真实关系、数据层与传输层的分工、原语与生命周期,以及为什么连一个远程 MCP 本机也要起一个 server。最后用 Spring AI Alibaba 同时演示本地 s">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://li-s-h.github.io/img/title-picture/MCP.png">
+<meta property="article:published_time" content="2026-06-04T01:00:00.000Z">
+<meta property="article:modified_time" content="2026-06-04T11:42:16.284Z">
+<meta property="article:author" content="青山木">
+<meta property="article:tag" content="Spring AI">
+<meta property="article:tag" content="MCP">
+<meta property="article:tag" content="大模型">
+<meta property="article:tag" content="Spring AI Alibaba">
+<meta property="article:tag" content="Model Context Protocol">
+<meta property="article:tag" content="AI Agent">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://li-s-h.github.io/img/title-picture/MCP.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "【 万字精讲】MCP到底是什么---从协议本身到Spring AI Alibaba实战",
+  "url": "https://li-s-h.github.io/2026/06/04/%E3%80%90%20%E4%B8%87%E5%AD%97%E7%B2%BE%E8%AE%B2%E3%80%91MCP%E5%88%B0%E5%BA%95%E6%98%AF%E4%BB%80%E4%B9%88---%E4%BB%8E%E5%8D%8F%E8%AE%AE%E6%9C%AC%E8%BA%AB%E5%88%B0Spring%20AI%20Alibaba%E5%AE%9E%E6%88%98/",
+  "image": "https://li-s-h.github.io/img/title-picture/MCP.png",
+  "datePublished": "2026-06-04T01:00:00.000Z",
+  "dateModified": "2026-06-04T11:42:16.284Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "青山木",
+      "url": "https://LI-S-H.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/%E5%A4%B4%E5%83%8F.jpg"><link rel="canonical" href="https://li-s-h.github.io/2026/06/04/%E3%80%90%20%E4%B8%87%E5%AD%97%E7%B2%BE%E8%AE%B2%E3%80%91MCP%E5%88%B0%E5%BA%95%E6%98%AF%E4%BB%80%E4%B9%88---%E4%BB%8E%E5%8D%8F%E8%AE%AE%E6%9C%AC%E8%BA%AB%E5%88%B0Spring%20AI%20Alibaba%E5%AE%9E%E6%88%98/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="stylesheet" href="/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d1117')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', 'ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '【 万字精讲】MCP到底是什么---从协议本身到Spring AI Alibaba实战',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><style>
+  #site-title { font-size: 1.76em !important; }
+  #subtitle { font-size: 0.88em !important; }
+
+  /* 卡片悬停放大 + 辉光 */
+  #recent-posts .recent-post-item {
+    transition: transform .3s ease, box-shadow .3s ease, border-color .3s ease;
+  }
+  #recent-posts .recent-post-item:hover {
+    transform: scale(1.025) !important;
+    border-color: rgba(107,159,255,0.5) !important;
+    box-shadow: 0 0 0 1px rgba(107,159,255,0.15),
+                0 0 45px rgba(107,159,255,0.12),
+                0 8px 30px rgba(0,0,0,0.4) !important;
+  }
+
+  /* 首页标题上方头像 */
+  #site-info .avatar-img {
+    display: block;
+    width: 144px;
+    height: 144px;
+    border-radius: 50%;
+    margin: 0 auto 20px;
+    border: 3px solid rgba(107,159,255,0.6);
+    box-shadow: 0 0 30px rgba(107,159,255,0.35),
+                0 0 60px rgba(107,159,255,0.15),
+                0 4px 20px rgba(0,0,0,0.25);
+    object-fit: cover;
+    transition: box-shadow .4s ease, border-color .4s ease;
+  }
+  #site-info .avatar-img:hover {
+    border-color: rgba(107,159,255,0.9);
+    box-shadow: 0 0 40px rgba(107,159,255,0.5),
+                0 0 80px rgba(107,159,255,0.25),
+                0 4px 20px rgba(0,0,0,0.25);
+  }
+
+  /* Mermaid 白色背景适配 */
+  pre.mermaid,
+  .mermaid {
+    background: #ffffff !important;
+    padding: 12px !important;
+    border-radius: 8px !important;
+    border: 1px solid #e0e0e0 !important;
+  }
+  pre.mermaid code {
+    background: #ffffff !important;
+  }
+</style>
+<meta name="generator" content="Hexo 7.3.0"></head><body><div class="bg-animation" id="web_bg" style="background-image: url(/img/%E8%83%8C%E6%99%AF%E5%9B%BE.webp);"></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(/img/title-picture/MCP.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">青山木</span></a><a class="nav-page-title" href="/"><span class="site-name">【 万字精讲】MCP到底是什么---从协议本身到Spring AI Alibaba实战</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">【 万字精讲】MCP到底是什么---从协议本身到Spring AI Alibaba实战</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-06-04T01:00:00.000Z" title="发表于 2026-06-04 09:00:00">2026-06-04</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-06-04T11:42:16.284Z" title="更新于 2026-06-04 19:42:16">2026-06-04</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/agent/">agent</a></span></div><div class="meta-secondline"></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><blockquote>
+<p>本文从”MCP 出现之前开发者到底有多痛苦”讲起,系统拆解 Model Context Protocol(模型上下文协议)的官方定义、三层架构(Participants &#x2F; Layers &#x2F; Data Layer Protocol)、Primitives 原语体系、生命周期与数据流,并用一个真实的百度地图 MCP 配置讲清楚”为什么连一个远程 MCP,本机也得跑一个 server”。最后用 Spring AI Alibaba 同时演示本地 stdio 与远程 SSE 两种接入方式</p>
+</blockquote>
+<hr>
+<h2 id="一、什么是-MCP"><a href="#一、什么是-MCP" class="headerlink" title="一、什么是 MCP"></a>一、什么是 MCP</h2><h3 id="1-1-MCP-之前的世界-为什么需要一套新协议"><a href="#1-1-MCP-之前的世界-为什么需要一套新协议" class="headerlink" title="1.1 MCP 之前的世界:为什么需要一套新协议"></a>1.1 MCP 之前的世界:为什么需要一套新协议</h3><p>在聊 MCP 是什么之前,先聊聊<b>MCP 出现之前的世界是什么样的</b>——只有搞清楚了”以前有多痛”,才能理解 MCP 的设计动机。</p>
+<p>2023 ~ 2024 年,大模型刚火起来的时候,所有 AI 应用想用外部工具,都靠一件事:<b>Function Calling</b>。每个 LLM 厂商都有一套自己的 Function Calling 语法:OpenAI 用自己定义的 JSON schema,Anthropic 用 <code>tools</code> 字段,Google 用 <code>functionDeclarations</code>…,<b>格式都不一样</b>。一个典型的痛点场景是这样的:</p>
+<p>假设你做了一个 AI 助手,想让它支持 5 个工具(查天气、查日历、发邮件、查 GitHub、写文件),想同时支持 2 个模型(OpenAI、Claude),那么你至少要写:</p>
+<ul>
+<li><b>5 个工具的描述文件</b> × 2 个模型 &#x3D; 10 份格式不同的 schema</li>
+<li><b>2 套工具调用适配代码</b>(OpenAI 版、Claude 版)</li>
+<li><b>业务代码和工具调用深度耦合</b>,换一个 LLM,要重写一遍调用层</li>
+<li>想再加一个工具、再加一个模型?继续 N × M 组合爆炸</li>
+</ul>
+<p><b>这就是 Function Calling 时代的”集成之痛”</b>:M 个 AI 应用 × N 个外部工具,变成 M × N 份胶水代码。每接入一个新工具,都要写一遍定制化的、脆弱的集成代码;每换一个大模型,都要重新适配工具定义。</p>
+<p>MCP 想要解决的,正是这个 N × M 的问题——<b>只要大家都遵守同一个协议,工具提供方写一次,所有 AI 应用都能用;AI 应用方接一次,所有支持 MCP 的工具都能用</b>。这就是 USB-C 思路在 AI 时代的复刻:<b>一套标准,所有设备</b>。</p>
+<h3 id="1-2-官方定义-英文原文-中文翻译"><a href="#1-2-官方定义-英文原文-中文翻译" class="headerlink" title="1.2 官方定义(英文原文 + 中文翻译)"></a>1.2 官方定义(英文原文 + 中文翻译)</h3><blockquote>
+<p>内容来自官网 : <a target="_blank" rel="noopener" href="https://modelcontextprotocol.org/docs/getting-started/intro">https://modelcontextprotocol.org/docs/getting-started/intro</a></p>
+</blockquote>
+<p><b>英文原文</b>:</p>
+<blockquote>
+<p><b>MCP (Model Context Protocol) is an open-source standard for connecting AI applications to external systems.</b></p>
+<p>Using MCP, AI applications like Claude or ChatGPT can connect to data sources (e.g. local files, databases), tools (e.g. search engines, calculators) and workflows (e.g. specialized prompts)—enabling them to access key information and perform tasks.</p>
+<p>Think of MCP like a USB-C port for AI applications. Just as USB-C provides a standardized way to connect electronic devices, MCP provides a standardized way to connect AI applications to external systems.</p>
+</blockquote>
+<p><b>中文翻译</b>:</p>
+<blockquote>
+<p><b>MCP(模型上下文协议)是一个用于将 AI 应用连接到外部系统的开源标准。</b></p>
+<p>借助 MCP,像 Claude 或 ChatGPT 这样的 AI 应用,可以连接到<b>数据源</b>(如本地文件、数据库)、<b>工具</b>(如搜索引擎、计算器)和<b>工作流</b>(如专门的提示词模板),从而访问关键信息并执行任务。</p>
+<p>可以把 MCP 想象成 AI 应用的 USB-C 接口。正如 USB-C 为电子设备提供了一种标准化的连接方式,MCP 为 AI 应用提供了一种标准化的”连接外部世界”的方式。</p>
+</blockquote>
+<p>对照看,核心就三点:</p>
+<ul>
+<li><b>MCP 是什么</b>:一套<b>开源标准</b>,用于把 AI 应用连接到外部系统</li>
+<li><b>能连什么</b>:<b>数据源</b>(本地文件、数据库)、<b>工具</b>(搜索引擎、计算器)、<b>工作流</b>(专门的 Prompt 模板)</li>
+<li><b>如何理解它</b>:AI 应用的 <b>USB-C 接口</b>——一套标准,所有设备</li>
+</ul>
+<h3 id="1-3-MCP-能做什么"><a href="#1-3-MCP-能做什么" class="headerlink" title="1.3 MCP 能做什么"></a>1.3 MCP 能做什么</h3><p>官网列出的几个典型场景:</p>
+<ul>
+<li>Agent 可以访问你的 <b>Google Calendar 和 Notion</b>,变成一个更懂你的 AI 助手</li>
+<li><b>Claude Code</b> 可以基于 <b>Figma</b> 设计稿,直接生成完整的 Web 应用</li>
+<li>企业内的聊天机器人可以连接到组织的<b>多个数据库</b>,让用户用自然语言分析数据</li>
+<li>AI 模型可以在 <b>Blender</b> 里创建 3D 设计,然后通过 3D 打印机打印出来</li>
+</ul>
+<h3 id="1-4-为什么要用-MCP"><a href="#1-4-为什么要用-MCP" class="headerlink" title="1.4 为什么要用 MCP"></a>1.4 为什么要用 MCP</h3><p>站在生态不同位置,收益是不一样的:</p>
+<ul>
+<li><b>开发者</b>:MCP 大幅降低了构建或集成 AI 应用&#x2F;Agent 的开发时间和复杂度——<b>写一次,所有 AI 应用都能用</b></li>
+<li><b>AI 应用&#x2F;Agent</b>:获得了一个由数据源、工具、应用组成的开放生态,可以增强自身能力、提升用户体验</li>
+<li><b>终端用户</b>:拿到的是更”能干活”的 AI 应用,能访问你的数据,能在你授权下替你完成操作</li>
+</ul>
+<h3 id="1-5-广泛的生态支持-大量现成的远程服务"><a href="#1-5-广泛的生态支持-大量现成的远程服务" class="headerlink" title="1.5 广泛的生态支持 + 大量现成的远程服务"></a>1.5 广泛的生态支持 + 大量现成的远程服务</h3><p>MCP 已经是事实上的开放协议,被很多主流 AI 工具支持:</p>
+<ul>
+<li><b>AI 助手类</b>:Claude、ChatGPT</li>
+<li><b>开发工具类</b>:Visual Studio Code、Cursor、MCPJam 等</li>
+<li><b>国内厂商</b>:百度地图、高德地图、智谱、腾讯 EdgeOne Pages 等都已经官方支持</li>
+</ul>
+<p>生态已经非常庞大,远不止本地那几个示例服务。<b>如果你想找一个现成的、能直接用的 MCP 服务,有一个非常实用的第三方 MCP 聚合市场</b>:</p>
+<p>🔗 <b><a target="_blank" rel="noopener" href="https://mcp.so/">https://mcp.so/</a></b> —— 第三方 MCP 聚合市场(Marketplace),目前已收录超过 <b>21000+ 个 MCP Servers</b>,按 Featured &#x2F; Latest &#x2F; Clients &#x2F; Hosted &#x2F; Official 等分类展示。可以在里面找地图、搜索、数据库、Notion、GitHub、画图、语音、做饭指南、各种 SaaS 工具的 MCP 实现,<b>绝大多数是远程托管(Hosted)的</b>——你只需要拿到它的 URL 和 Token,配置进自己的 MCP Client 就能用,<b>完全不用自己部署</b>。</p>
+<blockquote>
+<p>简而言之:<b>mcp.so 是 MCP 时代的”应用商店”</b>。后面讲”远程 MCP”和”最佳实践”时,你会看到它的价值。</p>
+</blockquote>
+<hr>
+<h2 id="二、MCP-架构"><a href="#二、MCP-架构" class="headerlink" title="二、MCP 架构"></a>二、MCP 架构</h2><blockquote>
+<p>本节严格依据官网 <a target="_blank" rel="noopener" href="https://modelcontextprotocol.org/docs/learn/architecture">https://modelcontextprotocol.org/docs/learn/architecture</a> 的结构来讲解。官网把 MCP 的核心概念分成了三块:<b>Participants(参与者)</b>、<b>Layers(分层)</b>、<b>Data Layer Protocol(数据层协议)</b>。下面按这个顺序展开。</p>
+</blockquote>
+<h3 id="2-1-Participants-Host-Client-Server-三者关系"><a href="#2-1-Participants-Host-Client-Server-三者关系" class="headerlink" title="2.1 Participants:Host &#x2F; Client &#x2F; Server 三者关系"></a>2.1 Participants:Host &#x2F; Client &#x2F; Server 三者关系</h3><h4 id="2-1-1-官方定义-英文-中文对照"><a href="#2-1-1-官方定义-英文-中文对照" class="headerlink" title="2.1.1 官方定义(英文 + 中文对照)"></a>2.1.1 官方定义(英文 + 中文对照)</h4><p><b>英文原文</b>(官网):</p>
+<blockquote>
+<ul>
+<li><b>MCP Host</b>:The AI application that coordinates and manages one or multiple MCP clients</li>
+<li><b>MCP Client</b>:A component that maintains a connection to an MCP server and obtains context from an MCP server for the MCP host to use</li>
+<li><b>MCP Server</b>:A program that provides context to MCP clients</li>
+</ul>
+</blockquote>
+<p><b>中文翻译</b>:</p>
+<blockquote>
+<ul>
+<li><b>MCP Host(宿主)</b>:协调和管理<b>一个或多个</b> MCP Client 的 AI 应用</li>
+<li><b>MCP Client(客户端)</b>:维护和某个 MCP Server 的连接,从 MCP Server 拿到上下文给 Host 使用</li>
+<li><b>MCP Server(服务端)</b>:为 MCP Client 提供上下文的程序</li>
+</ul>
+</blockquote>
+<h4 id="2-1-2-真实关系-一张图看明白"><a href="#2-1-2-真实关系-一张图看明白" class="headerlink" title="2.1.2 真实关系:一张图看明白"></a>2.1.2 真实关系:一张图看明白</h4><p>官网给的示意图非常清楚:</p>
+<p><img src="/img/MCP%E5%88%B0%E5%BA%95%E6%98%AF%E4%BB%80%E4%B9%88/MCP%E6%9E%B6%E6%9E%84.png" alt="MCP架构"></p>
+<p>这张图的关键信息有四个:</p>
+<ul>
+<li><b>一个 Host 内部可以有多个 Client</b>(图中是 4 个)</li>
+<li><b>每个 Client 维护一条”专用连接(Dedicated connection)”</b> 到某个 Server</li>
+<li><b>Server 可以是本地的</b>(Server A、Server B),也可以是<b>远程的</b>(Server C)</li>
+<li><b>Host 不直接和 Server 通信</b>,所有通信都通过 Client</li>
+</ul>
+<p>官网还举了一个非常具体的例子,帮你把这个关系落地:</p>
+<blockquote>
+<p><b>Visual Studio Code acts as an MCP host.</b> When VS Code establishes a connection to the Sentry MCP server, the VS Code runtime instantiates an MCP client object that maintains the connection to the Sentry MCP server. When VS Code subsequently connects to another MCP server, such as the local filesystem server, the VS Code runtime instantiates an additional MCP client object to maintain this connection.</p>
+</blockquote>
+<p>翻译:<b>VS Code 本身是 Host</b>。它连 Sentry 时,内部创建一个 Client 维护这条连接;它再连本地文件系统时,内部<b>再创建另一个</b> Client 维护那条连接。<b>一个 Client 只对应一个 Server,一条专用连接</b>。</p>
+<h4 id="2-1-3-一个最容易混淆的认知-”远程”和”本地”到底指什么"><a href="#2-1-3-一个最容易混淆的认知-”远程”和”本地”到底指什么" class="headerlink" title="2.1.3 一个最容易混淆的认知:”远程”和”本地”到底指什么"></a>2.1.3 一个最容易混淆的认知:”远程”和”本地”到底指什么</h4><p>很多人第一次接触 MCP 会被一个问题绕进去:<b>我用百度地图的 MCP,是不是我本地的 MCP Client 就直接连到百度地图的服务了?</b>答案是否定的。<b>真实的链路是”本地 MCP Client → 本地 MCP Server(同应用内)→ 远程百度服务”</b>,中间多了一层”本地 MCP Server”。我们用你给的百度地图配置来拆解:</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">  <span class="attr">&quot;mcpServers&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">    <span class="attr">&quot;baidu-map&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">      <span class="attr">&quot;command&quot;</span><span class="punctuation">:</span> <span class="string">&quot;E:\\Develop\\NodeJs\\npx.cmd&quot;</span><span class="punctuation">,</span></span><br><span class="line">      <span class="attr">&quot;args&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span></span><br><span class="line">        <span class="string">&quot;-y&quot;</span><span class="punctuation">,</span></span><br><span class="line">        <span class="string">&quot;@baidumap/mcp-server-baidu-map&quot;</span></span><br><span class="line">      <span class="punctuation">]</span><span class="punctuation">,</span></span><br><span class="line">      <span class="attr">&quot;env&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">        <span class="attr">&quot;BAIDU_MAP_API_KEY&quot;</span><span class="punctuation">:</span> <span class="string">&quot;&lt;你的百度地图 API Key,从 lbs.baidu.com 申请&gt;&quot;</span></span><br><span class="line">      <span class="punctuation">&#125;</span></span><br><span class="line">    <span class="punctuation">&#125;</span></span><br><span class="line">  <span class="punctuation">&#125;</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+
+<p><b>先看这条配置到底干了什么</b>:<code>npx -y @baidumap/mcp-server-baidu-map</code> 会做两件事:</p>
+<ol>
+<li>从 npm 仓库把 <code>@baidumap/mcp-server-baidu-map</code> 这个包下载到本机</li>
+<li>在<b>本机</b>用 Node.js 启动它(它会作为你 Java 应用的<b>子进程</b>存在)</li>
+</ol>
+<p><b>打开这个 npm 包的源码看,核心逻辑是这样的</b>(简化版):</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 1. 启动一个 stdio 服务端,等待 MCP 客户端连接</span></span><br><span class="line"><span class="keyword">async</span> <span class="keyword">function</span> <span class="title function_">runServer</span>(<span class="params"></span>) &#123;</span><br><span class="line">  <span class="keyword">const</span> transport = <span class="keyword">new</span> <span class="title class_">StdioServerTransport</span>();</span><br><span class="line">  <span class="keyword">await</span> server.<span class="title function_">connect</span>(transport);</span><br><span class="line">  <span class="variable language_">console</span>.<span class="title function_">error</span>(<span class="string">&quot;Baidu Map MCP Server running on stdio&quot;</span>);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 2. 工具的实现:接收到 MCP 调用后,通过 HTTP 调百度地图 API</span></span><br><span class="line"><span class="keyword">async</span> <span class="keyword">function</span> <span class="title function_">handleWeather</span>(<span class="params">districtId, location</span>) &#123;</span><br><span class="line">  <span class="keyword">const</span> url = <span class="keyword">new</span> <span class="title function_">URL</span>(<span class="string">&quot;https://api.map.baidu.com/weather/v1/&quot;</span>);</span><br><span class="line">  url.<span class="property">searchParams</span>.<span class="title function_">append</span>(<span class="string">&quot;data_type&quot;</span>, <span class="string">&quot;all&quot;</span>);</span><br><span class="line">  url.<span class="property">searchParams</span>.<span class="title function_">append</span>(<span class="string">&quot;ak&quot;</span>, <span class="variable constant_">BAIDU_MAP_API_KEY</span>);</span><br><span class="line">  <span class="comment">// ...省略</span></span><br><span class="line">  <span class="keyword">const</span> response = <span class="keyword">await</span> <span class="title function_">fetch</span>(url.<span class="title function_">toString</span>());   <span class="comment">// 调远端 HTTP API</span></span><br><span class="line">  <span class="keyword">const</span> data = <span class="keyword">await</span> response.<span class="title function_">json</span>();</span><br><span class="line">  <span class="keyword">return</span> &#123; <span class="attr">content</span>: [&#123; <span class="attr">type</span>: <span class="string">&quot;text&quot;</span>, <span class="attr">text</span>: <span class="title class_">JSON</span>.<span class="title function_">stringify</span>(data.<span class="property">result</span>) &#125;] &#125;;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>源码非常清楚地展示出三层角色和两条链路:</p>
+<table>
+<thead>
+<tr>
+<th>角色</th>
+<th>物理位置</th>
+<th>干的事</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>MCP Client</td>
+<td>在你的 Java 应用进程里</td>
+<td>按 MCP 协议和”本地的那个 MCP Server”通信(stdio)</td>
+</tr>
+<tr>
+<td><b>本地 MCP Server</b>(<code>@baidumap/mcp-server-baidu-map</code> 这个 Node 进程)</td>
+<td><b>在你的本机</b>(作为 Java 应用的子进程)</td>
+<td>接 MCP 协议请求 → 内部 <code>fetch</code> 调百度 HTTP API → 把结果按 MCP 格式回给 Client</td>
+</tr>
+<tr>
+<td>百度地图远端服务</td>
+<td>在百度云的集群上</td>
+<td>真正的地理编码、路线规划、天气查询等业务能力</td>
+</tr>
+</tbody></table>
+<p><b>用一张图把这层关系画清楚</b>:</p>
+<pre class="mermaid">flowchart LR
+    subgraph App["你的 Java 应用 (本机)"]
+        direction TB
+        LLM["LLM (ChatModel)"]
+        Client["MCP Client (Java 代码)"]
+        Local["本地 MCP Server (Node.js 子进程 @baidumap/mcp-server-baidu-map)"]
+    end
+    subgraph Remote["百度云 (远程)"]
+        API["百度地图 HTTP API api.map.baidu.com"]
+    end
+
+    LLM <-->|"Prompt 注入 tools[] / 工具结果回灌 LLM"| Client
+    Client <-->|"JSON-RPC over stdio (同应用内通信)"| Local
+    Local -->|"fetch HTTP 请求"| API
+    API -->|"天气/地理/路径数据"| Local
+
+    style App fill:#e8f4fd,stroke:#1f6feb
+    style Remote fill:#fff4e1,stroke:#d97706
+    style Local fill:#d4f8d4,stroke:#16a34a</pre>
+
+<p><b>这张图的关键信息有三层</b>:</p>
+<ul>
+<li><b>第一层:你的 Java 应用(本机)</b>。它里面有 LLM、有 MCP Client,<b>还有一个被它启动起来的 Node.js 子进程作为”本地 MCP Server”</b>。这三者都在你本机,在同一个应用部署里</li>
+<li><b>第二层:本机 → 远程的边界</b>。<b>只有”本地 MCP Server → 百度地图 HTTP API”这一段是跨网络边界的</b>(走 HTTP,过公网)。前面 Java 客户端和 Node 子进程之间走的是 stdio,<b>完全在本机内</b>,零网络开销</li>
+<li><b>第三层:百度云(远程)</b>。真正的业务能力(地理编码、路线规划、天气查询)在百度云的集群上,<b>它和你的应用完全不在一个网络里</b></li>
+</ul>
+<p><b>再强调一次,这是最容易搞错的一点</b>:</p>
+<blockquote>
+<p><b>本地的 MCP Client 永远不直接连远程的百度服务</b>。它只会连本机由 <code>npx</code> 拉起来的那个”本地 MCP Server”,然后<b>由这个本地 MCP Server 负责和远程通信</b>。本地 MCP Server 实际上扮演的是一个”<b>远端能力的本地代理</b>“的角色。</p>
+</blockquote>
+<p><b>为什么 Spring AI 官方推荐的接入方式都是这种”本地代理”模式,而不是 Client 直连远端?</b></p>
+<ul>
+<li><b>协议解耦</b>:本地 MCP Server 把远端 HTTP&#x2F;REST&#x2F;GraphQL 等各种协议<b>统一翻译成 MCP 协议</b>,Client 端只认 MCP</li>
+<li><b>鉴权隔离</b>:API Key 写在本地 MCP Server 的环境变量里,不会泄露到 AI 模型和用户对话中</li>
+<li><b>可观测性</b>:所有远端调用都先经过本地 MCP Server,<b>方便加日志、加限流、加缓存、加熔断</b></li>
+<li><b>依赖管理</b>:Node.js &#x2F; Python 版本、<code>uvx</code> &#x2F; <code>npx</code> 这些运行时环境都由本地 MCP Server 接管,Java 应用不关心</li>
+<li><b>离线可降级</b>:本地 MCP Server 可以加 fallback,远端挂了可以走本地缓存</li>
+</ul>
+<p><b>官网原文佐证</b>(<a target="_blank" rel="noopener" href="https://modelcontextprotocol.org/docs/learn/architecture#participants">https://modelcontextprotocol.org/docs/learn/architecture#participants</a>):</p>
+<blockquote>
+<p>Note that <b>MCP server</b> refers to the program that serves context data, regardless of where it runs. MCP servers can execute locally or remotely. For example, when Claude Desktop launches the filesystem server, the server runs locally on the same machine because it uses the STDIO transport. This is commonly referred to as a “local” MCP server. The official Sentry MCP server runs on the Sentry platform, and uses the Streamable HTTP transport. This is commonly referred to as a “remote” MCP server.</p>
+</blockquote>
+<p><b>翻译</b>:<b>MCP Server 这个词指的是”提供上下文数据的服务程序”,无论它跑在哪里</b>。</p>
+<ul>
+<li><b>本地 MCP Server</b>:Server 进程跑在本机,用 <b>STDIO</b> 传输(无网络开销)</li>
+<li><b>远程 MCP Server</b>:Server 进程跑在远端(云上或另一台机器),用 <b>Streamable HTTP &#x2F; SSE</b> 传输(走网络,支持鉴权)</li>
+</ul>
+<p>把这一节的核心结论总结成一句话:<b>“本地 Server”指的是 MCP Server 进程部署在你本机,作为你应用的子进程存在;”远程 Server”指的是 MCP Server 进程部署在云上。百度地图这种”远端业务能力 + 本地 stdio 代理”的组合,是 MCP 当前最主流的接入方式</b>。</p>
+<h3 id="2-2-Layers-MCP-的两层架构"><a href="#2-2-Layers-MCP-的两层架构" class="headerlink" title="2.2 Layers:MCP 的两层架构"></a>2.2 Layers:MCP 的两层架构</h3><blockquote>
+<p>内容来自官网 <a target="_blank" rel="noopener" href="https://modelcontextprotocol.org/docs/learn/architecture#layers">https://modelcontextprotocol.org/docs/learn/architecture#layers</a></p>
+</blockquote>
+<p><b>英文原文</b>:</p>
+<blockquote>
+<p>MCP consists of two layers:</p>
+<ul>
+<li><b>Data layer</b>: Defines the JSON-RPC based protocol for client-server communication, including lifecycle management, and core primitives, such as tools, resources, prompts and notifications.</li>
+<li><b>Transport layer</b>: Defines the communication mechanisms and channels that enable data exchange between clients and servers, including transport-specific connection establishment, message framing, and authorization.</li>
+</ul>
+<p>Conceptually the data layer is the inner layer, while the transport layer is the outer layer.</p>
+</blockquote>
+<p><b>中文翻译</b>:</p>
+<blockquote>
+<p>MCP 由两层组成:</p>
+<ul>
+<li><b>数据层(Data layer)</b>:定义基于 JSON-RPC 的客户端-服务端通信协议,包括生命周期管理,以及核心原语(如 tools、resources、prompts、notifications)</li>
+<li><b>传输层(Transport layer)</b>:定义客户端和服务端之间数据交换的通信机制和通道,包括传输相关的连接建立、消息分帧和授权</li>
+</ul>
+<p>概念上,<b>数据层是内层,传输层是外层</b>。</p>
+</blockquote>
+<p>两层的关系画成图:</p>
+<pre class="mermaid">graph TB
+    subgraph Outer["外层 - 传输层 Transport Layer"]
+        T1["Stdio 传输 (本地进程)"]
+        T2["Streamable HTTP 传输 (HTTP POST + SSE)"]
+    end
+    subgraph Inner["内层 - 数据层 Data Layer"]
+        D1["生命周期管理 (initialize/initialized)"]
+        D2["服务端原语 (tools / resources / prompts)"]
+        D3["客户端原语 (sampling / elicitation / logging)"]
+        D4["工具型能力 (notifications / progress)"]
+    end
+    T1 --> D1
+    T2 --> D1
+    D1 --> D2
+    D1 --> D3
+    D1 --> D4</pre>
+
+<h4 id="2-2-1-Data-Layer-数据层"><a href="#2-2-1-Data-Layer-数据层" class="headerlink" title="2.2.1 Data Layer(数据层)"></a>2.2.1 Data Layer(数据层)</h4><p>数据层实现的是<b>基于 JSON-RPC 2.0 的消息交换协议</b>,定义消息结构和语义。官网把数据层的能力分成了四块:</p>
+<p><b>英文原文</b>(官网):</p>
+<blockquote>
+<ul>
+<li><b>Lifecycle management</b>: Handles connection initialization, capability negotiation, and connection termination between clients and servers</li>
+<li><b>Server features</b>: Enables servers to provide core functionality including tools for AI actions, resources for context data, and prompts for interaction templates from and to the client</li>
+<li><b>Client features</b>: Enables servers to ask the client to sample from the host LLM, elicit input from the user, and log messages to the client</li>
+<li><b>Utility features</b>: Supports additional capabilities like notifications for real-time updates and progress tracking for long-running operations</li>
+</ul>
+</blockquote>
+<p><b>中文翻译 + 详解</b>:</p>
+<ul>
+<li><b>生命周期管理(Lifecycle management)</b>:处理客户端和服务端之间的<b>连接初始化、能力协商、连接终止</b>。MCP 是有状态协议,双方必须先”对一下暗号”才能通信</li>
+<li><b>服务端能力(Server features)</b>:让 Server 能给 Client 提供<b>核心功能</b>,包括:<ul>
+<li><b>Tools(工具)</b>:供 AI 调用的可执行函数,做”动作”</li>
+<li><b>Resources(资源)</b>:上下文数据,供 AI “读”</li>
+<li><b>Prompts(提示词)</b>:交互模板,帮 LLM 构造结构化对话</li>
+</ul>
+</li>
+<li><b>客户端能力(Client features)</b>:让 Server 能<b>反过来</b>调用 Client,做三件事:<ul>
+<li><b>Sampling(采样)</b>:让 Client 去问它背后的 LLM,生成一段内容</li>
+<li><b>Elicitation(引出)</b>:让 Client 弹个框向用户要更多信息或确认</li>
+<li><b>Logging(日志)</b>:让 Server 把日志发给 Client,用于调试和监控</li>
+</ul>
+</li>
+<li><b>实用能力(Utility features)</b>:支持<b>实时更新的通知</b>和<b>长时操作的进度跟踪</b>等附加能力</li>
+</ul>
+<h4 id="2-2-2-Transport-Layer-传输层"><a href="#2-2-2-Transport-Layer-传输层" class="headerlink" title="2.2.2 Transport Layer(传输层)"></a>2.2.2 Transport Layer(传输层)</h4><p>传输层管的是<b>通信通道和鉴权</b>——连接怎么建立、消息怎么分帧、怎么安全通信。官网明确 MCP 支持<b>两种传输机制</b>:</p>
+<p><b>英文原文</b>(官网):</p>
+<blockquote>
+<ul>
+<li><b>Stdio transport</b>: Uses standard input&#x2F;output streams for direct process communication between local processes on the same machine, providing optimal performance with no network overhead.</li>
+<li><b>Streamable HTTP transport</b>: Uses HTTP POST for client-to-server messages with optional Server-Sent Events for streaming capabilities. This transport enables remote server communication and supports standard HTTP authentication methods including bearer tokens, API keys, and custom headers. MCP recommends using OAuth to obtain authentication tokens.</li>
+</ul>
+</blockquote>
+<p><b>中文翻译 + 详解</b>:</p>
+<ul>
+<li><b>Stdio 传输(Stdio transport)</b>:用<b>标准输入&#x2F;输出流</b>在<b>同一台机器</b>上的本地进程间通信。<b>没有网络开销,性能最优</b>。前面百度地图配置里 <code>npx</code> 启动的进程,和你的 AI 应用之间走的就是 stdio</li>
+<li><b>可流式 HTTP 传输(Streamable HTTP transport)</b>:用 <b>HTTP POST</b> 传客户端→服务端的消息,可选 <b>Server-Sent Events (SSE)</b> 做流式响应。<b>支持远程 Server</b>,支持标准的 HTTP 鉴权(Bearer Token、API Key、自定义 Header)。<b>官方推荐用 OAuth 获取 token</b></li>
+</ul>
+<p><b>两个值得理解的坑</b>:</p>
+<ul>
+<li><b>传输层把通信细节和协议层解耦了</b>——同样的 JSON-RPC 2.0 消息格式,在 stdio 和 HTTP 上都能跑,业务代码不用改</li>
+<li><b>stdio 只能”同机”</b>:它要求 Client 和 Server 跑在同一台机器上、用同一个进程空间通信;<b>不能跨机器,不能水平扩展</b>(每个 Client 都要拉起一个 Server 子进程)。所以<b>简单规则是:单机本机工具用 stdio,跨机器 &#x2F; 多租户 &#x2F; 对外提供用 HTTP</b></li>
+</ul>
+<h3 id="2-3-Data-Layer-Protocol-JSON-RPC-2-0"><a href="#2-3-Data-Layer-Protocol-JSON-RPC-2-0" class="headerlink" title="2.3 Data Layer Protocol:JSON-RPC 2.0"></a>2.3 Data Layer Protocol:JSON-RPC 2.0</h3><blockquote>
+<p>内容来自官网 <a target="_blank" rel="noopener" href="https://modelcontextprotocol.org/docs/learn/architecture#data-layer-protocol">https://modelcontextprotocol.org/docs/learn/architecture#data-layer-protocol</a></p>
+</blockquote>
+<p><b>英文原文</b>:</p>
+<blockquote>
+<p>A core part of MCP is defining the schema and semantics between MCP clients and MCP servers. Developers will likely find the data layer — in particular, the set of primitives — to be the most interesting part of MCP. It is the part of MCP that defines the ways developers can share context from MCP servers to MCP clients.</p>
+<p>MCP uses JSON-RPC 2.0 as its underlying RPC protocol. Client and servers send requests to each other and respond accordingly. Notifications can be used when no response is required.</p>
+</blockquote>
+<p><b>中文翻译</b>:</p>
+<blockquote>
+<p>MCP 的核心部分是定义 MCP Client 和 MCP Server 之间的<b>模式(schema)和语义</b>。开发者会发现数据层——特别是其中的<b>原语(primitives)集合</b>——是 MCP 最有意思的部分。它定义了开发者如何把上下文从 MCP Server 共享到 MCP Client。</p>
+<p>MCP 使用 <b>JSON-RPC 2.0</b> 作为底层 RPC 协议。客户端和服务端互相发送请求并响应。<b>通知(Notifications)用于不需要响应的场景</b>。</p>
+</blockquote>
+<p>JSON-RPC 2.0 是一个非常轻量的 RPC 协议,核心就几件事:</p>
+<ul>
+<li>请求必须带 <code>id</code>(用来匹配响应)、<code>method</code>(要调什么)、<code>params</code>(参数)</li>
+<li>响应带回 <code>id</code> 和 <code>result</code>(成功)或 <code>error</code>(失败)</li>
+<li>通知是<b>没有 <code>id</code> 的请求</b>——它不期待响应,纯粹用于”我告诉你一件事”</li>
+</ul>
+<p>MCP 选择了 JSON-RPC 2.0,是因为它<b>足够简单、跨语言、跨传输</b>——所有主流语言都有现成的 JSON-RPC 实现,stdio 和 HTTP 上都能跑。</p>
+<h3 id="2-4-Lifecycle-Management-连接的生命周期"><a href="#2-4-Lifecycle-Management-连接的生命周期" class="headerlink" title="2.4 Lifecycle Management:连接的生命周期"></a>2.4 Lifecycle Management:连接的生命周期</h3><blockquote>
+<p>内容来自官网 <a target="_blank" rel="noopener" href="https://modelcontextprotocol.org/docs/learn/architecture#lifecycle-management">https://modelcontextprotocol.org/docs/learn/architecture#lifecycle-management</a></p>
+</blockquote>
+<p>MCP 是<b>有状态协议</b>,要求严格的生命周期管理。生命周期管理的作用是<b>协商双方都支持的能力</b>。</p>
+<p>一个 MCP 连接的生命周期是三步:</p>
+<pre class="mermaid">sequenceDiagram
+    participant C as MCP Client
+    participant S as MCP Server
+    Note over C,S: 第一步:连接建立
+    C->>S: initialize 请求 (带协议版本、能力、客户端信息)
+    S-->>C: initialize 响应 (带协议版本、能力、服务端信息)
+    Note over C,S: 第二步:就绪确认
+    C->>S: notifications/initialized (无 id,不期待响应)
+    Note over C,S: 第三步:正常使用 (list / call / notification)
+    C->>S: tools/list
+    S-->>C: tools[]
+    C->>S: tools/call (name, args)
+    S-->>C: 工具执行结果
+    Note over C,S: 连接关闭时:任意一方发 disconnect</pre>
+
+<p><b>第一步:initialize(能力协商)</b>。Client 发请求,带三样东西:</p>
+<ul>
+<li><b>协议版本</b>(如 <code>&quot;2025-06-18&quot;</code>):双方必须协商出一致的版本,否则断连</li>
+<li><b>能力声明</b>:声明自己支持哪些能力(tools、resources、prompts、sampling、elicitation 等)</li>
+<li><b>客户端信息</b>:名字、版本号,用于调试和兼容</li>
+</ul>
+<p><b>第二步:notifications&#x2F;initialized</b>。Client 收到响应后,发一个<b>通知</b>告诉 Server “我准备好了”。这是一个 JSON-RPC notification(没有 <code>id</code>,不期待响应)。</p>
+<p><b>第三步:正常工作</b>。双方按协商出的能力互相调用(list、call、notification 等)。</p>
+<p><b>协商失败直接断连</b>。这一步非常关键——它保证了一方不支持的能力,另一方绝不会去调。</p>
+<h3 id="2-5-Primitives-MCP-最核心的概念"><a href="#2-5-Primitives-MCP-最核心的概念" class="headerlink" title="2.5 Primitives:MCP 最核心的概念"></a>2.5 Primitives:MCP 最核心的概念</h3><blockquote>
+<p>官网原话:<b>MCP primitives are the most important concept within MCP. They define what clients and servers can offer each other.</b></p>
+</blockquote>
+<p><b>原语(Primitives)</b> 定义了”客户端和服务端能互相提供什么”。理解了它,你就理解了”一个 MCP Server 到底在暴露什么、Host 到底在消费什么”。</p>
+<h4 id="2-5-1-Server-端可以暴露的三个原语"><a href="#2-5-1-Server-端可以暴露的三个原语" class="headerlink" title="2.5.1 Server 端可以暴露的三个原语"></a>2.5.1 Server 端可以暴露的三个原语</h4><blockquote>
+<p>内容来自官网 <a target="_blank" rel="noopener" href="https://modelcontextprotocol.org/docs/learn/architecture#primitives">https://modelcontextprotocol.org/docs/learn/architecture#primitives</a></p>
+</blockquote>
+<p><b>英文原文</b>:</p>
+<blockquote>
+<p>MCP defines three core primitives that <em>servers</em> can expose:</p>
+<ul>
+<li><b>Tools</b>: Executable functions that AI applications can invoke to perform actions (e.g., file operations, API calls, database queries)</li>
+<li><b>Resources</b>: Data sources that provide contextual information to AI applications (e.g., file contents, database records, API responses)</li>
+<li><b>Prompts</b>: Reusable templates that help structure interactions with language models (e.g., system prompts, few-shot examples)</li>
+</ul>
+</blockquote>
+<p><b>中文翻译 + 详解</b>:</p>
+<ul>
+<li><b>Tools(工具)</b>:可执行函数,AI 应用可以调用来<b>执行动作</b>。例:文件操作、API 调用、数据库查询。<b>这是最常用的原语</b>,百度地图 MCP 暴露的”查天气””地理编码”都是 Tool</li>
+<li><b>Resources(资源)</b>:数据源,为 AI 应用提供<b>上下文信息</b>(只读)。例:文件内容、数据库记录、API 响应</li>
+<li><b>Prompts(提示词)</b>:可复用的<b>模板</b>,帮 LLM 构造结构化的交互。例:系统提示词、Few-shot 示例</li>
+</ul>
+<p>每种原语都有一组对应的方法,**用于发现(<code>*/list</code>)、获取(<code>*/get</code>),有的还可以执行(<code>tools/call</code>)<b>:</p>
+<table>
+<thead>
+<tr>
+<th>原语</th>
+<th>发现</th>
+<th>获取</th>
+<th>执行</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Tools</td>
+<td><code>tools/list</code></td>
+<td><code>tools/get</code>(可选)</td>
+<td><code>tools/call</code></td>
+</tr>
+<tr>
+<td>Resources</td>
+<td><code>resources/list</code></td>
+<td><code>resources/read</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>Prompts</td>
+<td><code>prompts/list</code></td>
+<td><code>prompts/get</code></td>
+<td>—</td>
+</tr>
+</tbody></table>
+<p></b>这种 list + call 的设计是动态的<b>——Server 上的工具可以随时增删,Client 不用重新部署就能感知(配合 2.6 节的 Notifications)。</p>
+<p>官网给的具体例子非常形象:</b>一个提供数据库上下文的 MCP Server<b>,它可以:</p>
+<ul>
+<li>暴露 Tools 用于查询数据库</li>
+<li>暴露一个 Resource 包含数据库的 schema</li>
+<li>暴露一个 Prompt 包含 few-shot 示例,演示怎么用这些工具</li>
+</ul>
+<h4 id="2-5-2-Client-端可以暴露的原语"><a href="#2-5-2-Client-端可以暴露的原语" class="headerlink" title="2.5.2 Client 端可以暴露的原语"></a>2.5.2 Client 端可以暴露的原语</h4><p>MCP 允许 Server </b>反过来<b>调用 Client,这是它和普通 RPC 框架最大的不同之一:</p>
+<ul>
+<li></b>Sampling(采样)<b>:Server 可以让 Client 去问它背后的 LLM,生成一段内容。</b>好处是 Server 不用自己集成 LLM SDK,保持和模型无关<b>。用法:<code>sampling/createMessage</code> 请求</li>
+<li></b>Elicitation(引出)<b>:Server 可以让 Client 弹个框向用户要更多信息或确认。用法:<code>elicitation/create</code> 请求</li>
+<li></b>Logging(日志)<b>:Server 可以把日志发给 Client,用于调试和监控</li>
+</ul>
+<p></b>这一组原语是 MCP 真正的”双向”特性<b>——一般的 RPC 协议都是 Client→Server 单向调用,MCP 反过来让 Server 也能”借”Client 的 LLM 和用户交互。</p>
+<h4 id="2-5-3-跨切面工具型原语"><a href="#2-5-3-跨切面工具型原语" class="headerlink" title="2.5.3 跨切面工具型原语"></a>2.5.3 跨切面工具型原语</h4><ul>
+<li></b>Tasks(实验性)<b>:把 MCP 请求包成一个”</b>耐久执行<b>“包装器,支持</b>延迟取结果、状态跟踪<b>。适合昂贵计算、工作流自动化、批处理、多步操作</li>
+</ul>
+<h3 id="2-6-Notifications-实时同步"><a href="#2-6-Notifications-实时同步" class="headerlink" title="2.6 Notifications:实时同步"></a>2.6 Notifications:实时同步</h3><blockquote>
+<p>内容来自官网 <a target="_blank" rel="noopener" href="https://modelcontextprotocol.org/docs/learn/architecture#notifications">https://modelcontextprotocol.org/docs/learn/architecture#notifications</a></p>
+</blockquote>
+<p></b>英文原文<b>:</p>
+<blockquote>
+<p>The protocol supports real-time notifications to enable dynamic updates between servers and clients. For example, when a server’s available tools change—such as when new functionality becomes available or existing tools are modified—the server can send tool update notifications to inform connected clients about these changes. Notifications are sent as JSON-RPC 2.0 notification messages (without expecting a response) and enable MCP servers to provide real-time updates to connected clients.</p>
+</blockquote>
+<p></b>中文翻译<b>:</p>
+<blockquote>
+<p>协议支持</b>实时通知<b>,让 Server 和 Client 之间能动态更新。</b>例如,当 Server 上的可用工具发生变化时<b>(新功能上线、现有工具被修改),Server 可以</b>主动发工具更新通知<b>告诉 Client。通知是 JSON-RPC 2.0 notification 消息(不期待响应),让 MCP Server 能给连接的 Client 提供实时更新。</p>
+</blockquote>
+<p>最常见的几个通知:</p>
+<ul>
+<li><code>notifications/tools/list_changed</code>:工具列表变了</li>
+<li><code>notifications/resources/list_changed</code>:资源列表变了</li>
+<li><code>notifications/prompts/list_changed</code>:提示词列表变了</li>
+<li><code>notifications/progress</code>:长任务进度更新</li>
+</ul>
+<p>Client 收到这些通知后,会</b>重新调 <code>*/list</code> 刷新本地缓存<b>。这样 Server 可以热加载新工具、新资源,不用通知 Client 重新连接。</p>
+<h3 id="2-7-Example-一次完整的工具调用数据流"><a href="#2-7-Example-一次完整的工具调用数据流" class="headerlink" title="2.7 Example:一次完整的工具调用数据流"></a>2.7 Example:一次完整的工具调用数据流</h3><blockquote>
+<p>内容来自官网 <a target="_blank" rel="noopener" href="https://modelcontextprotocol.org/docs/learn/architecture#example">https://modelcontextprotocol.org/docs/learn/architecture#example</a></p>
+</blockquote>
+<p>把上面所有概念串起来,一次”AI 应用调用百度地图查天气”的数据流是这样的:</p>
+<h4 id="Step-1-连接初始化-生命周期管理"><a href="#Step-1-连接初始化-生命周期管理" class="headerlink" title="Step 1:连接初始化(生命周期管理)"></a>Step 1:连接初始化(生命周期管理)</h4><p>Client 发 <code>initialize</code> 请求:</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">  <span class="attr">&quot;jsonrpc&quot;</span><span class="punctuation">:</span> <span class="string">&quot;2.0&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;id&quot;</span><span class="punctuation">:</span> <span class="number">1</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;method&quot;</span><span class="punctuation">:</span> <span class="string">&quot;initialize&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;params&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">    <span class="attr">&quot;protocolVersion&quot;</span><span class="punctuation">:</span> <span class="string">&quot;2025-06-18&quot;</span><span class="punctuation">,</span></span><br><span class="line">    <span class="attr">&quot;capabilities&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">      <span class="attr">&quot;elicitation&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span><span class="punctuation">&#125;</span></span><br><span class="line">    <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">    <span class="attr">&quot;clientInfo&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">      <span class="attr">&quot;name&quot;</span><span class="punctuation">:</span> <span class="string">&quot;my-ai-app&quot;</span><span class="punctuation">,</span></span><br><span class="line">      <span class="attr">&quot;version&quot;</span><span class="punctuation">:</span> <span class="string">&quot;1.0.0&quot;</span></span><br><span class="line">    <span class="punctuation">&#125;</span></span><br><span class="line">  <span class="punctuation">&#125;</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+
+<p>Server 响应,声明自己支持的能力:</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">  <span class="attr">&quot;jsonrpc&quot;</span><span class="punctuation">:</span> <span class="string">&quot;2.0&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;id&quot;</span><span class="punctuation">:</span> <span class="number">1</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;result&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">    <span class="attr">&quot;protocolVersion&quot;</span><span class="punctuation">:</span> <span class="string">&quot;2025-06-18&quot;</span><span class="punctuation">,</span></span><br><span class="line">    <span class="attr">&quot;capabilities&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">      <span class="attr">&quot;tools&quot;</span><span class="punctuation">:</span>     <span class="punctuation">&#123;</span> <span class="attr">&quot;listChanged&quot;</span><span class="punctuation">:</span> <span class="literal"><span class="keyword">true</span></span> <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">      <span class="attr">&quot;resources&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span><span class="punctuation">&#125;</span></span><br><span class="line">    <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">    <span class="attr">&quot;serverInfo&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">      <span class="attr">&quot;name&quot;</span><span class="punctuation">:</span> <span class="string">&quot;baidu-map-mcp&quot;</span><span class="punctuation">,</span></span><br><span class="line">      <span class="attr">&quot;version&quot;</span><span class="punctuation">:</span> <span class="string">&quot;1.0.0&quot;</span></span><br><span class="line">    <span class="punctuation">&#125;</span></span><br><span class="line">  <span class="punctuation">&#125;</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>注意 <code>&quot;tools&quot;: &#123; &quot;listChanged&quot;: true &#125;</code> ——这表示 Server 支持 tools 原语</b>且<b>会主动发 <code>tools/list_changed</code> 通知。</p>
+</blockquote>
+<p></b>协商失败直接断连<b>。这一步做了三件事:</b>协议版本协商<b>、</b>能力发现<b>、</b>身份交换<b>。</p>
+<p>Client 收到响应后,发 <code>notifications/initialized</code> 通知 Server “我准备好了”。</p>
+<h4 id="Step-2-工具发现-原语"><a href="#Step-2-工具发现-原语" class="headerlink" title="Step 2:工具发现(原语)"></a>Step 2:工具发现(原语)</h4><p>Client 调 <code>tools/list</code> 拿到所有可用工具:</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">  <span class="attr">&quot;jsonrpc&quot;</span><span class="punctuation">:</span> <span class="string">&quot;2.0&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;id&quot;</span><span class="punctuation">:</span> <span class="number">2</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;method&quot;</span><span class="punctuation">:</span> <span class="string">&quot;tools/list&quot;</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+
+<p>Server 返回工具列表(简化):</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">  <span class="attr">&quot;jsonrpc&quot;</span><span class="punctuation">:</span> <span class="string">&quot;2.0&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;id&quot;</span><span class="punctuation">:</span> <span class="number">2</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;result&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">    <span class="attr">&quot;tools&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span></span><br><span class="line">      <span class="punctuation">&#123;</span></span><br><span class="line">        <span class="attr">&quot;name&quot;</span><span class="punctuation">:</span> <span class="string">&quot;baidu_map_geocode&quot;</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;title&quot;</span><span class="punctuation">:</span> <span class="string">&quot;百度地理编码&quot;</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;description&quot;</span><span class="punctuation">:</span> <span class="string">&quot;把地址转换为经纬度坐标&quot;</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;inputSchema&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">          <span class="attr">&quot;type&quot;</span><span class="punctuation">:</span> <span class="string">&quot;object&quot;</span><span class="punctuation">,</span></span><br><span class="line">          <span class="attr">&quot;properties&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">            <span class="attr">&quot;address&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span> <span class="attr">&quot;type&quot;</span><span class="punctuation">:</span> <span class="string">&quot;string&quot;</span><span class="punctuation">,</span> <span class="attr">&quot;description&quot;</span><span class="punctuation">:</span> <span class="string">&quot;地址字符串,如 北京市海淀区中关村&quot;</span> <span class="punctuation">&#125;</span></span><br><span class="line">          <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">          <span class="attr">&quot;required&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span><span class="string">&quot;address&quot;</span><span class="punctuation">]</span></span><br><span class="line">        <span class="punctuation">&#125;</span></span><br><span class="line">      <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">      <span class="punctuation">&#123;</span></span><br><span class="line">        <span class="attr">&quot;name&quot;</span><span class="punctuation">:</span> <span class="string">&quot;baidu_map_weather&quot;</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;title&quot;</span><span class="punctuation">:</span> <span class="string">&quot;百度天气查询&quot;</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;description&quot;</span><span class="punctuation">:</span> <span class="string">&quot;查询指定区县的实时天气和预报&quot;</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;inputSchema&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">          <span class="attr">&quot;type&quot;</span><span class="punctuation">:</span> <span class="string">&quot;object&quot;</span><span class="punctuation">,</span></span><br><span class="line">          <span class="attr">&quot;properties&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">            <span class="attr">&quot;district_id&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span> <span class="attr">&quot;type&quot;</span><span class="punctuation">:</span> <span class="string">&quot;string&quot;</span> <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">            <span class="attr">&quot;location&quot;</span><span class="punctuation">:</span>    <span class="punctuation">&#123;</span> <span class="attr">&quot;type&quot;</span><span class="punctuation">:</span> <span class="string">&quot;string&quot;</span><span class="punctuation">,</span> <span class="attr">&quot;description&quot;</span><span class="punctuation">:</span> <span class="string">&quot;经纬度,逗号分隔&quot;</span> <span class="punctuation">&#125;</span></span><br><span class="line">          <span class="punctuation">&#125;</span></span><br><span class="line">        <span class="punctuation">&#125;</span></span><br><span class="line">      <span class="punctuation">&#125;</span></span><br><span class="line">    <span class="punctuation">]</span></span><br><span class="line">  <span class="punctuation">&#125;</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+
+<p>每个工具的元数据字段:</p>
+<ul>
+<li></b><code>name</code><b>:在 Server 命名空间内唯一,执行时的”钥匙”</li>
+<li></b><code>title</code><b>:给用户看的人类可读名字</li>
+<li></b><code>description</code><b>:</b>最关键<b>——LLM 靠这个判断”该不该调、调哪个”,</b>写不清楚,LLM 一定用错<b></li>
+<li></b><code>inputSchema</code><b>:JSON Schema,做参数校验和文档</li>
+</ul>
+<h4 id="Step-3-把工具塞进-LLM-的上下文"><a href="#Step-3-把工具塞进-LLM-的上下文" class="headerlink" title="Step 3:把工具塞进 LLM 的上下文"></a>Step 3:把工具塞进 LLM 的上下文</h4><p></b>这是 MCP 真正”魔法”的地方<b>。Host 拿到工具清单后,会把它们</b>格式化成 LLM 能看懂的描述,塞进 Prompt<b>:</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">你有以下工具可用:</span><br><span class="line">1. baidu_map_geocode - 把地址转换为经纬度坐标</span><br><span class="line">   参数: &#123; address: string &#125;</span><br><span class="line">2. baidu_map_weather - 查询指定区县的实时天气和预报</span><br><span class="line">   参数: &#123; district_id?: string, location?: string &#125;</span><br><span class="line">如果用户的请求需要调工具,请按 JSON 格式返回:</span><br><span class="line">&#123; &quot;tool&quot;: &quot;工具名&quot;, &quot;args&quot;: &#123; ... &#125; &#125;</span><br></pre></td></tr></table></figure>
+
+<p></b>模型本身不直接调 MCP<b>,它只”决定”要调哪个、传什么参数。</b>真正发起调用的还是 Host 内的 MCP Client<b>。</p>
+<h4 id="Step-4-工具执行"><a href="#Step-4-工具执行" class="headerlink" title="Step 4:工具执行"></a>Step 4:工具执行</h4><p>假设用户问”北京今天天气怎么样?”,LLM 决定调 <code>baidu_map_weather</code>,Host 内的 MCP Client 发 <code>tools/call</code>:</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">  <span class="attr">&quot;jsonrpc&quot;</span><span class="punctuation">:</span> <span class="string">&quot;2.0&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;id&quot;</span><span class="punctuation">:</span> <span class="number">3</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;method&quot;</span><span class="punctuation">:</span> <span class="string">&quot;tools/call&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;params&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">    <span class="attr">&quot;name&quot;</span><span class="punctuation">:</span> <span class="string">&quot;baidu_map_weather&quot;</span><span class="punctuation">,</span></span><br><span class="line">    <span class="attr">&quot;arguments&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span> <span class="attr">&quot;location&quot;</span><span class="punctuation">:</span> <span class="string">&quot;39.915,116.404&quot;</span> <span class="punctuation">&#125;</span></span><br><span class="line">  <span class="punctuation">&#125;</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+
+<p>Server 端的 <code>handleWeather</code> 函数被触发,内部 <code>fetch</code> 调远端百度天气 API,把结果按 MCP 协议格式返回:</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">  <span class="attr">&quot;jsonrpc&quot;</span><span class="punctuation">:</span> <span class="string">&quot;2.0&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;id&quot;</span><span class="punctuation">:</span> <span class="number">3</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;result&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">    <span class="attr">&quot;content&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span></span><br><span class="line">      <span class="punctuation">&#123;</span></span><br><span class="line">        <span class="attr">&quot;type&quot;</span><span class="punctuation">:</span> <span class="string">&quot;text&quot;</span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;text&quot;</span><span class="punctuation">:</span> <span class="string">&quot;&#123; \&quot;location\&quot;: &#123;...&#125;, \&quot;now\&quot;: &#123; \&quot;temp\&quot;: 25, \&quot;text\&quot;: \&quot;晴\&quot; &#125;, ... &#125;&quot;</span></span><br><span class="line">      <span class="punctuation">&#125;</span></span><br><span class="line">    <span class="punctuation">]</span><span class="punctuation">,</span></span><br><span class="line">    <span class="attr">&quot;isError&quot;</span><span class="punctuation">:</span> <span class="literal"><span class="keyword">false</span></span></span><br><span class="line">  <span class="punctuation">&#125;</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+
+<p>Host 把结果再塞回 LLM 的上下文,</b>让模型继续基于工具结果生成自然语言回答<b>——“北京今天晴天,25°C,适合出门。”</p>
+<h4 id="Step-5-实时通知-可选"><a href="#Step-5-实时通知-可选" class="headerlink" title="Step 5:实时通知(可选)"></a>Step 5:实时通知(可选)</h4><p>如果 Server 上的工具列表变了(比如热加载了新工具),它会主动发 <code>notifications/tools/list_changed</code>。Client 收到后会重新调 <code>tools/list</code> 刷新本地缓存。</p>
+<p>把整个数据流画成一张流程图(对照 2.1.3 的角色关系):</p>
+<pre class="mermaid">sequenceDiagram
+    autonumber
+    participant U as 用户
+    participant H as Host(Java 应用)
+    participant L as LLM
+    participant C as MCP Client (Java)
+    participant S as 本地 MCP Server (Node 子进程, stdio)
+    participant API as 百度地图远端 API
+
+    U->>H: "北京今天天气怎么样?"
+    H->>C: initialize
+    C->>S: initialize 请求(JSON-RPC over stdio)
+    S-->>C: initialize 响应(能力清单)
+    C->>S: notifications/initialized
+    H->>C: tools/list
+    C->>S: tools/list 请求(stdio)
+    S-->>C: tools[] 元数据
+    H->>L: 把 tools[] 注入 Prompt
+    L-->>H: 决定调 baidu_map_weather(location=...)
+    H->>C: tools/call
+    C->>S: tools/call 请求(stdio)
+    S->>API: fetch 远端 HTTP API(本机 → 百度云)
+    API-->>S: 天气数据
+    S-->>C: 工具结果(JSON-RPC over stdio)
+    C-->>H: 工具结果
+    H->>L: 把工具结果注入 Prompt
+    L-->>H: 生成自然语言回答
+    H-->>U: "北京今天晴天,25°C..."</pre>
+
+<p>注意这张图里的两个</b>通信边界<b>:</b>中间 4 步是”本机内部 stdio”<b>(Java ↔ Node,零网络开销),</b>只有 1 步是”跨网络 HTTP”<b>(本机 → 百度云,有过公网的代价)。MCP Client 本身从不直接跨网络。</p>
+<h3 id="2-8-架构小结"><a href="#2-8-架构小结" class="headerlink" title="2.8 架构小结"></a>2.8 架构小结</h3><p>把整章的要点串起来:</p>
+<ul>
+<li></b>Host 是 AI 应用本体<b>,负责编排 LLM、上下文、多个 Client</li>
+<li></b>每个 Server 对应一个 Client<b>,Client 维护一条</b>专用连接<b></li>
+<li></b>传输层和数据层解耦<b>,stdio(本地)还是 Streamable HTTP(远程)对协议层透明</li>
+<li></b>数据流本质是 JSON-RPC 2.0**:<code>initialize</code> → <code>*/list</code> → <code>*/call</code> → <code>notifications</code></li>
+<li><b>“本地 Server”指的是 MCP Server 进程部署在你本机</b>——百度地图这种就是用 <code>npx</code> 在本机拉起一个 Node 子进程作为本地代理,<b>由它去和远程百度 HTTP API 通信</b>。<b>MCP Client 本身从不直接跨网络</b>,跨网络的事一律交给本地代理 Server 做</li>
+</ul>
+<hr>
+<h2 id="三、MCP-的局限性与最佳实践"><a href="#三、MCP-的局限性与最佳实践" class="headerlink" title="三、MCP 的局限性与最佳实践"></a>三、MCP 的局限性与最佳实践</h2><p>讲完了”它是什么”和”它怎么工作”,我们必须客观地聊一下<b>它现在还不够好的地方</b>,以及<b>怎么用好它</b>。MCP 不是银弹,理解它的边界才能在工程上做出正确决策。</p>
+<h3 id="3-1-MCP-的局限性"><a href="#3-1-MCP-的局限性" class="headerlink" title="3.1 MCP 的局限性"></a>3.1 MCP 的局限性</h3><h4 id="1-协议本身的安全机制还在补全中"><a href="#1-协议本身的安全机制还在补全中" class="headerlink" title="1.协议本身的安全机制还在补全中"></a>1.协议本身的安全机制还在补全中</h4><p>MCP 在早期版本里,<b>没有强制的、标准化的身份认证机制</b>。很多实现把 API Key 直接明文写在 <code>env</code> 字段里——比如百度地图的 <code>BAIDU_MAP_API_KEY</code> 之前就是明文写在 JSON 里的。<b>一旦这个 <code>mcpServers.json</code> 泄露,Key 也就泄露了</b>。</p>
+<p><b>关于”MCP Server 让 LLM 执行任意操作”这件事,需要澄清一下</b>:MCP Server 的本质是<b>提供工具和资源</b>,它不自己包含 LLM,也不直接让 LLM 执行什么。它暴露的 Tool 内部逻辑就是一段普通代码——比如百度地图 MCP 的 <code>handleWeather</code> 内部就是 <code>fetch</code> 调百度 HTTP API,然后把结果按 MCP 格式返回。<b>真正”让 LLM 动手”的是 Host 里的客户端代码</b>——LLM 决定调哪个 Tool,Host 内的 MCP Client 真的去调,Tool 执行完把结果回给 LLM。</p>
+<p><b>真正的安全风险在哪</b>:<b>如果一个 MCP Server 暴露的 Tool 是恶意的</b>(比如 Tool 内部偷偷做”删除文件””发送敏感数据到外网””挖矿”),LLM 很难分辨——LLM 只看 Tool 的 <code>description</code>,根本不知道 Tool 内部到底干了什么。<b>协议自身不提供”工具风险分级”,这件事要靠 Host 实现</b>(比如工具调用前弹窗让用户确认、限制工具能访问的目录&#x2F;网络范围)。</p>
+<p><b>提示词注入(Prompt Injection)</b> 也是反复被讨论的风险。MCP 的设计是 LLM 看工具描述决定调什么,<b>如果 Tool 的 <code>description</code> 里藏了恶意指令,LLM 可能被诱导</b>。这不是 MCP 独有的问题,所有 Function Calling 都有,但 MCP 的开放生态让这个问题更突出。</p>
+<h4 id="2-它只是一个通信协议-不是开发框架"><a href="#2-它只是一个通信协议-不是开发框架" class="headerlink" title="2.它只是一个通信协议,不是开发框架"></a>2.它只是一个通信协议,不是开发框架</h4><p>官网自己说:<b>“MCP focuses solely on the protocol for context exchange—it does not dictate how AI applications use LLMs or manage the provided context.”</b></p>
+<p>翻译:<b>MCP 只管”消息怎么传”,不管”消息怎么用”</b>。它不强制 ACL、不提供细粒度的访问控制、不管 LLM 的推理循环、不管 Agent 的工作流编排。<b>这些都得你自己在 Host 侧实现,或者用 LangChain、Spring AI、Semantic Kernel 这样的上层框架</b>。</p>
+<h4 id="3-工具数量爆炸时-LLM-选择会变差"><a href="#3-工具数量爆炸时-LLM-选择会变差" class="headerlink" title="3.工具数量爆炸时,LLM 选择会变差"></a>3.工具数量爆炸时,LLM 选择会变差</h4><p>MCP 鼓励一个 Server 暴露多个工具,<b>但当一个 Host 同时接了十几个 Server、总工具数破百的时候,LLM 在”选哪个工具”这件事上的准确率会显著下降</b>。Context window 会被工具描述塞满,选择变慢、成本变高、幻觉变多。</p>
+<h4 id="4-远程-MCP-的运维成本"><a href="#4-远程-MCP-的运维成本" class="headerlink" title="4.远程 MCP 的运维成本"></a>4.远程 MCP 的运维成本</h4><p>虽然 mcp.so 已经极大降低了”找服务”的成本,但”用好”还是要面对:</p>
+<ul>
+<li><b>网络抖动</b>:Streamable HTTP 是有状态长连接,断连重连机制要自己实现</li>
+<li><b>鉴权管理</b>:OAuth &#x2F; API Key 的轮转、撤销、权限最小化,目前没有统一规范</li>
+<li><b>服务发现</b>:没有标准的”我这个 Host 怎么自动发现组织内部有哪些 MCP Server”。Nacos 3.0 正在做这件事(原生支持 MCP 注册&#x2F;发现),但生态还在早期</li>
+<li><b>可观测性</b>:调用链、日志、计费这些,都还没有生产级的标准方案</li>
+</ul>
+<h4 id="5-STDIO-模式的部署限制"><a href="#5-STDIO-模式的部署限制" class="headerlink" title="5.STDIO 模式的部署限制"></a>5.STDIO 模式的部署限制</h4><p>stdio 是性能最好的传输,但它<b>要求 Client 和 Server 在同一台机器、用同一个进程空间通信</b>。这意味着:</p>
+<ul>
+<li>不能跨机器</li>
+<li>很难水平扩展(每个 Client 都要单独拉起一个 Server 子进程)</li>
+<li>容器化部署时,Server 必须和 Client 在同一个 Pod</li>
+</ul>
+<p><b>所以”什么时候用 stdio、什么时候用 HTTP&#x2F;SSE”是一个工程上必须做的决策</b>。简单规则:<b>单机本机工具用 stdio,跨机器&#x2F;多租户&#x2F;对外提供用 HTTP</b>。</p>
+<h3 id="3-2-最佳实践"><a href="#3-2-最佳实践" class="headerlink" title="3.2 最佳实践"></a>3.2 最佳实践</h3><p>基于上面的局限性,以下是经过社区验证的最佳实践:</p>
+<ul>
+<li><b>能力最小化</b>:每个 MCP Server 只做一件事。比如百度地图 MCP 只做地理&#x2F;路径&#x2F;搜索,不要顺手把支付也塞进去</li>
+<li><b>工具命名规范化</b>:用 <code>domain_action</code> 格式(如 <code>baidu_map_geocode</code>),不要用 <code>doIt</code> 这种万能名</li>
+<li><b>描述详细、参数严格</b>:工具的 <code>description</code> 和 <code>inputSchema</code> 是 LLM 决定调不调、怎么调的唯一依据,<b>写不清楚,LLM 一定用错</b></li>
+<li><b>敏感操作二次确认</b>:删除文件、扣款、发送消息这类副作用,必须由 Host 弹窗让用户确认</li>
+<li><b>密钥走环境变量或密钥管理服务</b>:不要硬编码在配置 JSON 里,Git 提交前用 <code>git-secrets</code> 之类的工具扫一遍</li>
+<li><b>本地优先、远程补充</b>:<b>能本地解决的别远程</b>——性能差几十倍,且不依赖外网。远程 MCP 用于”组织级共享能力”或”无本地替代的服务”</li>
+<li><b>不要一次性接太多 Server</b>:控制在 20~50 个活跃工具,超过就开始做工具检索(RAG over tools)而不是全量塞 Prompt</li>
+</ul>
+<h3 id="3-3-选型决策树"><a href="#3-3-选型决策树" class="headerlink" title="3.3 选型决策树"></a>3.3 选型决策树</h3><p>用一张决策树帮你判断”现在该不该上 MCP”:</p>
+<pre class="mermaid">flowchart TD
+    A[需要让 LLM 访问外部系统] --> B{只是单次项目, 1-2 个工具?}
+    B -->|是| C[不用 MCP, 直接 Function Calling]
+    B -->|否| D{工具会越来越多, 需标准化?}
+    D -->|是| E[上 MCP, 先用 stdio 本地模式]
+    D -->|否| F{需跨进程/跨机器共享工具?}
+    F -->|是| G[上 MCP, 直接用 HTTP/SSE 远程模式]
+    F -->|否| H{需多 AI 客户端共享同一套工具?}
+    H -->|是| I[必须上 MCP, 这是最大不可替代价值]
+    H -->|否| J{工具数会破百, 需动态检索?}
+    J -->|是| K[上 MCP + 工具检索/二次 RAG]</pre>
+
+<hr>
+<h2 id="四、Spring-AI-Alibaba-实战-本地-stdio-模式"><a href="#四、Spring-AI-Alibaba-实战-本地-stdio-模式" class="headerlink" title="四、Spring AI Alibaba 实战:本地 stdio 模式"></a>四、Spring AI Alibaba 实战:本地 stdio 模式</h2><blockquote>
+<p>在 Spring AI Alibaba 中,<b>官方推荐的 MCP 接入方式就是本地 stdio 模式</b>——本机用 <code>npx</code> &#x2F; <code>uvx</code> &#x2F; <code>java</code> 等命令拉起一个 MCP Server 子进程,由这个子进程作为”远端能力的本地代理”。这种模式:零网络协议适配、零鉴权泄露、远端调用统一走本地代理,<b>也是 Claude Desktop、Cursor、VS Code 等所有主流 AI 客户端默认使用的方式</b>。</p>
+</blockquote>
+<h3 id="4-1-引入依赖"><a href="#4-1-引入依赖" class="headerlink" title="4.1 引入依赖"></a>4.1 引入依赖</h3><figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">&lt;!-- MCP Client 核心:用 stdio 连接器拉起本地子进程 --&gt;</span></span><br><span class="line"><span class="tag">&lt;<span class="name">dependency</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">groupId</span>&gt;</span>org.springframework.ai<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>spring-ai-starter-mcp-client<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">dependency</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="4-2-用-stdio-接入百度地图-MCP-对接真实远端能力"><a href="#4-2-用-stdio-接入百度地图-MCP-对接真实远端能力" class="headerlink" title="4.2 用 stdio 接入百度地图 MCP(对接真实远端能力)"></a>4.2 用 stdio 接入百度地图 MCP(对接真实远端能力)</h3><p><b>真实场景</b>:在 Spring AI Alibaba 应用里,<b>通过 <code>npx</code> 拉起百度地图的本地 MCP Server 子进程</b>,由这个子进程作为代理,去调用百度云的远端 HTTP API。</p>
+<p><b>第一步:写 <code>mcp-servers-config.json</code></b>(Spring AI 的官方推荐写法,和 Claude Desktop 兼容):</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">  <span class="attr">&quot;mcpServers&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">    <span class="attr">&quot;baidu-map&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">      <span class="attr">&quot;command&quot;</span><span class="punctuation">:</span> <span class="string">&quot;E:\\Develop\\NodeJs\\npx.cmd&quot;</span><span class="punctuation">,</span></span><br><span class="line">      <span class="attr">&quot;args&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span><span class="string">&quot;-y&quot;</span><span class="punctuation">,</span> <span class="string">&quot;@baidumap/mcp-server-baidu-map&quot;</span><span class="punctuation">]</span><span class="punctuation">,</span></span><br><span class="line">      <span class="attr">&quot;env&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">        <span class="attr">&quot;BAIDU_MAP_API_KEY&quot;</span><span class="punctuation">:</span> <span class="string">&quot;&lt;你的百度地图 API Key,从 lbs.baidu.com 申请&gt;&quot;</span></span><br><span class="line">      <span class="punctuation">&#125;</span></span><br><span class="line">    <span class="punctuation">&#125;</span></span><br><span class="line">  <span class="punctuation">&#125;</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+
+<p><b>第二步:在 <code>application.yml</code> 中让 Spring AI 加载这份配置</b>:</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">spring:</span></span><br><span class="line">  <span class="attr">ai:</span></span><br><span class="line">    <span class="attr">mcp:</span></span><br><span class="line">      <span class="attr">client:</span></span><br><span class="line">        <span class="attr">stdio:</span></span><br><span class="line">          <span class="comment"># 加载 stdio 连接器配置</span></span><br><span class="line">          <span class="attr">servers-configuration:</span> <span class="string">classpath:/mcp-servers-config.json</span></span><br></pre></td></tr></table></figure>
+
+<p><b>第三步:启动应用,Spring AI 会自动用 <code>npx</code> 拉起 Node 子进程</b>:</p>
+<pre class="mermaid">flowchart TB
+    subgraph J["你的 Java 进程 (本机)"]
+        direction TB
+        SAI["Spring AI Alibaba<br/>读到 stdio.connections.baidu-map"]
+    end
+    subgraph P["Node.js 子进程 (本机 stdio)"]
+        direction TB
+        SVR["@baidumap/mcp-server-baidu-map<br/>stdin 收 JSON-RPC<br/>stdout 发 JSON-RPC"]
+    end
+    subgraph C["百度云 (远程)"]
+        direction TB
+        API["api.map.baidu.com<br/>百度地图 HTTP API"]
+    end
+
+    SAI -- "fork + exec<br/>npx -y @baidumap/mcp-server-baidu-map" --> SVR
+    SVR -- "fetch HTTPS 调用" --> API
+    API -- "天气/地理/路径数据" --> SVR
+
+    style J fill:#e8f4fd,stroke:#1f6feb
+    style P fill:#d4f8d4,stroke:#16a34a
+    style C fill:#fff4e1,stroke:#d97706</pre>
+
+<p><b>第四步:在业务代码里直接用 <code>ChatClient</code>,LLM 会自动决定调百度地图的工具</b>:</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@RestController</span></span><br><span class="line"><span class="meta">@RequiredArgsConstructor</span></span><br><span class="line"><span class="keyword">class</span> <span class="title class_">ChatController</span> &#123;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> ChatClient chatClient;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@GetMapping(&quot;/ask&quot;)</span></span><br><span class="line">    <span class="keyword">public</span> String <span class="title function_">ask</span><span class="params">(<span class="meta">@RequestParam</span> String q)</span> &#123;</span><br><span class="line">        <span class="keyword">return</span> chatClient.prompt()</span><br><span class="line">                .user(q)</span><br><span class="line">                .call()</span><br><span class="line">                .content();</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>ChatClient</code> 本身的构造是另外一个配置。<b><code>ToolCallbackProvider</code> 由 Spring AI Alibaba 的 MCP Client 自动注册</b>——yml 里配的 <code>mcp-servers-config.json</code> 会让容器里出现一个 <code>ToolCallbackProvider</code> 类型的 Bean,<b>ChatClient 直接注入它就能把所有 stdio Server 的工具挂到 Prompt 上</b>:</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Configuration</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title class_">ChatClientConfig</span> &#123;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Bean</span></span><br><span class="line">    <span class="keyword">public</span> ChatClient <span class="title function_">chatClient</span><span class="params">(ChatModel chatModel,</span></span><br><span class="line"><span class="params">                                 ToolCallbackProvider tools)</span> &#123;</span><br><span class="line">        <span class="keyword">return</span> ChatClient.builder(chatModel)</span><br><span class="line">                <span class="comment">// mcp 协议，stdio 子进程配置见 application.yml</span></span><br><span class="line">                .defaultToolCallbacks(tools.getToolCallbacks())</span><br><span class="line">                .build();</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><b>完整数据流</b>(对照 2.1.3 的角色关系):</p>
+<pre class="mermaid">sequenceDiagram
+    autonumber
+    participant U as 用户
+    participant H as ChatClient
+    participant L as LLM
+    participant C as MCP Client (Java)
+    participant S as 本地 MCP Server (Node 子进程, stdio)
+    participant API as 百度地图远端 API
+
+    U->>H: "北京今天天气怎么样?"
+    H->>C: initialize(stdio)
+    C->>S: JSON-RPC initialize(stdin)
+    S-->>C: 能力响应(stdout)
+    C->>S: notifications/initialized(stdin)
+    H->>C: tools/list
+    C->>S: JSON-RPC tools/list(stdin)
+    S-->>C: tools[](stdout,来自百度地图能力)
+    H->>L: 注入 tools[]
+    L-->>H: 决定调 baidu_map_weather(location=...)
+    H->>C: tools/call
+    C->>S: JSON-RPC tools/call(stdin)
+    S->>API: fetch HTTPS
+    API-->>S: 天气数据
+    S-->>C: 工具结果(stdout)
+    C-->>H: 工具结果
+    H->>L: 注入结果
+    L-->>U: "北京今天晴天,25°C..."</pre>
+
+<p><b>关键理解</b>:<b>MCP Client 始终在本机</b>,通过 stdio 跟 Node 子进程说话;<b>真正跨网络的是 Node 子进程</b>(它去 fetch 百度云),<b>Client 自己从不出网</b>。这就是”本地代理”模式的核心价值。</p>
+<h3 id="4-3-自己实现一个-MCP-Server-模块-以-Java-为例"><a href="#4-3-自己实现一个-MCP-Server-模块-以-Java-为例" class="headerlink" title="4.3 自己实现一个 MCP Server 模块(以 Java 为例)"></a>4.3 自己实现一个 MCP Server 模块(以 Java 为例)</h3><blockquote>
+<p>前面用的百度地图 MCP 是别人写好的 npm 包。如果我们自己想<b>完全在本地、不依赖任何远端服务地</b>暴露工具,<b>推荐的方式是单独建一个 MCP Server 模块</b>,引入 <code>spring-ai-starter-mcp-server</code> 依赖,在这个模块里用 <code>@Tool</code> &#x2F; <code>@ToolParam</code> 注解把业务方法暴露成 MCP Tool,<b>再把工具类注册成 Spring Bean 即可</b>。这个模块和 Client 端是两个独立项目,Client 端通过 stdio 把它当子进程拉起。</p>
+</blockquote>
+<h4 id="第一步-建一个独立的-MCP-Server-模块-mcp-server-weather"><a href="#第一步-建一个独立的-MCP-Server-模块-mcp-server-weather" class="headerlink" title="第一步:建一个独立的 MCP Server 模块(mcp-server-weather)"></a>第一步:建一个独立的 MCP Server 模块(<code>mcp-server-weather</code>)</h4><p><b>模块的 <code>pom.xml</code></b>:</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">dependencies</span>&gt;</span></span><br><span class="line">    <span class="comment">&lt;!-- MCP Server 核心:把 @Tool 注解的方法注册为 MCP Tool,并提供 stdio 服务端 --&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">dependency</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">groupId</span>&gt;</span>org.springframework.ai<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>spring-ai-starter-mcp-server<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;/<span class="name">dependency</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">dependency</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">groupId</span>&gt;</span>org.springframework.boot<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>spring-boot-starter<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;/<span class="name">dependency</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">dependencies</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<h4 id="第二步-用-Tool-实现工具类-并把它交给-Spring-管理"><a href="#第二步-用-Tool-实现工具类-并把它交给-Spring-管理" class="headerlink" title="第二步:用 @Tool 实现工具类,并把它交给 Spring 管理"></a>第二步:用 <code>@Tool</code> 实现工具类,并把它交给 Spring 管理</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Service</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title class_">WeatherService</span> &#123;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Tool(description = &quot;根据城市名查询天气&quot;)</span></span><br><span class="line">    <span class="keyword">public</span> String <span class="title function_">getWeather</span><span class="params">(</span></span><br><span class="line"><span class="params">            <span class="meta">@ToolParam(description = &quot;城市名,如 北京&quot;)</span> String city)</span> &#123;</span><br><span class="line">        <span class="comment">// 这里可以查本地数据库、本地缓存、本地文件,完全不出网</span></span><br><span class="line">        <span class="keyword">return</span> city + <span class="string">&quot;:晴,25°C&quot;</span>;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="第三步-把-WeatherService-暴露成-ToolCallbackProvider"><a href="#第三步-把-WeatherService-暴露成-ToolCallbackProvider" class="headerlink" title="第三步:把 WeatherService 暴露成 ToolCallbackProvider"></a>第三步:把 <code>WeatherService</code> 暴露成 <code>ToolCallbackProvider</code></h4><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@SpringBootApplication</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title class_">McpServerApplication</span> &#123;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title function_">main</span><span class="params">(String[] args)</span> &#123;</span><br><span class="line">        SpringApplication.run(McpServerApplication.class, args);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Bean</span></span><br><span class="line">    <span class="keyword">public</span> ToolCallbackProvider <span class="title function_">weatherTools</span><span class="params">(WeatherService weatherService)</span> &#123;</span><br><span class="line">        <span class="keyword">return</span> MethodToolCallbackProvider.builder()</span><br><span class="line">                .toolObjects(weatherService)</span><br><span class="line">                .build();</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>关键点:<b>只需要这一个 <code>ToolCallbackProvider</code> Bean</b>,Spring AI 会自动扫描 <code>toolObjects</code> 里所有带 <code>@Tool</code> &#x2F; <code>@ToolParam</code> 注解的方法,按 MCP 协议格式注册成 Tools,并通过 stdio 暴露给任何 MCP Client。</p>
+</blockquote>
+<h4 id="第四步-Client-端直接注入-不用打包成独立进程"><a href="#第四步-Client-端直接注入-不用打包成独立进程" class="headerlink" title="第四步:Client 端直接注入,不用打包成独立进程"></a>第四步:Client 端直接注入,不用打包成独立进程</h4><p><b>如果是单体应用</b>(MCP Server 模块和 AI Client 端在同一个 Spring Boot 进程内),<b>完全不需要 <code>mvn package</code> + <code>java -jar</code> 拉子进程这套</b>。前面在 MCP Server 模块里用 <code>@Bean</code> 注册的 <code>ToolCallbackProvider</code> <b>在同一个 Spring 容器里是可见的</b>——只要 Client 端项目依赖了这个 Server 模块,<code>ToolCallbackProvider</code> 就会作为普通 Spring Bean 出现在容器中,Client 端直接 <code>@Autowired</code> &#x2F; 构造函数注入就行。</p>
+<p>Client 端只需要一个 <code>ChatClient</code> 的配置,直接拿到本地 MCP Server 的 Bean:</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Configuration</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title class_">ChatClientConfig</span> &#123;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Bean</span></span><br><span class="line">    <span class="keyword">public</span> ChatClient <span class="title function_">chatClient</span><span class="params">(ChatModel chatModel,</span></span><br><span class="line"><span class="params">                                 ToolCallbackProvider tools)</span> &#123;</span><br><span class="line">        <span class="keyword">return</span> ChatClient.builder(chatModel)</span><br><span class="line">                <span class="comment">// mcp 协议，配置见 yml 文件</span></span><br><span class="line">                .defaultToolCallbacks(tools.getToolCallbacks())</span><br><span class="line">                .build();</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这里的 <code>ToolCallbackProvider tools</code> 参数,就是 MCP Server 模块里那个 <code>@Bean public ToolCallbackProvider weatherTools(...)</code> 暴露出来的同一个 Bean 实例。<b>同一个 Spring Boot 进程内,Client 直接调用本机的 MCP Server 方法,没有任何 stdio &#x2F; 进程拉起的开销</b>——<b>MCP 在这里退化成了”一个普通的工具注册中心”</b>。</p>
+<p>业务代码同 4.2:</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@RestController</span></span><br><span class="line"><span class="meta">@RequiredArgsConstructor</span></span><br><span class="line"><span class="keyword">class</span> <span class="title class_">ChatController</span> &#123;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> ChatClient chatClient;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@GetMapping(&quot;/ask&quot;)</span></span><br><span class="line">    <span class="keyword">public</span> String <span class="title function_">ask</span><span class="params">(<span class="meta">@RequestParam</span> String q)</span> &#123;</span><br><span class="line">        <span class="keyword">return</span> chatClient.prompt()</span><br><span class="line">                .user(q)</span><br><span class="line">                .call()</span><br><span class="line">                .content();</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p><b>什么时候才需要打包 + stdio 拉子进程?</b>只有当 MCP Server 和 AI Client 拆成两个独立部署的微服务 &#x2F; 独立应用时,才需要打成 jar、用 <code>mcp-servers-config.json</code> 配 <code>command: java -jar</code> 走 stdio 通信——这种”跨进程”场景下 MCP 协议的 stdio 价值才真正体现出来。同进程内直接注入 Bean 就够了,不必多此一举。</p>
+</blockquote>
+<h3 id="4-4-stdio-模式的核心优势"><a href="#4-4-stdio-模式的核心优势" class="headerlink" title="4.4 stdio 模式的核心优势"></a>4.4 stdio 模式的核心优势</h3><ul>
+<li><b>零网络协议适配</b>:Client 永远只和本地子进程对话,远端协议(HTTPS &#x2F; GraphQL &#x2F; gRPC &#x2F; WebSocket)的差异由本地代理吸收</li>
+<li><b>API Key 不进 LLM 上下文</b>:Key 写在本地子进程的 <code>env</code> 里,<b>不会出现在发给大模型的 Prompt 里</b>,既安全又省 token</li>
+<li><b>依赖管理解耦</b>:Node.js &#x2F; Python 版本、<code>npx</code> &#x2F; <code>uvx</code> 这些运行时环境<b>全部由本地子进程接管</b>,Java 应用不关心</li>
+<li><b>可观测性统一</b>:所有远端调用都先经过本地子进程,<b>统一加日志、加限流、加缓存、加熔断</b></li>
+<li><b>跨 AI 客户端复用</b>:同一份 <code>mcp-servers-config.json</code>,可以<b>直接给 Claude Desktop、Cursor、VS Code、自研 Java 应用共用</b>——这就是 MCP USB-C 思路的真正威力</li>
+</ul>
+<hr>
+<h2 id="五、总结"><a href="#五、总结" class="headerlink" title="五、总结"></a>五、总结</h2><p>回到开头的 USB-C 比喻:<b>MCP 真正改变的不是”AI 能干什么”,而是”AI 怎么和世界对话”</b>。在它之前,每个 AI 应用和每个外部系统都是 M × N 的胶水代码;在它之后,<b>只要你的工具按 MCP 规范暴露,任何支持 MCP 的 AI 应用都能用</b>。</p>
+<p>回顾三个核心要点:</p>
+<ul>
+<li><b>MCP 是什么</b>:Anthropic 提出的开放协议,被广泛生态支持,生态规模超过 21000+ 服务(<a target="_blank" rel="noopener" href="https://mcp.so/">https://mcp.so/</a>),目标是给 AI 应用一个”USB-C 接口”,解决 Function Calling 时代工具集成的”胶水代码之痛”</li>
+<li><b>MCP 怎么工作</b>:<b>Host 编排多个 Client</b>,每个 Client 维护一条到 Server 的专用连接;<b>传输层(Stdio &#x2F; Streamable HTTP)和数据层(JSON-RPC 2.0)解耦</b>;Server 暴露 <b>Tools &#x2F; Resources &#x2F; Prompts</b>,Client 暴露 <b>Sampling &#x2F; Elicitation &#x2F; Logging</b>;数据流是 <code>initialize</code> → <code>*/list</code> → <code>*/call</code> → <code>notifications</code></li>
+<li><b>本地 vs 远程的真相</b>:<b>MCP Client 从不直接跨网络</b>。接入百度地图这种”远端业务能力”时,真实的链路是”<b>本地 MCP Client → 本地 MCP Server(同应用内的 Node 子进程)→ 远程百度 HTTP API</b>“。本地 MCP Server 扮演的是”远端能力的本地代理”角色,<b>负责把远端协议翻译成 MCP 协议</b></li>
+<li><b>MCP 的局限与最佳实践</b>:协议安全机制还在补全、工具爆炸会拖垮 LLM 选择、stdio 部署受限、远程运维没统一标准;<b>能力最小化、命名规范、描述详细、敏感操作二次确认、密钥走密钥管理、本地优先远程补充、工具数控制在 20~50</b></li>
+</ul>
+<p>Spring AI Alibaba 官方推荐的接入方式就是<b>本地 stdio 模式</b>——本机拉起 MCP Server 子进程作为本地代理,业务代码完全不关心远端协议、API Key 隔离、可观测性统一。</p>
+<p><b>最后一句话</b>:<b>MCP 不是万能的,但它是你现在能让 LLM 真正”动手干活”的最务实的协议标准</b>。当你在犹豫”要不要为这个工具集成 MCP”时,默认要;当你在犹豫”要不要接 50 个 Server”时,默认不要</p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://LI-S-H.github.io">青山木</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://li-s-h.github.io/2026/06/04/%E3%80%90%20%E4%B8%87%E5%AD%97%E7%B2%BE%E8%AE%B2%E3%80%91MCP%E5%88%B0%E5%BA%95%E6%98%AF%E4%BB%80%E4%B9%88---%E4%BB%8E%E5%8D%8F%E8%AE%AE%E6%9C%AC%E8%BA%AB%E5%88%B0Spring%20AI%20Alibaba%E5%AE%9E%E6%88%98/">https://li-s-h.github.io/2026/06/04/%E3%80%90%20%E4%B8%87%E5%AD%97%E7%B2%BE%E8%AE%B2%E3%80%91MCP%E5%88%B0%E5%BA%95%E6%98%AF%E4%BB%80%E4%B9%88---%E4%BB%8E%E5%8D%8F%E8%AE%AE%E6%9C%AC%E8%BA%AB%E5%88%B0Spring%20AI%20Alibaba%E5%AE%9E%E6%88%98/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://LI-S-H.github.io" target="_blank">青山木</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/Spring-AI/">Spring AI</a><a class="post-meta__tags" href="/tags/MCP/">MCP</a><a class="post-meta__tags" href="/tags/%E5%A4%A7%E6%A8%A1%E5%9E%8B/">大模型</a><a class="post-meta__tags" href="/tags/Spring-AI-Alibaba/">Spring AI Alibaba</a><a class="post-meta__tags" href="/tags/Model-Context-Protocol/">Model Context Protocol</a><a class="post-meta__tags" href="/tags/AI-Agent/">AI Agent</a></div><div class="post-share"><div class="social-share" data-image="/img/title-picture/MCP.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/2026/06/04/Hot%20100%20---%20%E6%89%BE%E5%88%B0%E5%AD%97%E7%AC%A6%E4%B8%B2%E4%B8%AD%E6%89%80%E6%9C%89%E5%AD%97%E6%AF%8D%E5%BC%82%E4%BD%8D%E8%AF%8D/" title="Hot 100 --- 找到字符串中所有字母异位词"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="onerror=null;src='/img/404.jpg'" alt="cover of previous post"><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">Hot 100 --- 找到字符串中所有字母异位词</div></div><div class="info-2"><div class="info-item-1">本文以LeetCode经典题目"找到字符串中所有字母异位词"为例，从暴力解法入手，逐步优化到滑动窗口+差异计数解法，系统讲解如何通过只关注窗口进出字符对差异的影响，将时间复杂度从O(nm)优化到O(n)</div></div></div></a><a class="pagination-related" href="/2026/06/02/%E4%BB%8ELLM%E5%88%B0Agent%EF%BC%9APrompt%C2%B7RAG%C2%B7ToolCalling%C2%B7MCP%E5%A6%82%E4%BD%95%E6%8A%8A%E5%87%BD%E6%95%B0%E5%8F%98%E6%88%90%E6%99%BA%E8%83%BD%E4%BD%93/" title="从 LLM 到 Agent：Prompt·RAG·Tool Calling·MCP 如何把函数变成智能体"><img class="cover" src="/img/title-picture/Spring%20AI%20Alibaba.png" onerror="onerror=null;src='/img/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">从 LLM 到 Agent：Prompt·RAG·Tool Calling·MCP 如何把函数变成智能体</div></div><div class="info-2"><div class="info-item-1">大模型本质上只是一个预测下一个Token的函数，天生有四个缺陷。本文从大模型本质出发，拆解每个缺陷及解决方案，帮助理解什么是智能体及其构建思路。</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/2026/06/02/%E4%BB%8ELLM%E5%88%B0Agent%EF%BC%9APrompt%C2%B7RAG%C2%B7ToolCalling%C2%B7MCP%E5%A6%82%E4%BD%95%E6%8A%8A%E5%87%BD%E6%95%B0%E5%8F%98%E6%88%90%E6%99%BA%E8%83%BD%E4%BD%93/" title="从 LLM 到 Agent：Prompt·RAG·Tool Calling·MCP 如何把函数变成智能体"><img class="cover" src="/img/title-picture/Spring%20AI%20Alibaba.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-06-02</div><div class="info-item-2">从 LLM 到 Agent：Prompt·RAG·Tool Calling·MCP 如何把函数变成智能体</div></div><div class="info-2"><div class="info-item-1">大模型本质上只是一个预测下一个Token的函数，天生有四个缺陷。本文从大模型本质出发，拆解每个缺陷及解决方案，帮助理解什么是智能体及其构建思路。</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/%E5%A4%B4%E5%83%8F.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">青山木</div><div class="author-info-description">正在学习Java后端开发＋Python智能体开发，希望能与大家多多交流</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">12</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">27</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">3</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/LI-S-H"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/LI-S-H" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">欢迎来到我的博客，记录学习与成长的点滴。</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%80%E3%80%81%E4%BB%80%E4%B9%88%E6%98%AF-MCP"><span class="toc-number">1.</span> <span class="toc-text">一、什么是 MCP</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1-1-MCP-%E4%B9%8B%E5%89%8D%E7%9A%84%E4%B8%96%E7%95%8C-%E4%B8%BA%E4%BB%80%E4%B9%88%E9%9C%80%E8%A6%81%E4%B8%80%E5%A5%97%E6%96%B0%E5%8D%8F%E8%AE%AE"><span class="toc-number">1.1.</span> <span class="toc-text">1.1 MCP 之前的世界:为什么需要一套新协议</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-2-%E5%AE%98%E6%96%B9%E5%AE%9A%E4%B9%89-%E8%8B%B1%E6%96%87%E5%8E%9F%E6%96%87-%E4%B8%AD%E6%96%87%E7%BF%BB%E8%AF%91"><span class="toc-number">1.2.</span> <span class="toc-text">1.2 官方定义(英文原文 + 中文翻译)</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-3-MCP-%E8%83%BD%E5%81%9A%E4%BB%80%E4%B9%88"><span class="toc-number">1.3.</span> <span class="toc-text">1.3 MCP 能做什么</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-4-%E4%B8%BA%E4%BB%80%E4%B9%88%E8%A6%81%E7%94%A8-MCP"><span class="toc-number">1.4.</span> <span class="toc-text">1.4 为什么要用 MCP</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-5-%E5%B9%BF%E6%B3%9B%E7%9A%84%E7%94%9F%E6%80%81%E6%94%AF%E6%8C%81-%E5%A4%A7%E9%87%8F%E7%8E%B0%E6%88%90%E7%9A%84%E8%BF%9C%E7%A8%8B%E6%9C%8D%E5%8A%A1"><span class="toc-number">1.5.</span> <span class="toc-text">1.5 广泛的生态支持 + 大量现成的远程服务</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%8C%E3%80%81MCP-%E6%9E%B6%E6%9E%84"><span class="toc-number">2.</span> <span class="toc-text">二、MCP 架构</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#2-1-Participants-Host-Client-Server-%E4%B8%89%E8%80%85%E5%85%B3%E7%B3%BB"><span class="toc-number">2.1.</span> <span class="toc-text">2.1 Participants:Host &#x2F; Client &#x2F; Server 三者关系</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#2-1-1-%E5%AE%98%E6%96%B9%E5%AE%9A%E4%B9%89-%E8%8B%B1%E6%96%87-%E4%B8%AD%E6%96%87%E5%AF%B9%E7%85%A7"><span class="toc-number">2.1.1.</span> <span class="toc-text">2.1.1 官方定义(英文 + 中文对照)</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#2-1-2-%E7%9C%9F%E5%AE%9E%E5%85%B3%E7%B3%BB-%E4%B8%80%E5%BC%A0%E5%9B%BE%E7%9C%8B%E6%98%8E%E7%99%BD"><span class="toc-number">2.1.2.</span> <span class="toc-text">2.1.2 真实关系:一张图看明白</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#2-1-3-%E4%B8%80%E4%B8%AA%E6%9C%80%E5%AE%B9%E6%98%93%E6%B7%B7%E6%B7%86%E7%9A%84%E8%AE%A4%E7%9F%A5-%E2%80%9D%E8%BF%9C%E7%A8%8B%E2%80%9D%E5%92%8C%E2%80%9D%E6%9C%AC%E5%9C%B0%E2%80%9D%E5%88%B0%E5%BA%95%E6%8C%87%E4%BB%80%E4%B9%88"><span class="toc-number">2.1.3.</span> <span class="toc-text">2.1.3 一个最容易混淆的认知:”远程”和”本地”到底指什么</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-2-Layers-MCP-%E7%9A%84%E4%B8%A4%E5%B1%82%E6%9E%B6%E6%9E%84"><span class="toc-number">2.2.</span> <span class="toc-text">2.2 Layers:MCP 的两层架构</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#2-2-1-Data-Layer-%E6%95%B0%E6%8D%AE%E5%B1%82"><span class="toc-number">2.2.1.</span> <span class="toc-text">2.2.1 Data Layer(数据层)</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#2-2-2-Transport-Layer-%E4%BC%A0%E8%BE%93%E5%B1%82"><span class="toc-number">2.2.2.</span> <span class="toc-text">2.2.2 Transport Layer(传输层)</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-3-Data-Layer-Protocol-JSON-RPC-2-0"><span class="toc-number">2.3.</span> <span class="toc-text">2.3 Data Layer Protocol:JSON-RPC 2.0</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-4-Lifecycle-Management-%E8%BF%9E%E6%8E%A5%E7%9A%84%E7%94%9F%E5%91%BD%E5%91%A8%E6%9C%9F"><span class="toc-number">2.4.</span> <span class="toc-text">2.4 Lifecycle Management:连接的生命周期</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-5-Primitives-MCP-%E6%9C%80%E6%A0%B8%E5%BF%83%E7%9A%84%E6%A6%82%E5%BF%B5"><span class="toc-number">2.5.</span> <span class="toc-text">2.5 Primitives:MCP 最核心的概念</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#2-5-1-Server-%E7%AB%AF%E5%8F%AF%E4%BB%A5%E6%9A%B4%E9%9C%B2%E7%9A%84%E4%B8%89%E4%B8%AA%E5%8E%9F%E8%AF%AD"><span class="toc-number">2.5.1.</span> <span class="toc-text">2.5.1 Server 端可以暴露的三个原语</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#2-5-2-Client-%E7%AB%AF%E5%8F%AF%E4%BB%A5%E6%9A%B4%E9%9C%B2%E7%9A%84%E5%8E%9F%E8%AF%AD"><span class="toc-number">2.5.2.</span> <span class="toc-text">2.5.2 Client 端可以暴露的原语</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#2-5-3-%E8%B7%A8%E5%88%87%E9%9D%A2%E5%B7%A5%E5%85%B7%E5%9E%8B%E5%8E%9F%E8%AF%AD"><span class="toc-number">2.5.3.</span> <span class="toc-text">2.5.3 跨切面工具型原语</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-6-Notifications-%E5%AE%9E%E6%97%B6%E5%90%8C%E6%AD%A5"><span class="toc-number">2.6.</span> <span class="toc-text">2.6 Notifications:实时同步</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-7-Example-%E4%B8%80%E6%AC%A1%E5%AE%8C%E6%95%B4%E7%9A%84%E5%B7%A5%E5%85%B7%E8%B0%83%E7%94%A8%E6%95%B0%E6%8D%AE%E6%B5%81"><span class="toc-number">2.7.</span> <span class="toc-text">2.7 Example:一次完整的工具调用数据流</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#Step-1-%E8%BF%9E%E6%8E%A5%E5%88%9D%E5%A7%8B%E5%8C%96-%E7%94%9F%E5%91%BD%E5%91%A8%E6%9C%9F%E7%AE%A1%E7%90%86"><span class="toc-number">2.7.1.</span> <span class="toc-text">Step 1:连接初始化(生命周期管理)</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#Step-2-%E5%B7%A5%E5%85%B7%E5%8F%91%E7%8E%B0-%E5%8E%9F%E8%AF%AD"><span class="toc-number">2.7.2.</span> <span class="toc-text">Step 2:工具发现(原语)</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#Step-3-%E6%8A%8A%E5%B7%A5%E5%85%B7%E5%A1%9E%E8%BF%9B-LLM-%E7%9A%84%E4%B8%8A%E4%B8%8B%E6%96%87"><span class="toc-number">2.7.3.</span> <span class="toc-text">Step 3:把工具塞进 LLM 的上下文</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#Step-4-%E5%B7%A5%E5%85%B7%E6%89%A7%E8%A1%8C"><span class="toc-number">2.7.4.</span> <span class="toc-text">Step 4:工具执行</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#Step-5-%E5%AE%9E%E6%97%B6%E9%80%9A%E7%9F%A5-%E5%8F%AF%E9%80%89"><span class="toc-number">2.7.5.</span> <span class="toc-text">Step 5:实时通知(可选)</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-8-%E6%9E%B6%E6%9E%84%E5%B0%8F%E7%BB%93"><span class="toc-number">2.8.</span> <span class="toc-text">2.8 架构小结</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%89%E3%80%81MCP-%E7%9A%84%E5%B1%80%E9%99%90%E6%80%A7%E4%B8%8E%E6%9C%80%E4%BD%B3%E5%AE%9E%E8%B7%B5"><span class="toc-number">3.</span> <span class="toc-text">三、MCP 的局限性与最佳实践</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#3-1-MCP-%E7%9A%84%E5%B1%80%E9%99%90%E6%80%A7"><span class="toc-number">3.1.</span> <span class="toc-text">3.1 MCP 的局限性</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#1-%E5%8D%8F%E8%AE%AE%E6%9C%AC%E8%BA%AB%E7%9A%84%E5%AE%89%E5%85%A8%E6%9C%BA%E5%88%B6%E8%BF%98%E5%9C%A8%E8%A1%A5%E5%85%A8%E4%B8%AD"><span class="toc-number">3.1.1.</span> <span class="toc-text">1.协议本身的安全机制还在补全中</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#2-%E5%AE%83%E5%8F%AA%E6%98%AF%E4%B8%80%E4%B8%AA%E9%80%9A%E4%BF%A1%E5%8D%8F%E8%AE%AE-%E4%B8%8D%E6%98%AF%E5%BC%80%E5%8F%91%E6%A1%86%E6%9E%B6"><span class="toc-number">3.1.2.</span> <span class="toc-text">2.它只是一个通信协议,不是开发框架</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#3-%E5%B7%A5%E5%85%B7%E6%95%B0%E9%87%8F%E7%88%86%E7%82%B8%E6%97%B6-LLM-%E9%80%89%E6%8B%A9%E4%BC%9A%E5%8F%98%E5%B7%AE"><span class="toc-number">3.1.3.</span> <span class="toc-text">3.工具数量爆炸时,LLM 选择会变差</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#4-%E8%BF%9C%E7%A8%8B-MCP-%E7%9A%84%E8%BF%90%E7%BB%B4%E6%88%90%E6%9C%AC"><span class="toc-number">3.1.4.</span> <span class="toc-text">4.远程 MCP 的运维成本</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#5-STDIO-%E6%A8%A1%E5%BC%8F%E7%9A%84%E9%83%A8%E7%BD%B2%E9%99%90%E5%88%B6"><span class="toc-number">3.1.5.</span> <span class="toc-text">5.STDIO 模式的部署限制</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-2-%E6%9C%80%E4%BD%B3%E5%AE%9E%E8%B7%B5"><span class="toc-number">3.2.</span> <span class="toc-text">3.2 最佳实践</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-3-%E9%80%89%E5%9E%8B%E5%86%B3%E7%AD%96%E6%A0%91"><span class="toc-number">3.3.</span> <span class="toc-text">3.3 选型决策树</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%9B%9B%E3%80%81Spring-AI-Alibaba-%E5%AE%9E%E6%88%98-%E6%9C%AC%E5%9C%B0-stdio-%E6%A8%A1%E5%BC%8F"><span class="toc-number">4.</span> <span class="toc-text">四、Spring AI Alibaba 实战:本地 stdio 模式</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#4-1-%E5%BC%95%E5%85%A5%E4%BE%9D%E8%B5%96"><span class="toc-number">4.1.</span> <span class="toc-text">4.1 引入依赖</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-2-%E7%94%A8-stdio-%E6%8E%A5%E5%85%A5%E7%99%BE%E5%BA%A6%E5%9C%B0%E5%9B%BE-MCP-%E5%AF%B9%E6%8E%A5%E7%9C%9F%E5%AE%9E%E8%BF%9C%E7%AB%AF%E8%83%BD%E5%8A%9B"><span class="toc-number">4.2.</span> <span class="toc-text">4.2 用 stdio 接入百度地图 MCP(对接真实远端能力)</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-3-%E8%87%AA%E5%B7%B1%E5%AE%9E%E7%8E%B0%E4%B8%80%E4%B8%AA-MCP-Server-%E6%A8%A1%E5%9D%97-%E4%BB%A5-Java-%E4%B8%BA%E4%BE%8B"><span class="toc-number">4.3.</span> <span class="toc-text">4.3 自己实现一个 MCP Server 模块(以 Java 为例)</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%AC%AC%E4%B8%80%E6%AD%A5-%E5%BB%BA%E4%B8%80%E4%B8%AA%E7%8B%AC%E7%AB%8B%E7%9A%84-MCP-Server-%E6%A8%A1%E5%9D%97-mcp-server-weather"><span class="toc-number">4.3.1.</span> <span class="toc-text">第一步:建一个独立的 MCP Server 模块(mcp-server-weather)</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%AC%AC%E4%BA%8C%E6%AD%A5-%E7%94%A8-Tool-%E5%AE%9E%E7%8E%B0%E5%B7%A5%E5%85%B7%E7%B1%BB-%E5%B9%B6%E6%8A%8A%E5%AE%83%E4%BA%A4%E7%BB%99-Spring-%E7%AE%A1%E7%90%86"><span class="toc-number">4.3.2.</span> <span class="toc-text">第二步:用 @Tool 实现工具类,并把它交给 Spring 管理</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%AC%AC%E4%B8%89%E6%AD%A5-%E6%8A%8A-WeatherService-%E6%9A%B4%E9%9C%B2%E6%88%90-ToolCallbackProvider"><span class="toc-number">4.3.3.</span> <span class="toc-text">第三步:把 WeatherService 暴露成 ToolCallbackProvider</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%AC%AC%E5%9B%9B%E6%AD%A5-Client-%E7%AB%AF%E7%9B%B4%E6%8E%A5%E6%B3%A8%E5%85%A5-%E4%B8%8D%E7%94%A8%E6%89%93%E5%8C%85%E6%88%90%E7%8B%AC%E7%AB%8B%E8%BF%9B%E7%A8%8B"><span class="toc-number">4.3.4.</span> <span class="toc-text">第四步:Client 端直接注入,不用打包成独立进程</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-4-stdio-%E6%A8%A1%E5%BC%8F%E7%9A%84%E6%A0%B8%E5%BF%83%E4%BC%98%E5%8A%BF"><span class="toc-number">4.4.</span> <span class="toc-text">4.4 stdio 模式的核心优势</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%94%E3%80%81%E6%80%BB%E7%BB%93"><span class="toc-number">5.</span> <span class="toc-text">五、总结</span></a></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/2026/06/04/Hot%20100%20---%20%E6%89%BE%E5%88%B0%E5%AD%97%E7%AC%A6%E4%B8%B2%E4%B8%AD%E6%89%80%E6%9C%89%E5%AD%97%E6%AF%8D%E5%BC%82%E4%BD%8D%E8%AF%8D/" title="Hot 100 --- 找到字符串中所有字母异位词"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 找到字符串中所有字母异位词"/></a><div class="content"><a class="title" href="/2026/06/04/Hot%20100%20---%20%E6%89%BE%E5%88%B0%E5%AD%97%E7%AC%A6%E4%B8%B2%E4%B8%AD%E6%89%80%E6%9C%89%E5%AD%97%E6%AF%8D%E5%BC%82%E4%BD%8D%E8%AF%8D/" title="Hot 100 --- 找到字符串中所有字母异位词">Hot 100 --- 找到字符串中所有字母异位词</a><time datetime="2026-06-04T02:00:00.000Z" title="发表于 2026-06-04 10:00:00">2026-06-04</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/06/04/%E3%80%90%20%E4%B8%87%E5%AD%97%E7%B2%BE%E8%AE%B2%E3%80%91MCP%E5%88%B0%E5%BA%95%E6%98%AF%E4%BB%80%E4%B9%88---%E4%BB%8E%E5%8D%8F%E8%AE%AE%E6%9C%AC%E8%BA%AB%E5%88%B0Spring%20AI%20Alibaba%E5%AE%9E%E6%88%98/" title="【 万字精讲】MCP到底是什么---从协议本身到Spring AI Alibaba实战"><img src="/img/title-picture/MCP.png" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="【 万字精讲】MCP到底是什么---从协议本身到Spring AI Alibaba实战"/></a><div class="content"><a class="title" href="/2026/06/04/%E3%80%90%20%E4%B8%87%E5%AD%97%E7%B2%BE%E8%AE%B2%E3%80%91MCP%E5%88%B0%E5%BA%95%E6%98%AF%E4%BB%80%E4%B9%88---%E4%BB%8E%E5%8D%8F%E8%AE%AE%E6%9C%AC%E8%BA%AB%E5%88%B0Spring%20AI%20Alibaba%E5%AE%9E%E6%88%98/" title="【 万字精讲】MCP到底是什么---从协议本身到Spring AI Alibaba实战">【 万字精讲】MCP到底是什么---从协议本身到Spring AI Alibaba实战</a><time datetime="2026-06-04T01:00:00.000Z" title="发表于 2026-06-04 09:00:00">2026-06-04</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/06/02/%E4%BB%8ELLM%E5%88%B0Agent%EF%BC%9APrompt%C2%B7RAG%C2%B7ToolCalling%C2%B7MCP%E5%A6%82%E4%BD%95%E6%8A%8A%E5%87%BD%E6%95%B0%E5%8F%98%E6%88%90%E6%99%BA%E8%83%BD%E4%BD%93/" title="从 LLM 到 Agent：Prompt·RAG·Tool Calling·MCP 如何把函数变成智能体"><img src="/img/title-picture/Spring%20AI%20Alibaba.png" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="从 LLM 到 Agent：Prompt·RAG·Tool Calling·MCP 如何把函数变成智能体"/></a><div class="content"><a class="title" href="/2026/06/02/%E4%BB%8ELLM%E5%88%B0Agent%EF%BC%9APrompt%C2%B7RAG%C2%B7ToolCalling%C2%B7MCP%E5%A6%82%E4%BD%95%E6%8A%8A%E5%87%BD%E6%95%B0%E5%8F%98%E6%88%90%E6%99%BA%E8%83%BD%E4%BD%93/" title="从 LLM 到 Agent：Prompt·RAG·Tool Calling·MCP 如何把函数变成智能体">从 LLM 到 Agent：Prompt·RAG·Tool Calling·MCP 如何把函数变成智能体</a><time datetime="2026-06-02T14:00:00.000Z" title="发表于 2026-06-02 22:00:00">2026-06-02</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/06/01/Hot%20100%20---%20%E6%97%A0%E9%87%8D%E5%A4%8D%E5%AD%97%E7%AC%A6%E7%9A%84%E6%9C%80%E9%95%BF%E5%AD%90%E4%B8%B2/" title="Hot 100 --- 无重复字符的最长子串"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 无重复字符的最长子串"/></a><div class="content"><a class="title" href="/2026/06/01/Hot%20100%20---%20%E6%97%A0%E9%87%8D%E5%A4%8D%E5%AD%97%E7%AC%A6%E7%9A%84%E6%9C%80%E9%95%BF%E5%AD%90%E4%B8%B2/" title="Hot 100 --- 无重复字符的最长子串">Hot 100 --- 无重复字符的最长子串</a><time datetime="2026-06-01T06:00:00.000Z" title="发表于 2026-06-01 14:00:00">2026-06-01</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/06/01/Hot%20100%20---%20%E6%8E%A5%E9%9B%A8%E6%B0%B4/" title="Hot 100 --- 接雨水"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 接雨水"/></a><div class="content"><a class="title" href="/2026/06/01/Hot%20100%20---%20%E6%8E%A5%E9%9B%A8%E6%B0%B4/" title="Hot 100 --- 接雨水">Hot 100 --- 接雨水</a><time datetime="2026-06-01T04:00:00.000Z" title="发表于 2026-06-01 12:00:00">2026-06-01</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By 青山木</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.5.4"></script><script src="/js/main.js?v=5.5.4"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.outerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+    setTimeout(() => URL.revokeObjectURL(url), 30000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        if (typeof svg === 'string') {
+          openSvgInNewTab({ source: svg, initViewBox })
+          return
+        }
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+
+    // Avoid binding multiple times on themeChange/pjax
+    if (wrap.__mermaidGestureBound) return
+    wrap.__mermaidGestureBound = true
+
+    // Helper: map client (viewport) coordinate -> viewBox coordinate
+    const clientToViewBox = (clientX, clientY) => {
+      const rect = svg.getBoundingClientRect()
+      const vb = wrap.__mermaidCurViewBox || getSvgViewBox(svg)
+      const x = vb[0] + (clientX - rect.left) * (vb[2] / rect.width)
+      const y = vb[1] + (clientY - rect.top) * (vb[3] / rect.height)
+      return { x, y, rect, vb }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      startCenter: null
+    }
+
+    const clampVb = vb => {
+      const init = wrap.__mermaidInitViewBox || vb
+      const minW = init[2] * 0.1
+      const maxW = init[2] * 10
+      const minH = init[3] * 0.1
+      const maxH = init[3] * 10
+      vb[2] = clamp(vb[2], minW, maxW)
+      vb[3] = clamp(vb[3], minH, maxH)
+      return vb
+    }
+
+    const setCurVb = vb => {
+      vb = clampVb(vb)
+      wrap.__mermaidCurViewBox = vb
+      setSvgViewBox(svg, vb)
+    }
+
+    const onPointerDown = e => {
+      // Allow only primary button for mouse
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+
+      if (state.pointers.size === 1) {
+        state.startVb = (wrap.__mermaidCurViewBox || getSvgViewBox(svg)).slice()
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = (wrap.__mermaidCurViewBox || getSvgViewBox(svg)).slice()
+        state.startCenter = { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 }
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+
+      // Pan with 1 pointer
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = [...state.pointers.values()][0]
+        const prev = { x: e.clientX - e.movementX, y: e.clientY - e.movementY }
+        // movementX/Y unreliable on touch, compute from stored last position
+        const last = wrap.__mermaidLastSinglePointer || p
+        const dxClient = p.x - last.x
+        const dyClient = p.y - last.y
+        wrap.__mermaidLastSinglePointer = p
+
+        const { rect } = clientToViewBox(p.x, p.y)
+        const vb = (wrap.__mermaidCurViewBox || getSvgViewBox(svg)).slice()
+        const dx = dxClient * (vb[2] / rect.width)
+        const dy = dyClient * (vb[3] / rect.height)
+        setCurVb([vb[0] - dx, vb[1] - dy, vb[2], vb[3]])
+        return
+      }
+
+      // Pinch zoom with 2 pointers
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist // dist bigger => zoom in (viewBox smaller)
+
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const centerClient = { x: cx, y: cy }
+
+        const pxy = clientToViewBox(centerClient.x, centerClient.y)
+        const cpx = pxy.x
+        const cpy = pxy.y
+
+        const vb = zoomAtPoint(state.startVb, factor, cpx, cpy)
+        setCurVb(vb)
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+        state.startCenter = null
+        wrap.__mermaidLastSinglePointer = null
+      } else if (state.pointers.size === 1) {
+        // reset single pointer baseline to avoid jump
+        wrap.__mermaidLastSinglePointer = [...state.pointers.values()][0]
+      }
+    }
+
+    // Wheel zoom (mouse/trackpad)
+    const onWheel = e => {
+      // ctrlKey on mac trackpad pinch; we treat both as zoom
+      e.preventDefault()
+      const delta = e.deltaY
+      const zoomFactor = delta > 0 ? 1.1 : 0.9
+      const { x, y } = clientToViewBox(e.clientX, e.clientY)
+      const vb = (wrap.__mermaidCurViewBox || getSvgViewBox(svg)).slice()
+      setCurVb(zoomAtPoint(vb, zoomFactor, x, y))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (!init) return
+      wrap.__mermaidCurViewBox = init.slice()
+      setSvgViewBox(svg, init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown)
+    svg.addEventListener('pointermove', onPointerMove)
+    svg.addEventListener('pointerup', onPointerUpOrCancel)
+    svg.addEventListener('pointercancel', onPointerUpOrCancel)
+    svg.addEventListener('wheel', onWheel, { passive: false })
+    svg.addEventListener('dblclick', onDblClick)
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+
+      // Clear old render (themeChange/pjax will rerun)
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      item.__mermaidGestureBound = false
+
+      const config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+
+      // mermaid v9 and v10 compatibility
+      typeof renderFn === 'string' ? renderMermaid(renderFn) : renderFn.then(({ svg }) => renderMermaid(svg))
+    })
+  }
+
+  const codeToMermaid = () => {
+    const codeMermaidEle = document.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    if (true) codeToMermaid()
+    const $mermaid = document.querySelectorAll('#article-container .mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid@11.12.2/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script></div><script>
+(function() {
+  /* 仅在首页标题上方插入头像 */
+  if (window.location.pathname !== '/' && !window.location.pathname.endsWith('/index.html')) return;
+  var siteTitle = document.getElementById('site-title');
+  if (siteTitle) {
+    var avatar = document.createElement('img');
+    avatar.src = '/img/头像.jpg';
+    avatar.alt = 'avatar';
+    avatar.className = 'avatar-img';
+    siteTitle.parentNode.insertBefore(avatar, siteTitle);
+  }
+})();
+</script>
+<script>
+(function() {
+  /* 将 Mermaid 代码块转为可渲染的 div */
+  document.querySelectorAll('figure.highlight').forEach(function(fig) {
+    var codePre = fig.querySelector('td.code pre');
+    if (!codePre) return;
+    var text = codePre.innerText.trim();
+    if (/^(flowchart|graph|sequenceDiagram|classDiagram|stateDiagram|gantt|pie|erDiagram|journey|gitGraph|mindmap|timeline)\b/m.test(text)) {
+      var div = document.createElement('div');
+      div.className = 'mermaid';
+      div.setAttribute('data-mermaid-src', text);
+      div.textContent = text;
+      fig.parentNode.replaceChild(div, fig);
+    }
+  });
+})();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script><script>
+mermaid.initialize({
+  startOnLoad: true,
+  theme: 'neutral',
+  themeVariables: {
+    primaryColor: '#ffffff',
+    primaryTextColor: '#1a1a1a',
+    primaryBorderColor: '#10b981',
+    lineColor: '#10b981',
+    secondaryColor: '#f8f9fa',
+    tertiaryColor: '#ffffff',
+    mainBkg: '#ffffff',
+    nodeBorder: '#10b981',
+    clusterBkg: '#f0fdf4',
+    clusterBorder: '#10b981',
+    titleColor: '#1a1a1a',
+    edgeLabelBackground: '#ffffff',
+    textColor: '#1a1a1a',
+    fontSize: '14px'
+  }
+});
+</script>
+<script id="canvas_nest" defer="defer" color="107,159,255" opacity="0.6" zIndex="-1" count="99" mobile="false" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/dist/canvas-nest.min.js"></script></div></body></html>
