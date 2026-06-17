@@ -224,9 +224,9 @@
 </ul>
 <h3 id="1-2-RAG-的核心价值"><a href="#1-2-RAG-的核心价值" class="headerlink" title="1.2 RAG 的核心价值"></a>1.2 RAG 的核心价值</h3><p>RAG 解决了 LLM 的三大痛点：</p>
 <p><strong>痛点一：幻觉（Hallucination）</strong></p>
-<p>LLM 在不确定时会”自信地编造”答案。比如你问”公司差旅报销标准是多少”，模型可能凭训练数据中的通用信息给出一个完全不靠谱的数字。RAG 通过注入真实文档内容，让模型基于事实回答，大幅降低幻觉率。</p>
+<p>LLM 在不确定时会&quot;自信地编造&quot;答案。比如你问&quot;公司差旅报销标准是多少&quot;，模型可能凭训练数据中的通用信息给出一个完全不靠谱的数字。RAG 通过注入真实文档内容，让模型基于事实回答，大幅降低幻觉率。</p>
 <p><strong>痛点二：知识时效性</strong></p>
-<p>模型的训练数据有截止日期，无法回答训练之后的新信息。比如”2026年最新的员工病假政策是什么”，模型的知识库中根本没有。RAG 让模型可以实时查询最新文档，回答永远基于最新信息。</p>
+<p>模型的训练数据有截止日期，无法回答训练之后的新信息。比如&quot;2026年最新的员工病假政策是什么&quot;，模型的知识库中根本没有。RAG 让模型可以实时查询最新文档，回答永远基于最新信息。</p>
 <p><strong>痛点三：领域专业性</strong></p>
 <p>通用模型对企业内部知识（规章制度、产品文档、技术规范）了解有限。RAG 允许接入私有知识库，让模型输出专家级的精准回答。</p>
 <h3 id="1-3-RAG-的四大核心步骤"><a href="#1-3-RAG-的四大核心步骤" class="headerlink" title="1.3 RAG 的四大核心步骤"></a>1.3 RAG 的四大核心步骤</h3><p>一个完整的 RAG 流程分为离线和在线两个阶段：</p>
@@ -240,7 +240,7 @@
 <ol>
 <li><p><strong>文档切割</strong>：将海量文档转化为易检索的知识碎片。就像把厚重词典拆解成单词卡片，采用智能分块算法保持语义连贯性，给每个知识碎片打标签。优质的知识切割如同图书馆分类系统，决定了后续检索效率。</p>
 </li>
-<li><p><strong>向量编码</strong>：用 Embedding 模型将文字转化为高维数学向量，使语义相近的内容产生相似的数学特征。比如”续航时间”和”电池容量”会被编码为相似向量，存入专用的向量数据库并建立快速检索索引。</p>
+<li><p><strong>向量编码</strong>：用 Embedding 模型将文字转化为高维数学向量，使语义相近的内容产生相似的数学特征。比如&quot;续航时间&quot;和&quot;电池容量&quot;会被编码为相似向量，存入专用的向量数据库并建立快速检索索引。</p>
 </li>
 <li><p><strong>相似检索</strong>：将用户问题同样转化为向量，在向量数据库中通过相似度算法（如余弦相似度）找到最相关的文档片段。</p>
 </li>
@@ -284,7 +284,7 @@
 </tr>
 <tr>
 <td><strong>Skill</strong></td>
-<td>给 AI 的标准化”操作手册”</td>
+<td>给 AI 的标准化&quot;操作手册&quot;</td>
 <td>过程性知识（Know-How）</td>
 <td>代码迁移、部署流程、审查流程</td>
 <td>极低（Markdown 文件）</td>
@@ -318,7 +318,7 @@
 <td>高</td>
 </tr>
 </tbody></table>
-<h3 id="2-3-深入理解：Skill-vs-RAG"><a href="#2-3-深入理解：Skill-vs-RAG" class="headerlink" title="2.3 深入理解：Skill vs RAG"></a>2.3 深入理解：Skill vs RAG</h3><p>Skill 是 2025 年底由 Anthropic 发起、2026 年被 27+ 主流 AI 工具采纳的开放标准。它的核心产物是一个 <code>SKILL.md</code> 文件——给 AI 看的”操作手册”。</p>
+<h3 id="2-3-深入理解：Skill-vs-RAG"><a href="#2-3-深入理解：Skill-vs-RAG" class="headerlink" title="2.3 深入理解：Skill vs RAG"></a>2.3 深入理解：Skill vs RAG</h3><p>Skill 是 2025 年底由 Anthropic 发起、2026 年被 27+ 主流 AI 工具采纳的开放标准。它的核心产物是一个 <code>SKILL.md</code> 文件——给 AI 看的&quot;操作手册&quot;。</p>
 <p><strong>关键区别在于知识类型：</strong></p>
 <table>
 <thead>
@@ -332,23 +332,23 @@
 <tbody><tr>
 <td><strong>陈述性知识</strong>（Know-What）</td>
 <td>事实、数据、规则</td>
-<td>“公司差旅报销标准是 800 元&#x2F;天”</td>
+<td>&quot;公司差旅报销标准是 800 元&#x2F;天&quot;</td>
 <td><strong>RAG &#x2F; 知识库</strong></td>
 </tr>
 <tr>
 <td><strong>过程性知识</strong>（Know-How）</td>
 <td>操作步骤、工作流</td>
-<td>“如何从零部署一个 K8s 集群”</td>
+<td>&quot;如何从零部署一个 K8s 集群&quot;</td>
 <td><strong>Skill</strong></td>
 </tr>
 <tr>
 <td><strong>连接性知识</strong>（Know-Where）</td>
 <td>系统在哪、API 怎么调</td>
-<td>“ERP 系统订单接口是 &#x2F;api&#x2F;v2&#x2F;orders”</td>
+<td>&quot;ERP 系统订单接口是 &#x2F;api&#x2F;v2&#x2F;orders&quot;</td>
 <td><strong>MCP</strong></td>
 </tr>
 </tbody></table>
-<p><strong>Skill 封装的是”怎么做”，RAG 存储的是”是什么”。</strong> 两者不是替代关系，而是分工关系。</p>
+<p><strong>Skill 封装的是&quot;怎么做&quot;，RAG 存储的是&quot;是什么&quot;。</strong> 两者不是替代关系，而是分工关系。</p>
 <h3 id="2-4-Wiki-模式：小知识库的最优解"><a href="#2-4-Wiki-模式：小知识库的最优解" class="headerlink" title="2.4 Wiki 模式：小知识库的最优解"></a>2.4 Wiki 模式：小知识库的最优解</h3><p>2026 年 4 月，OpenAI 联合创始人 Andrej Karpathy 公开分享了自己用一组 Markdown 文件替代整个 RAG 管线的做法——没有向量数据库、没有 Embedding、没有分片。他的个人研究 Wiki 长到了 100 篇文章、40 万字，效果远超 RAG。</p>
 <p><strong>核心逻辑</strong>：2026 年主流模型的上下文窗口已达 1M Token，如果你的知识库在 100K<del>1M Token 之间（约 200</del>1500 页），直接全量加载到上下文即可，召回率 85% 以上。这时候上 RAG，等于给自己制造一个 48% 概率出错的检索层。</p>
 <h3 id="2-5-选型决策"><a href="#2-5-选型决策" class="headerlink" title="2.5 选型决策"></a>2.5 选型决策</h3><table>
@@ -715,7 +715,7 @@
 <td>生产环境推荐</td>
 </tr>
 </tbody></table>
-<h4 id="3-3-3-Post-Retrieval（检索后优化）"><a href="#3-3-3-Post-Retrieval（检索后优化）" class="headerlink" title="3.3.3 Post-Retrieval（检索后优化）"></a>3.3.3 Post-Retrieval（检索后优化）</h4><p>检索回来的文档不一定都是高质量的，可能包含重复、不相关或冗余的内容。Post-Retrieval 阶段负责”精炼”检索结果。</p>
+<h4 id="3-3-3-Post-Retrieval（检索后优化）"><a href="#3-3-3-Post-Retrieval（检索后优化）" class="headerlink" title="3.3.3 Post-Retrieval（检索后优化）"></a>3.3.3 Post-Retrieval（检索后优化）</h4><p>检索回来的文档不一定都是高质量的，可能包含重复、不相关或冗余的内容。Post-Retrieval 阶段负责&quot;精炼&quot;检索结果。</p>
 <p><strong>（1）DocumentJoiner——文档合并器</strong></p>
 <p>将多路检索的结果合并为一个文档列表，支持去重：</p>
 <figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 构造文档合并器</span></span><br><span class="line"><span class="type">ConcatenationDocumentJoiner</span> <span class="variable">joiner</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">ConcatenationDocumentJoiner</span>();</span><br><span class="line"></span><br><span class="line"><span class="comment">// 使用：多查询扩展后，三路检索的结果合并去重</span></span><br><span class="line">List&lt;Query&gt; queries = expanded.queries();  <span class="comment">// 来自 MultiQueryExpander</span></span><br><span class="line">List&lt;List&lt;Document&gt;&gt; retrievedResults = queries.stream()</span><br><span class="line">    .map(retriever::retrieve)</span><br><span class="line">    .collect(Collectors.toList());</span><br><span class="line"></span><br><span class="line">List&lt;Document&gt; merged = joiner.join(retrievedResults);</span><br></pre></td></tr></table></figure>
@@ -761,7 +761,7 @@
 <h3 id="3-4-RAG-ChatMemory-的组合使用"><a href="#3-4-RAG-ChatMemory-的组合使用" class="headerlink" title="3.4 RAG + ChatMemory 的组合使用"></a>3.4 RAG + ChatMemory 的组合使用</h3><p>在多轮对话场景中，RAG 需要与对话记忆（ChatMemory）配合使用。关键点在于 <strong>Advisor 的执行顺序</strong>：</p>
 <figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">ChatClient</span> <span class="variable">chatClient</span> <span class="operator">=</span> ChatClient.builder(chatModel)</span><br><span class="line">    .defaultAdvisors(</span><br><span class="line">        <span class="comment">// 1. 先加载对话历史</span></span><br><span class="line">        MessageChatMemoryAdvisor(chatMemory),</span><br><span class="line">        <span class="comment">// 2. 再执行 RAG（此时 CompressionQueryTransformer 可以看到历史）</span></span><br><span class="line">        ragAdvisor</span><br><span class="line">    )</span><br><span class="line">    .build();</span><br></pre></td></tr></table></figure>
 
-<p><strong>为什么顺序重要？</strong> 如果 RAG Advisor 在 Memory Advisor 之前执行，<code>CompressionQueryTransformer</code> 就看不到对话历史，无法将”这个小区”替换为”碧海湾小区”。</p>
+<p><strong>为什么顺序重要？</strong> 如果 RAG Advisor 在 Memory Advisor 之前执行，<code>CompressionQueryTransformer</code> 就看不到对话历史，无法将&quot;这个小区&quot;替换为&quot;碧海湾小区&quot;。</p>
 <h3 id="3-5-自定义-Prompt-模板"><a href="#3-5-自定义-Prompt-模板" class="headerlink" title="3.5 自定义 Prompt 模板"></a>3.5 自定义 Prompt 模板</h3><p>可以通过自定义模板来控制生成行为：</p>
 <figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 构建自定义 Prompt 模板：用于控制 RAG 生成时的提示词拼接方式</span></span><br><span class="line"><span class="type">PromptTemplate</span> <span class="variable">customPromptTemplate</span> <span class="operator">=</span> PromptTemplate.builder()</span><br><span class="line">    <span class="comment">// 配置模板渲染器（基于 StringTemplate 引擎）</span></span><br><span class="line">    .renderer(StTemplateRenderer.builder()</span><br><span class="line">        .startDelimiterToken(<span class="string">&#x27;&lt;&#x27;</span>)                          <span class="comment">// 模板变量起始分隔符：&#x27;&lt;&#x27;  （默认是 &#x27;$&#123;&#x27;）</span></span><br><span class="line">        .endDelimiterToken(<span class="string">&#x27;&gt;&#x27;</span>)                            <span class="comment">// 模板变量结束分隔符：&#x27;&gt;&#x27;  （默认是 &#x27;&#125;&#x27;）</span></span><br><span class="line">        .build())</span><br><span class="line">    <span class="comment">// 模板正文：必须包含 &lt;query&gt; 和 &lt;question_answer_context&gt; 两个占位符</span></span><br><span class="line">    <span class="comment">//  - &lt;query&gt; 会被替换为用户原始问题</span></span><br><span class="line">    <span class="comment">//  - &lt;question_answer_context&gt; 会被替换为检索到的文档片段</span></span><br><span class="line">    .template(<span class="string">&quot;&quot;&quot;</span></span><br><span class="line"><span class="string">        &lt;query&gt;</span></span><br><span class="line"><span class="string">        Context information is below.</span></span><br><span class="line"><span class="string">        ---------------------</span></span><br><span class="line"><span class="string">        &lt;question_answer_context&gt;</span></span><br><span class="line"><span class="string">        ---------------------</span></span><br><span class="line"><span class="string">        Given the context information and no prior knowledge, answer the query.</span></span><br><span class="line"><span class="string">        Follow these rules:</span></span><br><span class="line"><span class="string">        1. If the answer is not in the context, just say that you don&#x27;t know.</span></span><br><span class="line"><span class="string">        2. Avoid statements like &quot;Based on the context...&quot; or &quot;The provided information...&quot;.</span></span><br><span class="line"><span class="string">        &quot;&quot;&quot;</span>)</span><br><span class="line">    .build();                                              <span class="comment">// 构造 PromptTemplate 实例</span></span><br><span class="line"></span><br><span class="line"><span class="comment">// 将自定义模板应用到 RAG Advisor</span></span><br><span class="line"><span class="type">QuestionAnswerAdvisor</span> <span class="variable">qaAdvisor</span> <span class="operator">=</span> QuestionAnswerAdvisor.builder(vectorStore)</span><br><span class="line">    .promptTemplate(customPromptTemplate)                 <span class="comment">// 注入自定义 Prompt 模板</span></span><br><span class="line">    .build();</span><br></pre></td></tr></table></figure>
 
