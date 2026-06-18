@@ -1,0 +1,938 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="dark"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>权限设计怎么做？6 种模型从原理到实战全解析 | 青山木</title><meta name="author" content="青山木"><meta name="copyright" content="青山木"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#0d1117"><meta name="description" content="系统梳理六种主流权限控制模型（ACL、RBAC、ABAC、PBAC、DAC、MAC），从核心思路、优缺点到适用场景逐一剖析，并给出选型建议和混合模型实践。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="权限设计怎么做？6 种模型从原理到实战全解析">
+<meta property="og:url" content="https://li-s-h.github.io/2026/06/18/%E6%9D%83%E9%99%90%E6%8E%A7%E5%88%B6%E6%A8%A1%E5%9E%8B%E5%85%A8%E8%A7%A3%E6%9E%90/index.html">
+<meta property="og:site_name" content="青山木">
+<meta property="og:description" content="系统梳理六种主流权限控制模型（ACL、RBAC、ABAC、PBAC、DAC、MAC），从核心思路、优缺点到适用场景逐一剖析，并给出选型建议和混合模型实践。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://li-s-h.github.io/img/title-picture/%E9%94%81.jpg">
+<meta property="article:published_time" content="2026-06-18T10:00:00.000Z">
+<meta property="article:modified_time" content="2026-06-18T08:55:37.094Z">
+<meta property="article:author" content="青山木">
+<meta property="article:tag" content="权限控制">
+<meta property="article:tag" content="ACL">
+<meta property="article:tag" content="RBAC">
+<meta property="article:tag" content="ABAC">
+<meta property="article:tag" content="PBAC">
+<meta property="article:tag" content="访问控制">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://li-s-h.github.io/img/title-picture/%E9%94%81.jpg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "权限设计怎么做？6 种模型从原理到实战全解析",
+  "url": "https://li-s-h.github.io/2026/06/18/%E6%9D%83%E9%99%90%E6%8E%A7%E5%88%B6%E6%A8%A1%E5%9E%8B%E5%85%A8%E8%A7%A3%E6%9E%90/",
+  "image": "https://li-s-h.github.io/img/title-picture/%E9%94%81.jpg",
+  "datePublished": "2026-06-18T10:00:00.000Z",
+  "dateModified": "2026-06-18T08:55:37.094Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "青山木",
+      "url": "https://LI-S-H.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/%E5%A4%B4%E5%83%8F.jpg"><link rel="canonical" href="https://li-s-h.github.io/2026/06/18/%E6%9D%83%E9%99%90%E6%8E%A7%E5%88%B6%E6%A8%A1%E5%9E%8B%E5%85%A8%E8%A7%A3%E6%9E%90/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="stylesheet" href="/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d1117')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', 'ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '权限设计怎么做？6 种模型从原理到实战全解析',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><style>
+  #site-title { font-size: 1.76em !important; }
+  #subtitle { font-size: 0.88em !important; }
+
+  /* 卡片悬停放大 + 辉光 */
+  #recent-posts .recent-post-item {
+    transition: transform .3s ease, box-shadow .3s ease, border-color .3s ease;
+  }
+  #recent-posts .recent-post-item:hover {
+    transform: scale(1.025) !important;
+    border-color: rgba(107,159,255,0.5) !important;
+    box-shadow: 0 0 0 1px rgba(107,159,255,0.15),
+                0 0 45px rgba(107,159,255,0.12),
+                0 8px 30px rgba(0,0,0,0.4) !important;
+  }
+
+  /* 首页标题上方头像 */
+  #site-info .avatar-img {
+    display: block;
+    width: 144px;
+    height: 144px;
+    border-radius: 50%;
+    margin: 0 auto 20px;
+    border: 3px solid rgba(107,159,255,0.6);
+    box-shadow: 0 0 30px rgba(107,159,255,0.35),
+                0 0 60px rgba(107,159,255,0.15),
+                0 4px 20px rgba(0,0,0,0.25);
+    object-fit: cover;
+    transition: box-shadow .4s ease, border-color .4s ease;
+  }
+  #site-info .avatar-img:hover {
+    border-color: rgba(107,159,255,0.9);
+    box-shadow: 0 0 40px rgba(107,159,255,0.5),
+                0 0 80px rgba(107,159,255,0.25),
+                0 4px 20px rgba(0,0,0,0.25);
+  }
+
+  /* Mermaid 白色背景适配 */
+  pre.mermaid,
+  .mermaid {
+    background: #ffffff !important;
+    padding: 12px !important;
+    border-radius: 8px !important;
+    border: 1px solid #e0e0e0 !important;
+  }
+  pre.mermaid code {
+    background: #ffffff !important;
+  }
+</style>
+<meta name="generator" content="Hexo 7.3.0"></head><body><div class="bg-animation" id="web_bg" style="background-image: url(/img/%E8%83%8C%E6%99%AF%E5%9B%BE.webp);"></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(/img/title-picture/%E9%94%81.jpg);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">青山木</span></a><a class="nav-page-title" href="/"><span class="site-name">权限设计怎么做？6 种模型从原理到实战全解析</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">权限设计怎么做？6 种模型从原理到实战全解析</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-06-18T10:00:00.000Z" title="发表于 2026-06-18 18:00:00">2026-06-18</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-06-18T08:55:37.094Z" title="更新于 2026-06-18 16:55:37">2026-06-18</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/%E5%90%8E%E7%AB%AF%E5%BC%80%E5%8F%91/">后端开发</a></span></div><div class="meta-secondline"></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><blockquote>
+<p>本文系统梳理了六种主流权限控制模型（ACL、RBAC、ABAC、PBAC、DAC、MAC），从核心思路、优缺点到适用场景逐一剖析，并给出实际项目中的选型建议和混合模型实践。</p>
+</blockquote>
+<h2 id="写在前面"><a href="#写在前面" class="headerlink" title="写在前面"></a>写在前面</h2><p>几乎每一个稍具规模的后台系统都绕不开权限控制——谁能看到什么数据、谁能执行什么操作，这些规则直接决定了系统的安全性和可用性。但权限控制远不止&quot;加个权限字段&quot;那么简单，不同的业务场景需要不同的权限模型来支撑。选错了模型，轻则管理成本飙升，重则留下安全漏洞。</p>
+<p>我在实际项目中接触过几种权限模型，踩过一些坑，也做过一些取舍。这篇文章把主流的权限控制模型梳理一遍，希望对正在做权限设计的同学有所帮助。</p>
+<h2 id="权限控制的基本概念"><a href="#权限控制的基本概念" class="headerlink" title="权限控制的基本概念"></a>权限控制的基本概念</h2><p>在展开各种模型之前，先统一几个核心术语：</p>
+<ul>
+<li><strong>主体（Subject）</strong>：发起访问请求的实体，通常是用户，也可以是服务账号、设备等</li>
+<li><strong>客体&#x2F;资源（Object&#x2F;Resource）</strong>：被保护的对象，比如文件、接口、数据、菜单等</li>
+<li><strong>操作（Action）</strong>：主体对客体执行的行为，如读取、写入、删除、执行</li>
+<li><strong>权限（Permission）</strong>：主体是否被允许在某种条件下对某种资源执行某种操作</li>
+<li><strong>策略（Policy）</strong>：一组规则声明，定义在什么条件下允许或拒绝访问</li>
+</ul>
+<p>理解了这些概念，我们来看看不同的权限模型是如何组织主体、资源和操作之间的关系的。</p>
+<hr>
+<h2 id="一、ACL：访问控制列表——最直觉的-谁可以干什么"><a href="#一、ACL：访问控制列表——最直觉的-谁可以干什么" class="headerlink" title="一、ACL：访问控制列表——最直觉的&quot;谁可以干什么&quot;"></a>一、ACL：访问控制列表——最直觉的&quot;谁可以干什么&quot;</h2><h3 id="核心思路"><a href="#核心思路" class="headerlink" title="核心思路"></a>核心思路</h3><p>ACL（Access Control List）是最基础、最直觉的权限模型。它的核心逻辑非常简单：<strong>每个资源维护一份&quot;访问者清单&quot;，明确记录哪些主体可以对它执行哪些操作。</strong></p>
+<p>用公式表达就是：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">资源 → [(主体, 操作), (主体, 操作), ...]</span><br></pre></td></tr></table></figure>
+
+<p>举个例子：一个文件的 ACL 可能长这样：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">文件A:</span><br><span class="line">  - 张三: 读取, 写入</span><br><span class="line">  - 李四: 读取</span><br><span class="line">  - 王五: 读取, 写入, 删除</span><br></pre></td></tr></table></figure>
+
+<p>这其实就是很多开发者最初做权限系统的方式——直接在用户和权限之间建立关联。用户量少的时候，这种方式简单直接，非常有效。</p>
+<h3 id="优点"><a href="#优点" class="headerlink" title="优点"></a>优点</h3><ul>
+<li><strong>直观易懂</strong>：权限关系一目了然，排查问题时直接看资源的 ACL 清单就行</li>
+<li><strong>粒度极细</strong>：可以精确到单个资源的单个操作，想给谁什么权限就给什么权限</li>
+<li><strong>实现简单</strong>：不需要引入角色、策略等中间层，数据库里一张关联表就能搞定</li>
+<li><strong>灵活度高</strong>：可以对任意用户做任意粒度的权限调整，不受任何框架约束</li>
+</ul>
+<h3 id="缺点"><a href="#缺点" class="headerlink" title="缺点"></a>缺点</h3><ul>
+<li><strong>管理成本随规模爆炸</strong>：当用户和资源数量增长时，权限记录会急剧膨胀。1000 个用户 × 1000 个资源 &#x3D; 最多 1,000,000 条权限记录，维护起来极其痛苦</li>
+<li><strong>无法批量管理</strong>：新增一个员工，需要逐个资源添加权限；员工调岗，需要逐个资源修改权限，极易遗漏</li>
+<li><strong>缺乏抽象能力</strong>：无法表达&quot;所有经理都能查看财务报表&quot;这样的规则，只能逐个经理添加</li>
+<li><strong>权限冗余严重</strong>：多个资源的授权规则重复时，无法复用，只能重复配置</li>
+</ul>
+<h3 id="适用场景"><a href="#适用场景" class="headerlink" title="适用场景"></a>适用场景</h3><ul>
+<li>用户量少（几十人以内）、资源数量有限的内部系统</li>
+<li>需要对单个资源做精细化权限控制的场景，如文档协作平台（Notion、Trello 的单页面权限）</li>
+<li>操作系统文件权限（Linux 的 <code>chmod</code> 就是 ACL 的典型实现）</li>
+<li>临时授权场景，如临时给某人开放某个文件的编辑权限</li>
+</ul>
+<h3 id="个人体会"><a href="#个人体会" class="headerlink" title="个人体会"></a>个人体会</h3><p>ACL 是我最早接触的权限模型，也是很多人做第一个权限系统时的选择。小项目用起来确实爽——想给谁权限就给谁，没有任何中间层的阻碍。但一旦用户超过一定规模，管理就会变成噩梦。我曾经在一个内部系统中用 ACL 方式管理权限，后来人员变动频繁，每次调岗都要手动改一堆权限，还经常改漏，最后不得不重构为 RBAC。</p>
+<hr>
+<h2 id="二、RBAC：基于角色的访问控制——企业级权限的标配"><a href="#二、RBAC：基于角色的访问控制——企业级权限的标配" class="headerlink" title="二、RBAC：基于角色的访问控制——企业级权限的标配"></a>二、RBAC：基于角色的访问控制——企业级权限的标配</h2><h3 id="核心思路-1"><a href="#核心思路-1" class="headerlink" title="核心思路"></a>核心思路</h3><p>RBAC（Role-Based Access Control）是目前应用最广泛的权限模型。它的核心思想是<strong>引入&quot;角色&quot;作为用户和权限之间的中间层</strong>：先把权限分配给角色，再把角色分配给用户。用户通过关联角色间接获得权限，实现&quot;用户 → 角色 → 权限&quot;的三层映射。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">用户 → 角色 → 权限</span><br></pre></td></tr></table></figure>
+
+<p>举个例子：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">角色定义:</span><br><span class="line">  - 财务专员: [查看报表, 提交报销, 审批报销]</span><br><span class="line">  - 部门经理: [查看报表, 审批报销, 查看员工信息]</span><br><span class="line"></span><br><span class="line">用户分配:</span><br><span class="line">  - 张三 → 财务专员</span><br><span class="line">  - 李四 → 部门经理</span><br></pre></td></tr></table></figure>
+
+<p>RBAC 还可以进一步演进：</p>
+<ul>
+<li><strong>RBAC0</strong>：基础模型，用户-角色-权限三层结构</li>
+<li><strong>RBAC1</strong>：增加角色继承，比如&quot;技术总监&quot;自动继承&quot;开发工程师&quot;的所有权限</li>
+<li><strong>RBAC2</strong>：增加职责分离（SoD），比如&quot;会计&quot;和&quot;出纳&quot;角色互斥，同一用户不能同时拥有</li>
+</ul>
+<h3 id="优点-1"><a href="#优点-1" class="headerlink" title="优点"></a>优点</h3><ul>
+<li><strong>批量管理极其方便</strong>：新员工入职只需赋予对应角色，角色下的所有权限自动生效。1000 个新员工入职，也只需要分配角色即可</li>
+<li><strong>批量修改同样方便</strong>：需要调整某类人员的权限时，只需修改角色对应的权限，所有关联用户自动生效，不会遗漏</li>
+<li><strong>结构清晰</strong>：权限关系通过角色组织，一目了然，便于审计和合规</li>
+<li><strong>职责分离</strong>：RBAC2 支持互斥角色，防止权限集中带来的风险</li>
+<li><strong>完美匹配企业组织架构</strong>：角色天然对应职位&#x2F;岗位，与企业科层制高度契合</li>
+</ul>
+<h3 id="缺点-1"><a href="#缺点-1" class="headerlink" title="缺点"></a>缺点</h3><ul>
+<li><strong>难以精细化调控</strong>：角色的粒度是固定的，无法表达&quot;张三虽然是经理，但不能看某个特定报表&quot;这样的需求。要么给角色加权限（影响所有经理），要么单独处理（又回到了 ACL 的痛点）</li>
+<li><strong>角色爆炸问题</strong>：当权限需求复杂多变时，角色数量会急剧膨胀。比如矩阵式组织中，一个员工同时属于项目 A 和部门 B，就需要创建 &quot;项目A-经理&quot;、&quot;项目B-经理&quot;、&quot;部门C-经理&quot; 等大量组合角色，角色可能达到上百个，管理反而变得困难</li>
+<li><strong>静态性</strong>：无法处理动态条件，比如&quot;只有工作时间才能访问&quot;、&quot;临时借调期间可以查看&quot;这类场景</li>
+<li><strong>灵活度低</strong>：一旦权限需求超出角色模型的表达能力，就只能通过创建更多角色来弥补，陷入角色爆炸的恶性循环</li>
+</ul>
+<h3 id="适用场景-1"><a href="#适用场景-1" class="headerlink" title="适用场景"></a>适用场景</h3><ul>
+<li>企业后台管理系统（ERP、CRM、HR 系统等）</li>
+<li>组织架构相对稳定、权限变化不频繁的系统</li>
+<li>需要批量管理用户权限的场景</li>
+<li>对合规审计有要求的系统</li>
+</ul>
+<h3 id="个人体会-1"><a href="#个人体会-1" class="headerlink" title="个人体会"></a>个人体会</h3><p>RBAC 是我目前用得最多的权限模型，大部分企业级项目都在用。它的优势在组织架构稳定时非常明显——新增角色、调整权限都很方便。但我也遇到过角色爆炸的问题：一个项目里因为权限需求太细，角色从最初的 10 个膨胀到了 80 多个，每次新增功能都要纠结是新建角色还是修改现有角色，管理成本反而比 ACL 还高。后来我的做法是在 RBAC 基础上引入数据权限（行级过滤），一定程度上缓解了角色爆炸的问题。</p>
+<hr>
+<h2 id="三、ABAC：基于属性的访问控制——动态灵活的权限引擎"><a href="#三、ABAC：基于属性的访问控制——动态灵活的权限引擎" class="headerlink" title="三、ABAC：基于属性的访问控制——动态灵活的权限引擎"></a>三、ABAC：基于属性的访问控制——动态灵活的权限引擎</h2><h3 id="核心思路-2"><a href="#核心思路-2" class="headerlink" title="核心思路"></a>核心思路</h3><p>ABAC（Attribute-Based Access Control）不再依赖固定的角色或列表，而是<strong>根据主体、资源、环境、操作等多个维度的属性动态计算权限</strong>。</p>
+<p>这么说可能还是有点抽象，我们换一种方式理解：在 RBAC 中，权限是&quot;你是经理，所以你能看报表&quot;，这是一个静态的、非黑即白的判断；而在 ABAC 中，权限是&quot;你是经理，<strong>并且</strong>你在工作时间，<strong>并且</strong>你从内网访问，<strong>并且</strong>这份报表属于你管辖的部门，所以你能看&quot;——权限取决于多个条件是否同时满足。</p>
+<p>ABAC 涉及四维属性：</p>
+<ol>
+<li><strong>主体属性</strong>（谁在访问）：用户的部门、职级、项目组成员标签等</li>
+<li><strong>资源属性</strong>（访问什么）：数据的密级、所属业务线、所属区域等</li>
+<li><strong>环境属性</strong>（在什么条件下访问）：访问时间、网络位置（内网&#x2F;外网）、设备安全状态等</li>
+<li><strong>操作属性</strong>（做什么操作）：读取、写入、删除、导出等（不同操作可以有不同的策略）</li>
+</ol>
+<h3 id="伪代码示例"><a href="#伪代码示例" class="headerlink" title="伪代码示例"></a>伪代码示例</h3><p>下面用一个简化的权限判断函数来展示 ABAC 的工作方式：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">def</span> <span class="title function_">check_permission</span>(<span class="params">user, resource, action, environment</span>):</span><br><span class="line">    <span class="string">&quot;&quot;&quot;</span></span><br><span class="line"><span class="string">    ABAC 权限判断核心逻辑</span></span><br><span class="line"><span class="string">    user: 主体属性（部门、职级、区域等）</span></span><br><span class="line"><span class="string">    resource: 资源属性（类型、密级、所属区域等）</span></span><br><span class="line"><span class="string">    action: 操作类型（读、写、删除等）</span></span><br><span class="line"><span class="string">    environment: 环境属性（时间、网络、设备等）</span></span><br><span class="line"><span class="string">    &quot;&quot;&quot;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment"># 规则1：只有财务部的人才能查看财务报表</span></span><br><span class="line">    <span class="keyword">if</span> resource.<span class="built_in">type</span> == <span class="string">&quot;财务报表&quot;</span>:</span><br><span class="line">        <span class="keyword">if</span> user.department != <span class="string">&quot;财务部&quot;</span>:</span><br><span class="line">            <span class="keyword">return</span> DENY</span><br><span class="line"></span><br><span class="line">    <span class="comment"># 规则2：敏感数据只能在工作时间从内网访问</span></span><br><span class="line">    <span class="keyword">if</span> resource.security_level == <span class="string">&quot;敏感&quot;</span>:</span><br><span class="line">        <span class="keyword">if</span> environment.time &lt; <span class="string">&quot;09:00&quot;</span> <span class="keyword">or</span> environment.time &gt; <span class="string">&quot;18:00&quot;</span>:</span><br><span class="line">            <span class="keyword">return</span> DENY</span><br><span class="line">        <span class="keyword">if</span> environment.network != <span class="string">&quot;内网&quot;</span>:</span><br><span class="line">            <span class="keyword">return</span> DENY</span><br><span class="line"></span><br><span class="line">    <span class="comment"># 规则3：只能操作自己所属区域的数据</span></span><br><span class="line">    <span class="keyword">if</span> resource.region != user.region:</span><br><span class="line">        <span class="keyword">return</span> DENY</span><br><span class="line"></span><br><span class="line">    <span class="comment"># 规则4：删除操作需要总监级别以上</span></span><br><span class="line">    <span class="keyword">if</span> action == <span class="string">&quot;删除&quot;</span> <span class="keyword">and</span> user.level &lt; <span class="string">&quot;总监&quot;</span>:</span><br><span class="line">        <span class="keyword">return</span> DENY</span><br><span class="line"></span><br><span class="line">    <span class="comment"># 所有规则都通过，允许访问</span></span><br><span class="line">    <span class="keyword">return</span> ALLOW</span><br></pre></td></tr></table></figure>
+
+<p>再来看一个更贴近实际的场景——一个多租户 SaaS 平台的权限判断：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">def</span> <span class="title function_">check_saaS_permission</span>(<span class="params">tenant, user, resource, action, env</span>):</span><br><span class="line">    <span class="comment"># 首先判断租户是否有这个功能模块（付费功能）</span></span><br><span class="line">    <span class="keyword">if</span> resource.module <span class="keyword">not</span> <span class="keyword">in</span> tenant.purchased_modules:</span><br><span class="line">        <span class="keyword">return</span> DENY, <span class="string">&quot;租户未购买此功能&quot;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment"># 判断用户在租户内的角色权限</span></span><br><span class="line">    <span class="keyword">if</span> action == <span class="string">&quot;导出&quot;</span> <span class="keyword">and</span> user.role != <span class="string">&quot;管理员&quot;</span>:</span><br><span class="line">        <span class="keyword">return</span> DENY, <span class="string">&quot;仅管理员可导出&quot;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment"># 判断数据是否属于当前租户（租户隔离）</span></span><br><span class="line">    <span class="keyword">if</span> resource.tenant_id != tenant.<span class="built_in">id</span>:</span><br><span class="line">        <span class="keyword">return</span> DENY, <span class="string">&quot;无权访问其他租户数据&quot;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment"># 判断是否在安全环境下操作</span></span><br><span class="line">    <span class="keyword">if</span> resource.level == <span class="string">&quot;机密&quot;</span> <span class="keyword">and</span> env.device_trust_level &lt; <span class="string">&quot;medium&quot;</span>:</span><br><span class="line">        <span class="keyword">return</span> DENY, <span class="string">&quot;请在受信任的设备上操作&quot;</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> ALLOW, <span class="string">&quot;允许访问&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p>从上面的伪代码可以看出，ABAC 的核心就是<strong>把权限判断变成一组条件规则的组合</strong>。每条规则检查一个或多个属性，所有规则都通过才允许访问。这比 RBAC 的&quot;角色决定一切&quot;要灵活得多——你不需要为&quot;工作日内网财务经理&quot;这种组合创建角色，只需要写几条规则就行。</p>
+<h3 id="优点-2"><a href="#优点-2" class="headerlink" title="优点"></a>优点</h3><ul>
+<li><strong>极高的灵活性</strong>：可以表达任意复杂的权限规则，支持多维度组合判断</li>
+<li><strong>动态授权</strong>：权限不是静态绑定的，而是根据实时属性动态计算，环境变化时权限自动调整</li>
+<li><strong>解决角色爆炸</strong>：不需要为每种权限组合创建角色，通过属性组合自然表达</li>
+<li><strong>上下文感知</strong>：可以结合时间、地点、设备等环境因素做权限决策，比如检测到异地登录自动降级权限</li>
+<li><strong>数据权限天然支持</strong>：通过资源属性可以轻松实现&quot;只能查看本大区销售数据&quot;这类行级权限</li>
+</ul>
+<h3 id="缺点-2"><a href="#缺点-2" class="headerlink" title="缺点"></a>缺点</h3><ul>
+<li><strong>配置复杂</strong>：属性定义、策略编写、规则组合都需要专业能力，学习曲线陡峭</li>
+<li><strong>性能开销</strong>：每次访问都需要实时计算多维度属性，对系统性能有影响，缓存策略至关重要</li>
+<li><strong>调试困难</strong>：权限被拒绝时，需要追溯是哪个属性不匹配导致的，可观测性要求高</li>
+<li><strong>策略测试困难</strong>：属性组合的排列组合非常多，很难覆盖所有场景，容易出现意料之外的权限结果</li>
+<li><strong>理解成本高</strong>：相比 ACL 和 RBAC，ABAC 的权限规则不够直观，非技术人员很难理解</li>
+</ul>
+<h3 id="适用场景-2"><a href="#适用场景-2" class="headerlink" title="适用场景"></a>适用场景</h3><ul>
+<li>多租户 SaaS 平台，需要根据租户属性动态控制权限</li>
+<li>权限规则复杂、需要条件判断的系统，如&quot;只有工作日工作时间才能访问&quot;</li>
+<li>需要动态权限调整的场景，如临时借调、风险自适应</li>
+<li>对数据权限有精细化要求的系统，如&quot;只能查看本部门的数据&quot;</li>
+<li>云原生环境下的动态权限控制</li>
+</ul>
+<hr>
+<h2 id="四、PBAC：基于策略的访问控制——权限即代码"><a href="#四、PBAC：基于策略的访问控制——权限即代码" class="headerlink" title="四、PBAC：基于策略的访问控制——权限即代码"></a>四、PBAC：基于策略的访问控制——权限即代码</h2><h3 id="核心思路-3"><a href="#核心思路-3" class="headerlink" title="核心思路"></a>核心思路</h3><p>PBAC（Policy-Based Access Control）的核心思想是<strong>把权限规则写成一段&quot;策略代码&quot;，而不是存在数据库里</strong>。这些策略代码用专门的声明式语言编写，可以像普通代码一样放进 Git 做版本管理、Code Review、自动化测试。</p>
+<p>这么说可能还是有点抽象，我们来对比一下传统方式和 PBAC 方式的区别：</p>
+<p><strong>传统方式</strong>（权限规则存在数据库）：</p>
+<ul>
+<li>管理员在后台界面勾选&quot;经理角色可以查看报表&quot;</li>
+<li>这条规则存在数据库的权限表里</li>
+<li>要改权限？去后台界面重新勾选</li>
+<li>谁改的？什么时候改的？之前的规则是什么？——不知道，数据库里没有历史记录</li>
+</ul>
+<p><strong>PBAC 方式</strong>（权限规则写成代码）：</p>
+<ul>
+<li>开发者写一段策略代码，提交到 Git</li>
+<li>Code Review 通过后部署生效</li>
+<li>要改权限？修改代码，提交 PR，Review，部署</li>
+<li>谁改的？什么时候改的？之前的规则是什么？——Git 里清清楚楚</li>
+</ul>
+<h3 id="架构：PDP-和-PEP-是怎么配合的"><a href="#架构：PDP-和-PEP-是怎么配合的" class="headerlink" title="架构：PDP 和 PEP 是怎么配合的"></a>架构：PDP 和 PEP 是怎么配合的</h3><p>PBAC 的运行架构分为两个核心组件，它们各司其职：</p>
+<ul>
+<li><strong>PEP（Policy Enforcement Point，策略执行点）</strong>：部署在业务服务里，负责拦截用户的请求。它自己不做权限判断，只做一件事——把请求信息打包，发给 PDP 问&quot;这个请求允不允许&quot;，然后根据 PDP 的回答执行允许或拒绝</li>
+<li><strong>PDP（Policy Decision Point，策略决策点）</strong>：一个独立的策略引擎服务，负责接收 PEP 的查询请求，根据策略代码计算权限结果，返回&quot;允许&quot;或&quot;拒绝&quot;</li>
+</ul>
+<p>整个流程如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">用户发起请求</span><br><span class="line">    ↓</span><br><span class="line">PEP（在业务服务中）拦截请求</span><br><span class="line">    ↓</span><br><span class="line">PEP 把请求信息（谁、做什么、什么资源）发给 PDP</span><br><span class="line">    ↓</span><br><span class="line">PDP 根据策略代码计算权限</span><br><span class="line">    ↓</span><br><span class="line">PDP 返回决策结果（允许/拒绝）</span><br><span class="line">    ↓</span><br><span class="line">PEP 根据结果放行或拒绝请求</span><br></pre></td></tr></table></figure>
+
+<p>为什么要分成 PDP 和 PEP 两个组件？因为<strong>决策和执行解耦</strong>带来了几个好处：</p>
+<ol>
+<li>所有业务服务共享同一套策略，权限规则一致</li>
+<li>策略变更只需要更新 PDP，不用改业务代码</li>
+<li>PDP 可以独立扩展和部署，不影响业务服务</li>
+</ol>
+<h3 id="策略代码长什么样"><a href="#策略代码长什么样" class="headerlink" title="策略代码长什么样"></a>策略代码长什么样</h3><p>PBAC 使用专门的策略语言来编写权限规则，最常见的是 OPA 的 Rego 语言。下面看一个具体的例子：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"># 文件：finance_policy.rego</span><br><span class="line"># 作用：定义财务系统的访问策略</span><br><span class="line"></span><br><span class="line">package finance</span><br><span class="line"></span><br><span class="line"># 默认拒绝所有访问</span><br><span class="line">default allow = false</span><br><span class="line"></span><br><span class="line"># 规则1：财务部员工可以查看财务报表</span><br><span class="line">allow &#123;</span><br><span class="line">    input.user.department == &quot;财务部&quot;</span><br><span class="line">    input.action == &quot;查看&quot;</span><br><span class="line">    input.resource.type == &quot;财务报表&quot;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"># 规则2：财务经理可以审批报销</span><br><span class="line">allow &#123;</span><br><span class="line">    input.user.department == &quot;财务部&quot;</span><br><span class="line">    input.user.level == &quot;经理&quot;</span><br><span class="line">    input.action == &quot;审批&quot;</span><br><span class="line">    input.resource.type == &quot;报销单&quot;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"># 规则3：工作时间才能访问敏感数据</span><br><span class="line">allow &#123;</span><br><span class="line">    input.resource.security_level == &quot;敏感&quot;</span><br><span class="line">    input.environment.hour &gt;= 9</span><br><span class="line">    input.environment.hour &lt;= 18</span><br><span class="line">    input.environment.is_weekday == true</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>当 PEP 发来一个查询时，PDP 会把请求信息作为 <code>input</code> 传入，然后逐条评估策略规则。如果某条规则匹配成功，<code>allow</code> 就变为 <code>true</code>。</p>
+<p>PEP 发给 PDP 的查询请求大概长这样：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">  <span class="attr">&quot;input&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">    <span class="attr">&quot;user&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">      <span class="attr">&quot;department&quot;</span><span class="punctuation">:</span> <span class="string">&quot;财务部&quot;</span><span class="punctuation">,</span></span><br><span class="line">      <span class="attr">&quot;level&quot;</span><span class="punctuation">:</span> <span class="string">&quot;经理&quot;</span></span><br><span class="line">    <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">    <span class="attr">&quot;action&quot;</span><span class="punctuation">:</span> <span class="string">&quot;审批&quot;</span><span class="punctuation">,</span></span><br><span class="line">    <span class="attr">&quot;resource&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">      <span class="attr">&quot;type&quot;</span><span class="punctuation">:</span> <span class="string">&quot;报销单&quot;</span><span class="punctuation">,</span></span><br><span class="line">      <span class="attr">&quot;security_level&quot;</span><span class="punctuation">:</span> <span class="string">&quot;普通&quot;</span></span><br><span class="line">    <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">    <span class="attr">&quot;environment&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">      <span class="attr">&quot;hour&quot;</span><span class="punctuation">:</span> <span class="number">14</span><span class="punctuation">,</span></span><br><span class="line">      <span class="attr">&quot;is_weekday&quot;</span><span class="punctuation">:</span> <span class="literal"><span class="keyword">true</span></span></span><br><span class="line">    <span class="punctuation">&#125;</span></span><br><span class="line">  <span class="punctuation">&#125;</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+
+<p>PDP 返回的结果：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">  <span class="attr">&quot;result&quot;</span><span class="punctuation">:</span> <span class="literal"><span class="keyword">true</span></span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="策略也可以写测试"><a href="#策略也可以写测试" class="headerlink" title="策略也可以写测试"></a>策略也可以写测试</h3><p>PBAC 的一大优势是策略代码可以像普通代码一样写单元测试：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"># 文件：finance_policy_test.rego</span><br><span class="line"></span><br><span class="line">package finance</span><br><span class="line"></span><br><span class="line"># 测试：财务部员工可以查看报表</span><br><span class="line">test_finance_staff_can_view_report &#123;</span><br><span class="line">    allow with input as &#123;</span><br><span class="line">        &quot;user&quot;: &#123;&quot;department&quot;: &quot;财务部&quot;, &quot;level&quot;: &quot;员工&quot;&#125;,</span><br><span class="line">        &quot;action&quot;: &quot;查看&quot;,</span><br><span class="line">        &quot;resource&quot;: &#123;&quot;type&quot;: &quot;财务报表&quot;, &quot;security_level&quot;: &quot;普通&quot;&#125;,</span><br><span class="line">        &quot;environment&quot;: &#123;&quot;hour&quot;: 10, &quot;is_weekday&quot;: true&#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"># 测试：非财务部员工不能查看报表</span><br><span class="line">test_other_dept_cannot_view_report &#123;</span><br><span class="line">    not allow with input as &#123;</span><br><span class="line">        &quot;user&quot;: &#123;&quot;department&quot;: &quot;技术部&quot;, &quot;level&quot;: &quot;员工&quot;&#125;,</span><br><span class="line">        &quot;action&quot;: &quot;查看&quot;,</span><br><span class="line">        &quot;resource&quot;: &#123;&quot;type&quot;: &quot;财务报表&quot;, &quot;security_level&quot;: &quot;普通&quot;&#125;,</span><br><span class="line">        &quot;environment&quot;: &#123;&quot;hour&quot;: 10, &quot;is_weekday&quot;: true&#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>运行测试：<code>opa test .</code> 就能验证策略逻辑是否正确，这在传统权限管理中是很难做到的。</p>
+<h3 id="PBAC-与-ABAC-的关键区别"><a href="#PBAC-与-ABAC-的关键区别" class="headerlink" title="PBAC 与 ABAC 的关键区别"></a>PBAC 与 ABAC 的关键区别</h3><p>PBAC 和 ABAC 看起来都能做灵活的权限判断，但它们的侧重点不同：</p>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>ABAC</th>
+<th>PBAC</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>表达形式</td>
+<td>属性键值对 + 规则引擎</td>
+<td>领域特定语言（DSL）写策略代码</td>
+</tr>
+<tr>
+<td>版本控制</td>
+<td>存在数据库，难以追溯</td>
+<td>Git 管理，完整变更历史</td>
+</tr>
+<tr>
+<td>测试能力</td>
+<td>黑盒测试</td>
+<td>单元测试、策略模拟</td>
+</tr>
+<tr>
+<td>复用性</td>
+<td>规则与应用耦合</td>
+<td>策略独立，可跨服务复用</td>
+</tr>
+<tr>
+<td>审计能力</td>
+<td>需要额外实现</td>
+<td>策略变更可追溯、可回滚</td>
+</tr>
+</tbody></table>
+<p>简单来说，ABAC 侧重的是&quot;用什么方式判断权限&quot;（用属性），PBAC 侧重的是&quot;用什么方式管理权限规则&quot;（用代码）。实际上 PBAC 内部完全可以使用 ABAC 的属性判断逻辑，只不过这些逻辑是用策略代码来表达的，而不是散落在数据库或配置文件里。</p>
+<h3 id="优点-3"><a href="#优点-3" class="headerlink" title="优点"></a>优点</h3><ul>
+<li><strong>策略即代码</strong>：权限规则像代码一样管理，支持版本控制、Code Review、回滚</li>
+<li><strong>可测试</strong>：策略可以编写单元测试，确保权限逻辑的正确性</li>
+<li><strong>决策与执行解耦</strong>：PDP 独立部署，PEP 只负责查询和执行，架构清晰</li>
+<li><strong>集中管理</strong>：所有策略集中在一个地方，便于统一管控和审计</li>
+<li><strong>高性能</strong>：可以采用 Sidecar 模式，每个服务本地部署策略引擎，毫秒级响应</li>
+</ul>
+<h3 id="缺点-3"><a href="#缺点-3" class="headerlink" title="缺点"></a>缺点</h3><ul>
+<li><strong>策略抽象门槛高</strong>：需要学习策略语言（如 Rego），对开发人员有额外要求</li>
+<li><strong>不利于非开发人员维护</strong>：策略以代码形式存在，产品经理、运维人员难以直接参与</li>
+<li><strong>系统复杂度增加</strong>：引入了 PDP、PEP 等额外组件，部署和运维成本上升</li>
+<li><strong>过度设计的风险</strong>：对于简单的权限需求，PBAC 可能是杀鸡用牛刀</li>
+</ul>
+<h3 id="适用场景-3"><a href="#适用场景-3" class="headerlink" title="适用场景"></a>适用场景</h3><ul>
+<li>多租户系统，需要集中管控权限策略</li>
+<li>零信任架构、安全平台</li>
+<li>微服务架构下需要统一权限决策的系统</li>
+<li>对合规审计要求极高的系统（金融、医疗等）</li>
+<li>权限规则需要频繁变更且需要可追溯的场景</li>
+</ul>
+<hr>
+<h2 id="五、DAC：自主访问控制——资源所有者说了算"><a href="#五、DAC：自主访问控制——资源所有者说了算" class="headerlink" title="五、DAC：自主访问控制——资源所有者说了算"></a>五、DAC：自主访问控制——资源所有者说了算</h2><h3 id="核心思路-4"><a href="#核心思路-4" class="headerlink" title="核心思路"></a>核心思路</h3><p>DAC（Discretionary Access Control）的核心特点是<strong>资源的所有者可以自主决定谁能访问自己的资源，并可以将权限授予他人</strong>。&quot;自主&quot;是 DAC 与 ACL 最关键的区别——ACL 只是记录谁可以访问，而 DAC 允许权限的持有者将权限再分配给其他用户。</p>
+<p>举个例子：张三创建了一个文档，他可以自主决定让李四也能编辑这个文档，而李四又可以决定让王五也能查看。权限可以像接力一样传递下去。</p>
+<h3 id="优点-4"><a href="#优点-4" class="headerlink" title="优点"></a>优点</h3><ul>
+<li><strong>灵活性高</strong>：资源所有者可以随时调整权限，无需管理员介入</li>
+<li><strong>用户理解成本低</strong>：逻辑简单，&quot;我的东西我决定谁能用&quot;</li>
+<li><strong>授权便捷</strong>：适合需要频繁共享和协作的场景</li>
+</ul>
+<h3 id="缺点-4"><a href="#缺点-4" class="headerlink" title="缺点"></a>缺点</h3><ul>
+<li><strong>无集中管控</strong>：权限分散在各个资源所有者手中，管理员难以全局管控</li>
+<li><strong>易误授权</strong>：权限可以传递，可能导致权限扩散到不可控的范围</li>
+<li><strong>安全风险高</strong>：一旦某个用户的账号被盗，攻击者可以访问该用户拥有的所有资源，并进一步扩散权限</li>
+<li><strong>审计困难</strong>：权限变更分散，难以追踪完整的权限变更链路</li>
+</ul>
+<h3 id="适用场景-4"><a href="#适用场景-4" class="headerlink" title="适用场景"></a>适用场景</h3><ul>
+<li>文件共享系统（如百度网盘的文件分享）</li>
+<li>操作系统文件层权限（Linux 文件系统的 owner 机制就是 DAC 的实现）</li>
+<li>协作平台中的个人资源管理</li>
+<li>对安全性要求不高、强调便捷共享的场景</li>
+</ul>
+<hr>
+<h2 id="六、MAC：强制访问控制——安全至上的铁律"><a href="#六、MAC：强制访问控制——安全至上的铁律" class="headerlink" title="六、MAC：强制访问控制——安全至上的铁律"></a>六、MAC：强制访问控制——安全至上的铁律</h2><h3 id="核心思路-5"><a href="#核心思路-5" class="headerlink" title="核心思路"></a>核心思路</h3><p>MAC（Mandatory Access Control）是最严格的权限模型，<strong>系统对资源和用户打上安全标签，权限强制遵守安全等级策略，任何个人都无法修改</strong>。权限决策完全由系统规则驱动，不依赖用户的主观判断。</p>
+<p>MAC 的核心机制是安全级别：每个用户有一个安全许可级别（如绝密、机密、秘密、公开），每个资源也有一个安全分类级别。系统根据两条铁律强制执行访问控制：</p>
+<ul>
+<li><strong>向下读（No Read Up）</strong>：用户只能读取安全级别等于或低于自己许可级别的资源。也就是说，你不能读取比你许可级别更高的东西</li>
+<li><strong>向上写（No Write Down）</strong>：用户只能写入安全级别等于或高于自己许可级别的资源。也就是说，你不能往比你许可级别更低的地方写东西</li>
+</ul>
+<p><strong>为什么要这样设计？</strong> 这两条规则是为了防止两种信息泄露方式：</p>
+<ol>
+<li>**&quot;向下读&quot;防止的是&quot;越级窥探&quot;**：如果一个&quot;秘密&quot;级别的用户能读取&quot;绝密&quot;文件，那机密信息就泄露了。所以必须禁止低级别用户读取高级别资源</li>
+<li>**&quot;向上写&quot;防止的是&quot;故意泄密&quot;**：这是很多人容易忽略的一点。如果一个&quot;绝密&quot;级别的用户能把内容写到&quot;公开&quot;级别的文件里，那他就可以把绝密信息复制到公开文件中，相当于把机密信息&quot;降级&quot;泄露出去。所以必须禁止高级别用户往低级别资源写东西</li>
+</ol>
+<p>用一个具体的例子来说明：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">安全级别从高到低：绝密 &gt; 机密 &gt; 秘密 &gt; 公开</span><br><span class="line"></span><br><span class="line">用户张三，安全许可级别：机密</span><br><span class="line"></span><br><span class="line">  读取权限：</span><br><span class="line">    ✅ 可以读取&quot;公开&quot;文件 —— 级别低于自己，允许</span><br><span class="line">    ✅ 可以读取&quot;秘密&quot;文件 —— 级别低于自己，允许</span><br><span class="line">    ✅ 可以读取&quot;机密&quot;文件 —— 级别等于自己，允许</span><br><span class="line">    ❌ 不能读取&quot;绝密&quot;文件 —— 级别高于自己，禁止（防止越级窥探）</span><br><span class="line"></span><br><span class="line">  写入权限：</span><br><span class="line">    ❌ 不能写入&quot;公开&quot;文件 —— 级别低于自己，禁止（防止把机密信息写到公开地方泄密）</span><br><span class="line">    ❌ 不能写入&quot;秘密&quot;文件 —— 级别低于自己，禁止（同上）</span><br><span class="line">    ✅ 可以写入&quot;机密&quot;文件 —— 级别等于自己，允许</span><br><span class="line">    ✅ 可以写入&quot;绝密&quot;文件 —— 级别高于自己，允许（往更高级别写是安全的）</span><br></pre></td></tr></table></figure>
+
+<p>这样一来，信息只能&quot;向上流动&quot;（从低级别到高级别），永远不能&quot;向下流动&quot;（从高级别到低级别），从而保证了机密信息不会泄露到低安全等级的区域。</p>
+<h3 id="优点-5"><a href="#优点-5" class="headerlink" title="优点"></a>优点</h3><ul>
+<li><strong>安全性极高</strong>：权限由系统强制执行，不存在误授权或权限扩散的风险</li>
+<li><strong>不依赖用户行为</strong>：即使资源所有者也无法修改权限规则，杜绝了人为失误</li>
+<li><strong>符合合规要求</strong>：军事、政府等高安全等级环境的标准要求</li>
+</ul>
+<h3 id="缺点-5"><a href="#缺点-5" class="headerlink" title="缺点"></a>缺点</h3><ul>
+<li><strong>灵活性极差</strong>：安全等级和规则一旦设定就很难调整，无法适应快速变化的业务需求</li>
+<li><strong>不适用于业务系统</strong>：绝大多数业务系统需要灵活的权限管理，MAC 的刚性约束会严重阻碍业务</li>
+<li><strong>管理复杂</strong>：安全标签的维护和分级需要专业人员，成本高</li>
+<li><strong>用户体验差</strong>：严格的限制可能导致正常工作流程受阻</li>
+</ul>
+<h3 id="适用场景-5"><a href="#适用场景-5" class="headerlink" title="适用场景"></a>适用场景</h3><ul>
+<li>军事系统、政府机密系统</li>
+<li>金融核心平台（交易系统、清算系统）</li>
+<li>对安全性要求极高、可以牺牲灵活性的场景</li>
+<li>需要满足特定安全合规标准（如等保四级以上）的系统</li>
+</ul>
+<hr>
+<h2 id="模型对比速览"><a href="#模型对比速览" class="headerlink" title="模型对比速览"></a>模型对比速览</h2><table>
+<thead>
+<tr>
+<th>模型</th>
+<th>控制方式</th>
+<th>粒度</th>
+<th>灵活性</th>
+<th>管理难度</th>
+<th>典型场景</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>ACL</td>
+<td>资源挂权限清单</td>
+<td>极细</td>
+<td>高</td>
+<td>高（规模大时）</td>
+<td>文档协作、小型系统</td>
+</tr>
+<tr>
+<td>RBAC</td>
+<td>角色分权</td>
+<td>中等</td>
+<td>中</td>
+<td>低</td>
+<td>企业后台、ERP&#x2F;HR</td>
+</tr>
+<tr>
+<td>ABAC</td>
+<td>属性组合判断</td>
+<td>细粒度</td>
+<td>极高</td>
+<td>高</td>
+<td>SaaS 动态权限、云平台</td>
+</tr>
+<tr>
+<td>PBAC</td>
+<td>策略语言</td>
+<td>任意</td>
+<td>极高</td>
+<td>极高</td>
+<td>零信任、合规系统</td>
+</tr>
+<tr>
+<td>DAC</td>
+<td>所有者自主控制</td>
+<td>简单</td>
+<td>高</td>
+<td>低</td>
+<td>文件系统、共享平台</td>
+</tr>
+<tr>
+<td>MAC</td>
+<td>安全标签强制</td>
+<td>粗粒度</td>
+<td>低</td>
+<td>高</td>
+<td>军事、政府、金融核心</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="混合模型实践"><a href="#混合模型实践" class="headerlink" title="混合模型实践"></a>混合模型实践</h2><p>在实际项目中，单一模型往往难以满足所有需求，组合使用才是更常见的做法：</p>
+<h3 id="RBAC-ACL"><a href="#RBAC-ACL" class="headerlink" title="RBAC + ACL"></a>RBAC + ACL</h3><p>用 RBAC 管理基础权限结构（角色分配），用 ACL 处理个别资源的精细化授权。比如：大部分权限通过角色管理，但某个敏感文档需要单独控制谁能访问，就用 ACL 在该资源上做例外处理。</p>
+<p>这是最常见的组合方式，很多框架（如 Spring Security）天然支持这种模式。</p>
+<h3 id="RBAC-ABAC"><a href="#RBAC-ABAC" class="headerlink" title="RBAC + ABAC"></a>RBAC + ABAC</h3><p>用 RBAC 分配基础权限（角色决定能访问哪些模块），用 ABAC 控制动态限制（属性决定在什么条件下可以访问）。比如：&quot;经理角色可以查看报表&quot;是 RBAC，&quot;但只有工作日工作时间从内网访问时才能查看&quot;是 ABAC。</p>
+<p>这种组合既保留了 RBAC 的管理简便性，又获得了 ABAC 的动态灵活性，是当前企业系统的主流趋势。</p>
+<h3 id="PBAC-ABAC-RBAC"><a href="#PBAC-ABAC-RBAC" class="headerlink" title="PBAC + ABAC + RBAC"></a>PBAC + ABAC + RBAC</h3><p>在大型中台或多租户系统中，用 PBAC 作为统一的策略管理层，RBAC 管理基础角色结构，ABAC 处理动态属性判断。策略引擎（如 OPA、Casbin）作为 PDP 统一决策，各服务作为 PEP 执行。</p>
+<p>这种组合适合架构复杂、权限需求多变的大型系统，但引入的复杂度也很高，需要团队有足够的技术能力来驾驭。</p>
+<hr>
+<h2 id="选型建议"><a href="#选型建议" class="headerlink" title="选型建议"></a>选型建议</h2><p>最后，给一个简化的选型思路：</p>
+<ul>
+<li><strong>系统角色稳定、权限变化不多</strong> → 选 RBAC</li>
+<li><strong>有资源级差异访问需求</strong> → RBAC + ACL</li>
+<li><strong>需要动态&#x2F;条件型权限</strong> → 引入 ABAC</li>
+<li><strong>需要集中可审计的策略管理</strong> → 上 PBAC</li>
+<li><strong>强调便捷共享、用户自主</strong> → DAC</li>
+<li><strong>安全等级要求极高</strong> → MAC</li>
+<li><strong>业务复杂、单一模型不够用</strong> → 混合模型</li>
+</ul>
+<p>没有完美的权限模型，只有适合当前阶段的权限模型。选型的时候想清楚三件事就行：你的系统有多复杂、你的团队有多大精力管权限、你对安全性的要求有多高。系统简单就别搞太复杂，用 RBAC 就够了；系统复杂了也别硬撑，该上 ABAC 就上。核心原则就一句话——<strong>够用就好，别过度设计，也别欠设计</strong>。</p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://LI-S-H.github.io">青山木</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://li-s-h.github.io/2026/06/18/%E6%9D%83%E9%99%90%E6%8E%A7%E5%88%B6%E6%A8%A1%E5%9E%8B%E5%85%A8%E8%A7%A3%E6%9E%90/">https://li-s-h.github.io/2026/06/18/%E6%9D%83%E9%99%90%E6%8E%A7%E5%88%B6%E6%A8%A1%E5%9E%8B%E5%85%A8%E8%A7%A3%E6%9E%90/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://LI-S-H.github.io" target="_blank">青山木</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E6%9D%83%E9%99%90%E6%8E%A7%E5%88%B6/">权限控制</a><a class="post-meta__tags" href="/tags/ACL/">ACL</a><a class="post-meta__tags" href="/tags/RBAC/">RBAC</a><a class="post-meta__tags" href="/tags/ABAC/">ABAC</a><a class="post-meta__tags" href="/tags/PBAC/">PBAC</a><a class="post-meta__tags" href="/tags/%E8%AE%BF%E9%97%AE%E6%8E%A7%E5%88%B6/">访问控制</a></div><div class="post-share"><div class="social-share" data-image="/img/title-picture/%E9%94%81.jpg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/2026/06/17/%E4%B8%80%E8%A1%8C%E4%BB%A3%E7%A0%81%E7%99%BB%E5%BD%95%EF%BC%8C%E5%BE%AE%E7%A7%92%E7%BA%A7%E9%89%B4%E6%9D%83%EF%BC%9ASa-Token%20+%20Redis%20Session%20%E5%AE%9E%E8%B7%B5/" title="一行代码登录，微秒级鉴权：Sa-Token + Redis Session 实践"><img class="cover" src="/img/title-picture/sa-token.png" onerror="onerror=null;src='/img/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">一行代码登录，微秒级鉴权：Sa-Token + Redis Session 实践</div></div><div class="info-2"><div class="info-item-1">本文从实际项目出发，深入讲解 Sa-Token 的完整使用流程、底层鉴权机制以及基于 Redis Session 共享的性能优化方案</div></div></div></a></nav></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/%E5%A4%B4%E5%83%8F.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">青山木</div><div class="author-info-description">正在学习Java后端开发＋Python智能体开发，希望能与大家多多交流</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">25</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">54</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">3</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/LI-S-H"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/LI-S-H" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">欢迎来到我的博客，记录学习与成长的点滴。</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%86%99%E5%9C%A8%E5%89%8D%E9%9D%A2"><span class="toc-number">1.</span> <span class="toc-text">写在前面</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%9D%83%E9%99%90%E6%8E%A7%E5%88%B6%E7%9A%84%E5%9F%BA%E6%9C%AC%E6%A6%82%E5%BF%B5"><span class="toc-number">2.</span> <span class="toc-text">权限控制的基本概念</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%80%E3%80%81ACL%EF%BC%9A%E8%AE%BF%E9%97%AE%E6%8E%A7%E5%88%B6%E5%88%97%E8%A1%A8%E2%80%94%E2%80%94%E6%9C%80%E7%9B%B4%E8%A7%89%E7%9A%84-%E8%B0%81%E5%8F%AF%E4%BB%A5%E5%B9%B2%E4%BB%80%E4%B9%88"><span class="toc-number">3.</span> <span class="toc-text">一、ACL：访问控制列表——最直觉的&quot;谁可以干什么&quot;</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%A0%B8%E5%BF%83%E6%80%9D%E8%B7%AF"><span class="toc-number">3.1.</span> <span class="toc-text">核心思路</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BC%98%E7%82%B9"><span class="toc-number">3.2.</span> <span class="toc-text">优点</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%BC%BA%E7%82%B9"><span class="toc-number">3.3.</span> <span class="toc-text">缺点</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E9%80%82%E7%94%A8%E5%9C%BA%E6%99%AF"><span class="toc-number">3.4.</span> <span class="toc-text">适用场景</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%AA%E4%BA%BA%E4%BD%93%E4%BC%9A"><span class="toc-number">3.5.</span> <span class="toc-text">个人体会</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%8C%E3%80%81RBAC%EF%BC%9A%E5%9F%BA%E4%BA%8E%E8%A7%92%E8%89%B2%E7%9A%84%E8%AE%BF%E9%97%AE%E6%8E%A7%E5%88%B6%E2%80%94%E2%80%94%E4%BC%81%E4%B8%9A%E7%BA%A7%E6%9D%83%E9%99%90%E7%9A%84%E6%A0%87%E9%85%8D"><span class="toc-number">4.</span> <span class="toc-text">二、RBAC：基于角色的访问控制——企业级权限的标配</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%A0%B8%E5%BF%83%E6%80%9D%E8%B7%AF-1"><span class="toc-number">4.1.</span> <span class="toc-text">核心思路</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BC%98%E7%82%B9-1"><span class="toc-number">4.2.</span> <span class="toc-text">优点</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%BC%BA%E7%82%B9-1"><span class="toc-number">4.3.</span> <span class="toc-text">缺点</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E9%80%82%E7%94%A8%E5%9C%BA%E6%99%AF-1"><span class="toc-number">4.4.</span> <span class="toc-text">适用场景</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%AA%E4%BA%BA%E4%BD%93%E4%BC%9A-1"><span class="toc-number">4.5.</span> <span class="toc-text">个人体会</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%89%E3%80%81ABAC%EF%BC%9A%E5%9F%BA%E4%BA%8E%E5%B1%9E%E6%80%A7%E7%9A%84%E8%AE%BF%E9%97%AE%E6%8E%A7%E5%88%B6%E2%80%94%E2%80%94%E5%8A%A8%E6%80%81%E7%81%B5%E6%B4%BB%E7%9A%84%E6%9D%83%E9%99%90%E5%BC%95%E6%93%8E"><span class="toc-number">5.</span> <span class="toc-text">三、ABAC：基于属性的访问控制——动态灵活的权限引擎</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%A0%B8%E5%BF%83%E6%80%9D%E8%B7%AF-2"><span class="toc-number">5.1.</span> <span class="toc-text">核心思路</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BC%AA%E4%BB%A3%E7%A0%81%E7%A4%BA%E4%BE%8B"><span class="toc-number">5.2.</span> <span class="toc-text">伪代码示例</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BC%98%E7%82%B9-2"><span class="toc-number">5.3.</span> <span class="toc-text">优点</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%BC%BA%E7%82%B9-2"><span class="toc-number">5.4.</span> <span class="toc-text">缺点</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E9%80%82%E7%94%A8%E5%9C%BA%E6%99%AF-2"><span class="toc-number">5.5.</span> <span class="toc-text">适用场景</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%9B%9B%E3%80%81PBAC%EF%BC%9A%E5%9F%BA%E4%BA%8E%E7%AD%96%E7%95%A5%E7%9A%84%E8%AE%BF%E9%97%AE%E6%8E%A7%E5%88%B6%E2%80%94%E2%80%94%E6%9D%83%E9%99%90%E5%8D%B3%E4%BB%A3%E7%A0%81"><span class="toc-number">6.</span> <span class="toc-text">四、PBAC：基于策略的访问控制——权限即代码</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%A0%B8%E5%BF%83%E6%80%9D%E8%B7%AF-3"><span class="toc-number">6.1.</span> <span class="toc-text">核心思路</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%9E%B6%E6%9E%84%EF%BC%9APDP-%E5%92%8C-PEP-%E6%98%AF%E6%80%8E%E4%B9%88%E9%85%8D%E5%90%88%E7%9A%84"><span class="toc-number">6.2.</span> <span class="toc-text">架构：PDP 和 PEP 是怎么配合的</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%AD%96%E7%95%A5%E4%BB%A3%E7%A0%81%E9%95%BF%E4%BB%80%E4%B9%88%E6%A0%B7"><span class="toc-number">6.3.</span> <span class="toc-text">策略代码长什么样</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%AD%96%E7%95%A5%E4%B9%9F%E5%8F%AF%E4%BB%A5%E5%86%99%E6%B5%8B%E8%AF%95"><span class="toc-number">6.4.</span> <span class="toc-text">策略也可以写测试</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#PBAC-%E4%B8%8E-ABAC-%E7%9A%84%E5%85%B3%E9%94%AE%E5%8C%BA%E5%88%AB"><span class="toc-number">6.5.</span> <span class="toc-text">PBAC 与 ABAC 的关键区别</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BC%98%E7%82%B9-3"><span class="toc-number">6.6.</span> <span class="toc-text">优点</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%BC%BA%E7%82%B9-3"><span class="toc-number">6.7.</span> <span class="toc-text">缺点</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E9%80%82%E7%94%A8%E5%9C%BA%E6%99%AF-3"><span class="toc-number">6.8.</span> <span class="toc-text">适用场景</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%94%E3%80%81DAC%EF%BC%9A%E8%87%AA%E4%B8%BB%E8%AE%BF%E9%97%AE%E6%8E%A7%E5%88%B6%E2%80%94%E2%80%94%E8%B5%84%E6%BA%90%E6%89%80%E6%9C%89%E8%80%85%E8%AF%B4%E4%BA%86%E7%AE%97"><span class="toc-number">7.</span> <span class="toc-text">五、DAC：自主访问控制——资源所有者说了算</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%A0%B8%E5%BF%83%E6%80%9D%E8%B7%AF-4"><span class="toc-number">7.1.</span> <span class="toc-text">核心思路</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BC%98%E7%82%B9-4"><span class="toc-number">7.2.</span> <span class="toc-text">优点</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%BC%BA%E7%82%B9-4"><span class="toc-number">7.3.</span> <span class="toc-text">缺点</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E9%80%82%E7%94%A8%E5%9C%BA%E6%99%AF-4"><span class="toc-number">7.4.</span> <span class="toc-text">适用场景</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%85%AD%E3%80%81MAC%EF%BC%9A%E5%BC%BA%E5%88%B6%E8%AE%BF%E9%97%AE%E6%8E%A7%E5%88%B6%E2%80%94%E2%80%94%E5%AE%89%E5%85%A8%E8%87%B3%E4%B8%8A%E7%9A%84%E9%93%81%E5%BE%8B"><span class="toc-number">8.</span> <span class="toc-text">六、MAC：强制访问控制——安全至上的铁律</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%A0%B8%E5%BF%83%E6%80%9D%E8%B7%AF-5"><span class="toc-number">8.1.</span> <span class="toc-text">核心思路</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BC%98%E7%82%B9-5"><span class="toc-number">8.2.</span> <span class="toc-text">优点</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%BC%BA%E7%82%B9-5"><span class="toc-number">8.3.</span> <span class="toc-text">缺点</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E9%80%82%E7%94%A8%E5%9C%BA%E6%99%AF-5"><span class="toc-number">8.4.</span> <span class="toc-text">适用场景</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%A8%A1%E5%9E%8B%E5%AF%B9%E6%AF%94%E9%80%9F%E8%A7%88"><span class="toc-number">9.</span> <span class="toc-text">模型对比速览</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%B7%B7%E5%90%88%E6%A8%A1%E5%9E%8B%E5%AE%9E%E8%B7%B5"><span class="toc-number">10.</span> <span class="toc-text">混合模型实践</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#RBAC-ACL"><span class="toc-number">10.1.</span> <span class="toc-text">RBAC + ACL</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#RBAC-ABAC"><span class="toc-number">10.2.</span> <span class="toc-text">RBAC + ABAC</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#PBAC-ABAC-RBAC"><span class="toc-number">10.3.</span> <span class="toc-text">PBAC + ABAC + RBAC</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E9%80%89%E5%9E%8B%E5%BB%BA%E8%AE%AE"><span class="toc-number">11.</span> <span class="toc-text">选型建议</span></a></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/2026/06/18/%E6%9D%83%E9%99%90%E6%8E%A7%E5%88%B6%E6%A8%A1%E5%9E%8B%E5%85%A8%E8%A7%A3%E6%9E%90/" title="权限设计怎么做？6 种模型从原理到实战全解析"><img src="/img/title-picture/%E9%94%81.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="权限设计怎么做？6 种模型从原理到实战全解析"/></a><div class="content"><a class="title" href="/2026/06/18/%E6%9D%83%E9%99%90%E6%8E%A7%E5%88%B6%E6%A8%A1%E5%9E%8B%E5%85%A8%E8%A7%A3%E6%9E%90/" title="权限设计怎么做？6 种模型从原理到实战全解析">权限设计怎么做？6 种模型从原理到实战全解析</a><time datetime="2026-06-18T10:00:00.000Z" title="发表于 2026-06-18 18:00:00">2026-06-18</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/06/17/Hot%20100%20---%20%E8%9E%BA%E6%97%8B%E7%9F%A9%E9%98%B5/" title="Hot 100 --- 螺旋矩阵"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 螺旋矩阵"/></a><div class="content"><a class="title" href="/2026/06/17/Hot%20100%20---%20%E8%9E%BA%E6%97%8B%E7%9F%A9%E9%98%B5/" title="Hot 100 --- 螺旋矩阵">Hot 100 --- 螺旋矩阵</a><time datetime="2026-06-17T02:00:00.000Z" title="发表于 2026-06-17 10:00:00">2026-06-17</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/06/17/%E4%B8%80%E8%A1%8C%E4%BB%A3%E7%A0%81%E7%99%BB%E5%BD%95%EF%BC%8C%E5%BE%AE%E7%A7%92%E7%BA%A7%E9%89%B4%E6%9D%83%EF%BC%9ASa-Token%20+%20Redis%20Session%20%E5%AE%9E%E8%B7%B5/" title="一行代码登录，微秒级鉴权：Sa-Token + Redis Session 实践"><img src="/img/title-picture/sa-token.png" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="一行代码登录，微秒级鉴权：Sa-Token + Redis Session 实践"/></a><div class="content"><a class="title" href="/2026/06/17/%E4%B8%80%E8%A1%8C%E4%BB%A3%E7%A0%81%E7%99%BB%E5%BD%95%EF%BC%8C%E5%BE%AE%E7%A7%92%E7%BA%A7%E9%89%B4%E6%9D%83%EF%BC%9ASa-Token%20+%20Redis%20Session%20%E5%AE%9E%E8%B7%B5/" title="一行代码登录，微秒级鉴权：Sa-Token + Redis Session 实践">一行代码登录，微秒级鉴权：Sa-Token + Redis Session 实践</a><time datetime="2026-06-17T02:00:00.000Z" title="发表于 2026-06-17 10:00:00">2026-06-17</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/06/16/Hot%20100%20---%20%E7%9F%A9%E9%98%B5%E7%BD%AE%E9%9B%B6/" title="Hot 100 --- 矩阵置零"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 矩阵置零"/></a><div class="content"><a class="title" href="/2026/06/16/Hot%20100%20---%20%E7%9F%A9%E9%98%B5%E7%BD%AE%E9%9B%B6/" title="Hot 100 --- 矩阵置零">Hot 100 --- 矩阵置零</a><time datetime="2026-06-16T02:00:00.000Z" title="发表于 2026-06-16 10:00:00">2026-06-16</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/06/15/Hot%20100%20---%20%E7%BC%BA%E5%A4%B1%E7%9A%84%E7%AC%AC%E4%B8%80%E4%B8%AA%E6%AD%A3%E6%95%B0/" title="Hot 100 --- 缺失的第一个正数"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 缺失的第一个正数"/></a><div class="content"><a class="title" href="/2026/06/15/Hot%20100%20---%20%E7%BC%BA%E5%A4%B1%E7%9A%84%E7%AC%AC%E4%B8%80%E4%B8%AA%E6%AD%A3%E6%95%B0/" title="Hot 100 --- 缺失的第一个正数">Hot 100 --- 缺失的第一个正数</a><time datetime="2026-06-15T02:00:00.000Z" title="发表于 2026-06-15 10:00:00">2026-06-15</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By 青山木</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.5.4"></script><script src="/js/main.js?v=5.5.4"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.outerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+    setTimeout(() => URL.revokeObjectURL(url), 30000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        if (typeof svg === 'string') {
+          openSvgInNewTab({ source: svg, initViewBox })
+          return
+        }
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+
+    // Avoid binding multiple times on themeChange/pjax
+    if (wrap.__mermaidGestureBound) return
+    wrap.__mermaidGestureBound = true
+
+    // Helper: map client (viewport) coordinate -> viewBox coordinate
+    const clientToViewBox = (clientX, clientY) => {
+      const rect = svg.getBoundingClientRect()
+      const vb = wrap.__mermaidCurViewBox || getSvgViewBox(svg)
+      const x = vb[0] + (clientX - rect.left) * (vb[2] / rect.width)
+      const y = vb[1] + (clientY - rect.top) * (vb[3] / rect.height)
+      return { x, y, rect, vb }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      startCenter: null
+    }
+
+    const clampVb = vb => {
+      const init = wrap.__mermaidInitViewBox || vb
+      const minW = init[2] * 0.1
+      const maxW = init[2] * 10
+      const minH = init[3] * 0.1
+      const maxH = init[3] * 10
+      vb[2] = clamp(vb[2], minW, maxW)
+      vb[3] = clamp(vb[3], minH, maxH)
+      return vb
+    }
+
+    const setCurVb = vb => {
+      vb = clampVb(vb)
+      wrap.__mermaidCurViewBox = vb
+      setSvgViewBox(svg, vb)
+    }
+
+    const onPointerDown = e => {
+      // Allow only primary button for mouse
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+
+      if (state.pointers.size === 1) {
+        state.startVb = (wrap.__mermaidCurViewBox || getSvgViewBox(svg)).slice()
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = (wrap.__mermaidCurViewBox || getSvgViewBox(svg)).slice()
+        state.startCenter = { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 }
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+
+      // Pan with 1 pointer
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = [...state.pointers.values()][0]
+        const prev = { x: e.clientX - e.movementX, y: e.clientY - e.movementY }
+        // movementX/Y unreliable on touch, compute from stored last position
+        const last = wrap.__mermaidLastSinglePointer || p
+        const dxClient = p.x - last.x
+        const dyClient = p.y - last.y
+        wrap.__mermaidLastSinglePointer = p
+
+        const { rect } = clientToViewBox(p.x, p.y)
+        const vb = (wrap.__mermaidCurViewBox || getSvgViewBox(svg)).slice()
+        const dx = dxClient * (vb[2] / rect.width)
+        const dy = dyClient * (vb[3] / rect.height)
+        setCurVb([vb[0] - dx, vb[1] - dy, vb[2], vb[3]])
+        return
+      }
+
+      // Pinch zoom with 2 pointers
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist // dist bigger => zoom in (viewBox smaller)
+
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const centerClient = { x: cx, y: cy }
+
+        const pxy = clientToViewBox(centerClient.x, centerClient.y)
+        const cpx = pxy.x
+        const cpy = pxy.y
+
+        const vb = zoomAtPoint(state.startVb, factor, cpx, cpy)
+        setCurVb(vb)
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+        state.startCenter = null
+        wrap.__mermaidLastSinglePointer = null
+      } else if (state.pointers.size === 1) {
+        // reset single pointer baseline to avoid jump
+        wrap.__mermaidLastSinglePointer = [...state.pointers.values()][0]
+      }
+    }
+
+    // Wheel zoom (mouse/trackpad)
+    const onWheel = e => {
+      // ctrlKey on mac trackpad pinch; we treat both as zoom
+      e.preventDefault()
+      const delta = e.deltaY
+      const zoomFactor = delta > 0 ? 1.1 : 0.9
+      const { x, y } = clientToViewBox(e.clientX, e.clientY)
+      const vb = (wrap.__mermaidCurViewBox || getSvgViewBox(svg)).slice()
+      setCurVb(zoomAtPoint(vb, zoomFactor, x, y))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (!init) return
+      wrap.__mermaidCurViewBox = init.slice()
+      setSvgViewBox(svg, init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown)
+    svg.addEventListener('pointermove', onPointerMove)
+    svg.addEventListener('pointerup', onPointerUpOrCancel)
+    svg.addEventListener('pointercancel', onPointerUpOrCancel)
+    svg.addEventListener('wheel', onWheel, { passive: false })
+    svg.addEventListener('dblclick', onDblClick)
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+
+      // Clear old render (themeChange/pjax will rerun)
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      item.__mermaidGestureBound = false
+
+      const config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+
+      // mermaid v9 and v10 compatibility
+      typeof renderFn === 'string' ? renderMermaid(renderFn) : renderFn.then(({ svg }) => renderMermaid(svg))
+    })
+  }
+
+  const codeToMermaid = () => {
+    const codeMermaidEle = document.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    if (true) codeToMermaid()
+    const $mermaid = document.querySelectorAll('#article-container .mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid@11.12.2/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script></div><script>
+(function() {
+  /* 仅在首页标题上方插入头像 */
+  if (window.location.pathname !== '/' && !window.location.pathname.endsWith('/index.html')) return;
+  var siteTitle = document.getElementById('site-title');
+  if (siteTitle) {
+    var avatar = document.createElement('img');
+    avatar.src = '/img/头像.jpg';
+    avatar.alt = 'avatar';
+    avatar.className = 'avatar-img';
+    siteTitle.parentNode.insertBefore(avatar, siteTitle);
+  }
+})();
+</script>
+<script>
+(function() {
+  /* 将 Mermaid 代码块转为可渲染的 div */
+  document.querySelectorAll('figure.highlight').forEach(function(fig) {
+    var codePre = fig.querySelector('td.code pre');
+    if (!codePre) return;
+    var text = codePre.innerText.trim();
+    if (/^(flowchart|graph|sequenceDiagram|classDiagram|stateDiagram|gantt|pie|erDiagram|journey|gitGraph|mindmap|timeline)\b/m.test(text)) {
+      var div = document.createElement('div');
+      div.className = 'mermaid';
+      div.setAttribute('data-mermaid-src', text);
+      div.textContent = text;
+      fig.parentNode.replaceChild(div, fig);
+    }
+  });
+})();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script><script>
+mermaid.initialize({
+  startOnLoad: true,
+  theme: 'neutral',
+  themeVariables: {
+    primaryColor: '#ffffff',
+    primaryTextColor: '#1a1a1a',
+    primaryBorderColor: '#10b981',
+    lineColor: '#10b981',
+    secondaryColor: '#f8f9fa',
+    tertiaryColor: '#ffffff',
+    mainBkg: '#ffffff',
+    nodeBorder: '#10b981',
+    clusterBkg: '#f0fdf4',
+    clusterBorder: '#10b981',
+    titleColor: '#1a1a1a',
+    edgeLabelBackground: '#ffffff',
+    textColor: '#1a1a1a',
+    fontSize: '14px'
+  }
+});
+</script>
+<script id="canvas_nest" defer="defer" color="107,159,255" opacity="0.6" zIndex="-1" count="99" mobile="false" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/dist/canvas-nest.min.js"></script></div></body></html>
