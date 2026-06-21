@@ -1,0 +1,879 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="dark"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>Hot 100 --- 回文链表 | 青山木</title><meta name="author" content="青山木"><meta name="copyright" content="青山木"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#0d1117"><meta name="description" content="本文以LeetCode经典题目&quot;回文链表&quot;为例，从暴力解法入手，先讲解反转链表的核心原理，再引出快慢指针找中点+反转后半段的O(1)空间解法">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Hot 100 --- 回文链表">
+<meta property="og:url" content="https://li-s-h.github.io/2026/06/20/Hot%20100%20---%20%E5%9B%9E%E6%96%87%E9%93%BE%E8%A1%A8/index.html">
+<meta property="og:site_name" content="青山木">
+<meta property="og:description" content="本文以LeetCode经典题目&quot;回文链表&quot;为例，从暴力解法入手，先讲解反转链表的核心原理，再引出快慢指针找中点+反转后半段的O(1)空间解法">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://li-s-h.github.io/img/title-picture/%E5%8A%9B%E6%89%A3.jpg">
+<meta property="article:published_time" content="2026-06-20T02:00:00.000Z">
+<meta property="article:modified_time" content="2026-06-21T16:44:10.076Z">
+<meta property="article:author" content="青山木">
+<meta property="article:tag" content="双指针">
+<meta property="article:tag" content="算法">
+<meta property="article:tag" content="leetcode">
+<meta property="article:tag" content="链表">
+<meta property="article:tag" content="反转">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://li-s-h.github.io/img/title-picture/%E5%8A%9B%E6%89%A3.jpg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Hot 100 --- 回文链表",
+  "url": "https://li-s-h.github.io/2026/06/20/Hot%20100%20---%20%E5%9B%9E%E6%96%87%E9%93%BE%E8%A1%A8/",
+  "image": "https://li-s-h.github.io/img/title-picture/%E5%8A%9B%E6%89%A3.jpg",
+  "datePublished": "2026-06-20T02:00:00.000Z",
+  "dateModified": "2026-06-21T16:44:10.076Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "青山木",
+      "url": "https://LI-S-H.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/%E5%A4%B4%E5%83%8F.jpg"><link rel="canonical" href="https://li-s-h.github.io/2026/06/20/Hot%20100%20---%20%E5%9B%9E%E6%96%87%E9%93%BE%E8%A1%A8/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="stylesheet" href="/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d1117')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', 'ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: 'Hot 100 --- 回文链表',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><style>
+  #site-title { font-size: 1.76em !important; }
+  #subtitle { font-size: 0.88em !important; }
+
+  /* 卡片悬停放大 + 辉光 */
+  #recent-posts .recent-post-item {
+    transition: transform .3s ease, box-shadow .3s ease, border-color .3s ease;
+  }
+  #recent-posts .recent-post-item:hover {
+    transform: scale(1.025) !important;
+    border-color: rgba(107,159,255,0.5) !important;
+    box-shadow: 0 0 0 1px rgba(107,159,255,0.15),
+                0 0 45px rgba(107,159,255,0.12),
+                0 8px 30px rgba(0,0,0,0.4) !important;
+  }
+
+  /* 首页标题上方头像 */
+  #site-info .avatar-img {
+    display: block;
+    width: 144px;
+    height: 144px;
+    border-radius: 50%;
+    margin: 0 auto 20px;
+    border: 3px solid rgba(107,159,255,0.6);
+    box-shadow: 0 0 30px rgba(107,159,255,0.35),
+                0 0 60px rgba(107,159,255,0.15),
+                0 4px 20px rgba(0,0,0,0.25);
+    object-fit: cover;
+    transition: box-shadow .4s ease, border-color .4s ease;
+  }
+  #site-info .avatar-img:hover {
+    border-color: rgba(107,159,255,0.9);
+    box-shadow: 0 0 40px rgba(107,159,255,0.5),
+                0 0 80px rgba(107,159,255,0.25),
+                0 4px 20px rgba(0,0,0,0.25);
+  }
+
+  /* Mermaid 白色背景适配 */
+  pre.mermaid,
+  .mermaid {
+    background: #ffffff !important;
+    padding: 12px !important;
+    border-radius: 8px !important;
+    border: 1px solid #e0e0e0 !important;
+  }
+  pre.mermaid code {
+    background: #ffffff !important;
+  }
+</style>
+<meta name="generator" content="Hexo 7.3.0"></head><body><div class="bg-animation" id="web_bg" style="background-image: url(/img/%E8%83%8C%E6%99%AF%E5%9B%BE.webp);"></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(/img/title-picture/%E5%8A%9B%E6%89%A3.jpg);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">青山木</span></a><a class="nav-page-title" href="/"><span class="site-name">Hot 100 --- 回文链表</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">Hot 100 --- 回文链表</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-06-20T02:00:00.000Z" title="发表于 2026-06-20 10:00:00">2026-06-20</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-06-21T16:44:10.076Z" title="更新于 2026-06-22 00:44:10">2026-06-22</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/LeetCode-%E7%83%AD%E9%A2%98-HOT-100/">LeetCode 热题 HOT 100</a></span></div><div class="meta-secondline"></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><blockquote>
+<p><strong>本文概览</strong>：本文以LeetCode经典题目&quot;回文链表&quot;为例，从暴力解法入手，先讲解反转链表的核心原理，再引出快慢指针找中点+反转后半段的 O(1) 空间解法</p>
+</blockquote>
+<hr>
+<h3 id="一、题目"><a href="#一、题目" class="headerlink" title="一、题目"></a>一、题目</h3><p><img src="/img/hot%20100%20---%20%E5%9B%9E%E6%96%87%E9%93%BE%E8%A1%A8/%E5%9B%9E%E6%96%87%E9%93%BE%E8%A1%A8%E9%A2%98%E7%9B%AE.png" alt="回文链表题目"></p>
+<h3 id="二、题目分析"><a href="#二、题目分析" class="headerlink" title="二、题目分析"></a>二、题目分析</h3><p>给定一个单链表的头节点 <code>head</code>，判断该链表是否为回文链表</p>
+<p>目标：判断链表是否从前向后读和从后向前读完全相同</p>
+<p><strong>核心难点</strong>：链表不像数组那样可以随机访问，无法直接从尾部向前遍历</p>
+<h3 id="思路概览"><a href="#思路概览" class="headerlink" title="思路概览"></a>思路概览</h3><p>Java实现代码如下</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="type">boolean</span> <span class="title function_">isPalindrome</span><span class="params">(ListNode head)</span> &#123;</span><br><span class="line">    <span class="comment">// 快指针</span></span><br><span class="line">    <span class="type">ListNode</span> <span class="variable">fast</span> <span class="operator">=</span> head;</span><br><span class="line">    <span class="comment">// 慢指针</span></span><br><span class="line">    <span class="type">ListNode</span> <span class="variable">slow</span> <span class="operator">=</span> head;</span><br><span class="line">    <span class="comment">// 快慢指针同时移动，快指针每次移动两步，慢指针每次移动一步</span></span><br><span class="line">    <span class="comment">// 当快指针到达链表末尾时，慢指针正好到达链表的中间位置</span></span><br><span class="line">    <span class="keyword">while</span> (fast.next != <span class="literal">null</span> &amp;&amp; fast.next.next != <span class="literal">null</span>) &#123;</span><br><span class="line">        slow = slow.next;</span><br><span class="line">        fast = fast.next.next;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 将链表从慢指针开始反转，得到反转后的后半段链表的头节点</span></span><br><span class="line">    <span class="type">ListNode</span> <span class="variable">secondHalf</span> <span class="operator">=</span> reverseList(slow.next);</span><br><span class="line">    <span class="comment">// 判断链表是否为回文链表</span></span><br><span class="line">    <span class="keyword">while</span> (secondHalf != <span class="literal">null</span>) &#123;</span><br><span class="line">        <span class="keyword">if</span> (secondHalf.val != head.val) &#123;</span><br><span class="line">            <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">        &#125;</span><br><span class="line">        secondHalf = secondHalf.next;</span><br><span class="line">        head = head.next;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">private</span> ListNode <span class="title function_">reverseList</span><span class="params">(ListNode head)</span> &#123;</span><br><span class="line">    <span class="comment">// 记录新链表的头节点（已反转的部分）</span></span><br><span class="line">    <span class="type">ListNode</span> <span class="variable">prev</span> <span class="operator">=</span> <span class="literal">null</span>;</span><br><span class="line">    <span class="comment">// 记录当前正在处理的节点</span></span><br><span class="line">    <span class="type">ListNode</span> <span class="variable">curr</span> <span class="operator">=</span> head;</span><br><span class="line">    <span class="keyword">while</span> (curr != <span class="literal">null</span>) &#123;</span><br><span class="line">        <span class="comment">// 记录当前节点的下一个节点，防止断链后丢失后续节点</span></span><br><span class="line">        <span class="type">ListNode</span> <span class="variable">temp</span> <span class="operator">=</span> curr.next;</span><br><span class="line">        <span class="comment">// 将当前节点的 next 指针指向 prev，完成反转</span></span><br><span class="line">        curr.next = prev;</span><br><span class="line">        <span class="comment">// 新头节点前移</span></span><br><span class="line">        prev = curr;</span><br><span class="line">        <span class="comment">// 移动到下一个待处理节点</span></span><br><span class="line">        curr = temp;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> prev;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>思路简要说明</strong></p>
+<ol>
+<li><p><strong>快慢指针找中点</strong>：快指针每次走两步，慢指针每次走一步。快指针到达末尾时，慢指针恰好在中点</p>
+</li>
+<li><p><strong>反转后半段链表</strong>：从慢指针的下一个节点开始反转后半段链表</p>
+</li>
+<li><p><strong>前后两段比较</strong>：前半段从头节点开始，后半段从反转后的头节点开始，逐个比较节点值</p>
+</li>
+</ol>
+<h3 id="三、思路详解"><a href="#三、思路详解" class="headerlink" title="三、思路详解"></a>三、思路详解</h3><h4 id="暴力解法入手"><a href="#暴力解法入手" class="headerlink" title="暴力解法入手"></a>暴力解法入手</h4><p><strong>问题分析</strong></p>
+<p>判断回文的核心是&quot;正着读和倒着读一样&quot;。对于数组，直接从两端向中间比较就行；但对于链表，由于它只能单向遍历，无法从尾部向前访问</p>
+<p>所以最自然的想法是：先遍历一遍链表，把所有值存到一个列表中，然后像数组一样从两端向中间比较</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">链表：1 → 2 → 3 → 2 → 1</span><br><span class="line">      ↓</span><br><span class="line">    遍历存储</span><br><span class="line">      ↓</span><br><span class="line">列表：[1, 2, 3, 2, 1]</span><br><span class="line">      ↓</span><br><span class="line">    双指针比较：</span><br><span class="line">    left=0, right=4: 1==1 ✓</span><br><span class="line">    left=1, right=3: 2==2 ✓</span><br><span class="line">    left=2, right=2: 3==3 ✓</span><br></pre></td></tr></table></figure>
+
+<p>这个思路完全可行，但有明显的缺陷：</p>
+<ul>
+<li><strong>时间复杂度</strong>：O(n)，遍历一次链表 + 遍历一次列表</li>
+<li><strong>空间复杂度</strong>：O(n)，需要额外存储 n 个节点的值</li>
+<li><strong>核心瓶颈</strong>：需要遍历两次（链表 → 列表 → 比较），且空间开销为 O(n)</li>
+</ul>
+<p><strong>能不能不用额外空间？</strong></p>
+<p>链表的最大特点是：每个节点只有 <code>next</code> 指针指向下一个节点，没有 <code>prev</code> 指针指向前一个。如果能让链表&quot;倒过来&quot;，即从尾部也能访问，那就和数组一样了</p>
+<p>这就引出了两个问题需要解决：</p>
+<ol>
+<li><strong>如何找到链表的中间节点？</strong>（我们需要把链表分成前后两半）</li>
+<li><strong>如何反转链表？</strong>（让后半段链表&quot;倒过来&quot;，就可以从后往前读了）</li>
+</ol>
+<h4 id="子问题一：反转链表"><a href="#子问题一：反转链表" class="headerlink" title="子问题一：反转链表"></a>子问题一：反转链表</h4><p>链表反转的核心是改变每个节点的 <code>next</code> 指向，让它指向前一个节点而不是后一个节点。这样链表就从 <code>1→2→3</code> 变成了 <code>3→2→1</code></p>
+<p>我们需要三个指针配合：</p>
+<ul>
+<li><code>prev</code>：已反转部分的头节点（初始为 null，因为反转后的链表尾部指向 null）</li>
+<li><code>curr</code>：当前正在处理的节点</li>
+<li><code>temp</code>：临时保存 <code>curr.next</code>，防止断链后丢失后续节点</li>
+</ul>
+<p><strong>每轮循环的四步操作</strong>：</p>
+<ol>
+<li><code>temp = curr.next</code>：先保存下一个节点，不然断链后就找不到了</li>
+<li><code>curr.next = prev</code>：将当前节点的 next 指向前一个节点，完成反转</li>
+<li><code>prev = curr</code>：新头节点前移，已反转部分延长</li>
+<li><code>curr = temp</code>：移动到下一个待处理节点</li>
+</ol>
+<p><strong>图示说明</strong></p>
+<p>以 <code>1 → 2 → 3</code> 为例，对应代码如下：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">ListNode</span> <span class="variable">prev</span> <span class="operator">=</span> <span class="literal">null</span>;   <span class="comment">// 已反转部分的头节点，初始为null</span></span><br><span class="line"><span class="type">ListNode</span> <span class="variable">curr</span> <span class="operator">=</span> head;   <span class="comment">// 当前正在处理的节点，从链表头开始</span></span><br><span class="line"><span class="keyword">while</span> (curr != <span class="literal">null</span>) &#123;  <span class="comment">// 当还有节点未处理时继续</span></span><br><span class="line">    <span class="type">ListNode</span> <span class="variable">temp</span> <span class="operator">=</span> curr.next;  <span class="comment">// ① 保存下一个节点，防止断链后丢失</span></span><br><span class="line">    curr.next = prev;           <span class="comment">// ② 将当前节点的next指向前一个节点（已反转部分）</span></span><br><span class="line">    prev = curr;                <span class="comment">// ③ 新头节点前移，当前节点加入已反转部分</span></span><br><span class="line">    curr = temp;                <span class="comment">// ④ 移动到下一个待处理节点</span></span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">return</span> prev;  <span class="comment">// prev最终指向反转后链表的头节点</span></span><br></pre></td></tr></table></figure>
+
+<p>初始状态：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">prev = null, curr = 1, temp = ?</span><br><span class="line"></span><br><span class="line">null ← 1 → 2 → 3</span><br><span class="line">       ↑</span><br><span class="line">      curr</span><br></pre></td></tr></table></figure>
+
+<p>第1轮（处理节点 1）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">temp = curr.next = 2    // ① 保存2，防止等下断链后找不到了</span><br><span class="line">curr.next = prev = null // ② 1的next指向null（反转完成）</span><br><span class="line">prev = curr = 1         // ③ prev前移，已反转部分是：1→null</span><br><span class="line">curr = temp = 2         // ④ curr移到下一位</span><br><span class="line"></span><br><span class="line">null ← 1    2 → 3</span><br><span class="line">       ↑    ↑</span><br><span class="line">      prev curr</span><br></pre></td></tr></table></figure>
+
+<p>第2轮（处理节点 2）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">temp = curr.next = 3    // ① 保存3</span><br><span class="line">curr.next = prev = 1    // ② 2的next指向1（反转完成）</span><br><span class="line">prev = curr = 2         // ③ prev前移，已反转部分是：2→1→null</span><br><span class="line">curr = temp = 3         // ④ curr移到下一位</span><br><span class="line"></span><br><span class="line">null ← 1 ← 2    3</span><br><span class="line">            ↑    ↑</span><br><span class="line">           prev curr</span><br></pre></td></tr></table></figure>
+
+<p>第3轮（处理节点 3）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">temp = curr.next = null // ① 保存null（已经是末尾了）</span><br><span class="line">curr.next = prev = 2    // ② 3的next指向2（反转完成）</span><br><span class="line">prev = curr = 3         // ③ prev前移，已反转部分是：3→2→1→null</span><br><span class="line">curr = temp = null      // ④ curr=null，循环结束</span><br><span class="line"></span><br><span class="line">null ← 1 ← 2 ← 3</span><br><span class="line">                 ↑</span><br><span class="line">                prev</span><br></pre></td></tr></table></figure>
+
+<p>循环结束，<code>prev</code> 就是反转后链表的头节点，返回 <code>prev</code></p>
+<h4 id="子问题二：快慢指针找中点"><a href="#子问题二：快慢指针找中点" class="headerlink" title="子问题二：快慢指针找中点"></a>子问题二：快慢指针找中点</h4><p>反转链表解决了&quot;如何让链表倒过来&quot;的问题，但还有一个问题：我们不知道链表有多长，怎么知道从哪个位置开始反转？</p>
+<p>这就需要找到链表的中间节点。如果只遍历一次，那只能遍历到末尾才知道长度；如果遍历两次，那效率又降低了</p>
+<p>一个巧妙的技巧是——<strong>快慢指针</strong>：</p>
+<ul>
+<li><code>fast</code> 指针每次走两步</li>
+<li><code>slow</code> 指针每次走一步</li>
+</ul>
+<p>当 <code>fast</code> 走到链表末尾时，<code>slow</code> 恰好走到链表中间。这就像两个人跑步，一个速度是另一个的两倍，当快的跑到终点时，慢的正好跑了一半</p>
+<p><strong>奇偶长度的不同情况</strong></p>
+<p>快慢指针的循环条件是 <code>while (fast.next != null &amp;&amp; fast.next.next != null)</code>，为什么这样写？因为这可以正确处理奇数和偶数两种情况：</p>
+<p><strong>奇数长度</strong>（如 <code>1 → 2 → 3 → 2 → 1</code>，共5个节点）：</p>
+<table>
+<thead>
+<tr>
+<th>轮次</th>
+<th>fast</th>
+<th>slow</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>初始</td>
+<td>1</td>
+<td>1</td>
+</tr>
+<tr>
+<td>1</td>
+<td>fast &#x3D; fast.next.next &#x3D; 3</td>
+<td>slow &#x3D; slow.next &#x3D; 2</td>
+</tr>
+<tr>
+<td>2</td>
+<td>fast &#x3D; fast.next.next &#x3D; null（末尾）</td>
+<td>slow &#x3D; slow.next &#x3D; 3</td>
+</tr>
+</tbody></table>
+<p>此时 <code>fast</code> 停在最后一个节点的 <code>next</code>（即 null），<code>slow</code> 恰好停在正中间的节点 3。后半段从 <code>slow.next</code> 开始，即 <code>2 → 1</code></p>
+<p><strong>偶数长度</strong>（如 <code>1 → 2 → 2 → 1</code>，共4个节点）：</p>
+<table>
+<thead>
+<tr>
+<th>轮次</th>
+<th>fast</th>
+<th>slow</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>初始</td>
+<td>1</td>
+<td>1</td>
+</tr>
+<tr>
+<td>1</td>
+<td>fast &#x3D; fast.next.next &#x3D; 2（第二个2）</td>
+<td>slow &#x3D; slow.next &#x3D; 2（第一个2）</td>
+</tr>
+<tr>
+<td>2</td>
+<td>fast.next &#x3D; null（fast在倒数第二个节点，fast.next.next会越界）</td>
+<td>循环停止</td>
+</tr>
+</tbody></table>
+<p>此时 <code>fast</code> 停在倒数第二个节点（第二个 2），<code>slow</code> 停在前半段的最后一个节点（第一个 2）。后半段从 <code>slow.next</code> 开始，即 <code>2 → 1</code></p>
+<p><strong>总结</strong>：</p>
+<ul>
+<li>奇数长度：<code>slow</code> 停在正中间节点，后半段比前半段少一个节点（少中间那个）</li>
+<li>偶数长度：<code>slow</code> 停在前半段的最后一个节点，前后两段长度相等</li>
+</ul>
+<h4 id="回文链表优化解法"><a href="#回文链表优化解法" class="headerlink" title="回文链表优化解法"></a>回文链表优化解法</h4><p><strong>整体思路</strong></p>
+<p>既然链表不能从后往前读，那我们就利用上面两个技巧：</p>
+<ol>
+<li>用<strong>快慢指针</strong>找到链表中点</li>
+<li>将<strong>后半段链表反转</strong>，这样后半段就可以从前往后读了（相当于从原链表的尾部往前读）</li>
+<li>前半段和反转后的后半段逐个比较，如果完全相同就是回文</li>
+</ol>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">原链表：1 → 2 → 3 → 2 → 1</span><br><span class="line">              ↑</span><br><span class="line">            slow指向3（中点）</span><br><span class="line"></span><br><span class="line">后半段反转前：2 → 1</span><br><span class="line">后半段反转后：1 → 2</span><br><span class="line"></span><br><span class="line">比较：前半段 1→2→3，后半段 1→2</span><br><span class="line">     1==1 ✓, 2==2 ✓, 后半段结束 ✓</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么这样不会出错？</strong></p>
+<p>快慢指针找中点时，循环条件是 <code>fast.next != null &amp;&amp; fast.next.next != null</code>，这保证了：</p>
+<ul>
+<li>对于偶数长度链表，<code>fast</code> 停在倒数第二个节点，<code>slow</code> 停在前半段最后一个节点</li>
+<li>对于奇数长度链表，<code>fast</code> 停在最后一个节点，<code>slow</code> 停在正中间节点</li>
+</ul>
+<p>这样 <code>slow.next</code> 始终是后半段的起始位置，反转后得到的是完整的后半段</p>
+<p><strong>具体步骤</strong>：</p>
+<ol>
+<li><p><strong>快慢指针找中点</strong>：</p>
+<ul>
+<li>快指针 <code>fast</code> 每次走两步，<code>slow</code> 每次走一步</li>
+<li>当 <code>fast</code> 到达链表末尾时，<code>slow</code> 恰好在中点</li>
+<li>对于奇数长度链表（如 1→2→3→2→1），<code>slow</code> 指向正中间的节点 3，后半段从 <code>slow.next</code> 开始</li>
+<li>对于偶数长度链表（如 1→2→2→1），<code>slow</code> 指向前半段的最后一个节点 2（第一个 2），后半段从 <code>slow.next</code> 开始</li>
+</ul>
+</li>
+<li><p><strong>反转后半段</strong>：从 <code>slow.next</code> 开始反转后半段链表</p>
+</li>
+<li><p><strong>前后两段比较</strong>：前半段从 <code>head</code> 开始，后半段从反转后的头节点开始，逐个比较节点值</p>
+</li>
+</ol>
+<p><strong>举例说明</strong></p>
+<p>以 <code>1 → 2 → 3 → 2 → 1</code> 为例（奇数长度）</p>
+<p><strong>第一步：快慢指针找中点</strong></p>
+<table>
+<thead>
+<tr>
+<th>轮次</th>
+<th>fast</th>
+<th>slow</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>初始</td>
+<td>1</td>
+<td>1</td>
+</tr>
+<tr>
+<td>1</td>
+<td>3</td>
+<td>2</td>
+</tr>
+<tr>
+<td>2</td>
+<td>末尾(null)</td>
+<td>3</td>
+</tr>
+</tbody></table>
+<p><code>slow</code> 指向节点 3，<code>slow.next</code> 指向节点 2（后半段第一个）</p>
+<p><strong>第二步：反转后半段</strong></p>
+<p>后半段：<code>2 → 1</code> → 反转后 → <code>1 → 2</code></p>
+<p><strong>第三步：比较</strong></p>
+<table>
+<thead>
+<tr>
+<th>步骤</th>
+<th>前半段(head)</th>
+<th>后半段(secondHalf)</th>
+<th>比较</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>1</td>
+<td>1</td>
+<td>相等</td>
+</tr>
+<tr>
+<td>2</td>
+<td>2</td>
+<td>2</td>
+<td>相等</td>
+</tr>
+<tr>
+<td>3</td>
+<td>3</td>
+<td>null</td>
+<td>后半段结束，前半段还剩中间节点，不影响</td>
+</tr>
+</tbody></table>
+<p>最终返回 <strong>true</strong></p>
+<p>以 <code>1 → 2 → 2 → 1</code> 为例（偶数长度）</p>
+<p><strong>第一步：快慢指针找中点</strong></p>
+<table>
+<thead>
+<tr>
+<th>轮次</th>
+<th>fast</th>
+<th>slow</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>初始</td>
+<td>1</td>
+<td>1</td>
+</tr>
+<tr>
+<td>1</td>
+<td>2（第二个2）</td>
+<td>2（第一个2）</td>
+</tr>
+<tr>
+<td>2</td>
+<td>fast.next&#x3D;null</td>
+<td>停止</td>
+</tr>
+</tbody></table>
+<p><code>slow</code> 指向第一个 2，<code>slow.next</code> 指向第二个 2</p>
+<p><strong>第二步：反转后半段</strong></p>
+<p>后半段：<code>2 → 1</code> → 反转后 → <code>1 → 2</code></p>
+<p><strong>第三步：比较</strong></p>
+<table>
+<thead>
+<tr>
+<th>步骤</th>
+<th>前半段(head)</th>
+<th>后半段(secondHalf)</th>
+<th>比较</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>1</td>
+<td>1</td>
+<td>相等</td>
+</tr>
+<tr>
+<td>2</td>
+<td>2</td>
+<td>2</td>
+<td>相等</td>
+</tr>
+<tr>
+<td>3</td>
+<td>null</td>
+<td>null</td>
+<td>同时结束，匹配</td>
+</tr>
+</tbody></table>
+<p>最终返回 <strong>true</strong></p>
+<ul>
+<li><strong>时间复杂度</strong>：O(n)，快慢指针找中点 O(n&#x2F;2) + 反转后半段 O(n&#x2F;2) + 比较 O(n&#x2F;2) &#x3D; O(n)</li>
+<li><strong>空间复杂度</strong>：O(1)，只用了几个指针变量</li>
+</ul>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://LI-S-H.github.io">青山木</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://li-s-h.github.io/2026/06/20/Hot%20100%20---%20%E5%9B%9E%E6%96%87%E9%93%BE%E8%A1%A8/">https://li-s-h.github.io/2026/06/20/Hot%20100%20---%20%E5%9B%9E%E6%96%87%E9%93%BE%E8%A1%A8/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://LI-S-H.github.io" target="_blank">青山木</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E5%8F%8C%E6%8C%87%E9%92%88/">双指针</a><a class="post-meta__tags" href="/tags/%E7%AE%97%E6%B3%95/">算法</a><a class="post-meta__tags" href="/tags/leetcode/">leetcode</a><a class="post-meta__tags" href="/tags/%E9%93%BE%E8%A1%A8/">链表</a><a class="post-meta__tags" href="/tags/%E5%8F%8D%E8%BD%AC/">反转</a></div><div class="post-share"><div class="social-share" data-image="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/2026/06/19/Hot%20100%20---%20%E6%90%9C%E7%B4%A2%E4%BA%8C%E7%BB%B4%E7%9F%A9%E9%98%B5%20II/" title="Hot 100 --- 搜索二维矩阵 II"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="onerror=null;src='/img/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">Hot 100 --- 搜索二维矩阵 II</div></div><div class="info-2"><div class="info-item-1">本文以LeetCode经典题目"搜索二维矩阵 II"为例，从一个看似合理却存在漏洞的初始方案入手，逐步引出将矩阵视作二叉搜索树的巧妙解法，从右上角开始查找，将时间复杂度优化到O(m+n)</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/2026/06/01/Hot%20100%20---%20%E4%B8%89%E6%95%B0%E4%B9%8B%E5%92%8C/" title="Hot 100 --- 三数之和"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-06-01</div><div class="info-item-2">Hot 100 --- 三数之和</div></div><div class="info-2"><div class="info-item-1">本文以LeetCode经典题目"三数之和"为例，系统讲解排序+双指针的解题思路，深入剖析三重去重机制和剪枝优化的实现细节，并详细解释为何固定最小元素是最优策略</div></div></div></a><a class="pagination-related" href="/2026/06/13/Hot%20100%20---%20%E8%BD%AE%E8%BD%AC%E6%95%B0%E7%BB%84/" title="Hot 100 --- 轮转数组"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-06-13</div><div class="info-item-2">Hot 100 --- 轮转数组</div></div><div class="info-2"><div class="info-item-1">本文以LeetCode经典题目"轮转数组"为例，从暴力解法入手，逐步优化到O(n)额外空间的解法，再通过三次翻转法实现O(1)空间复杂度的原地修改，系统讲解如何用红黑笔的比喻理解三次翻转的巧妙之处</div></div></div></a><a class="pagination-related" href="/2026/06/08/Hot%20100%20---%20%E6%9C%80%E5%B0%8F%E8%A6%86%E7%9B%96%E5%AD%90%E4%B8%B2/" title="Hot 100 --- 最小覆盖子串"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-06-08</div><div class="info-item-2">Hot 100 --- 最小覆盖子串</div></div><div class="info-2"><div class="info-item-1">本文以LeetCode经典题目"最小覆盖子串"为例，从暴力解法入手，逐步优化到双指针滑动窗口解法，重点讲解如何通过match变量动态维护哈希表的匹配状态，避免每次遍历比较，将时间复杂度从O(n²×m)优化到O(n)</div></div></div></a><a class="pagination-related" href="/2026/06/01/Hot%20100%20---%20%E6%8E%A5%E9%9B%A8%E6%B0%B4/" title="Hot 100 --- 接雨水"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-06-01</div><div class="info-item-2">Hot 100 --- 接雨水</div></div><div class="info-2"><div class="info-item-1">本文以LeetCode经典题目"接雨水"为例，从暴力解法入手，逐步优化到动态规划（左右数组）解法，再进一步优化空间复杂度到O(1)的双指针解法，系统讲解如何利用"木桶效应"计算每个位置的接水量</div></div></div></a><a class="pagination-related" href="/2026/06/01/Hot%20100%20---%20%E7%9B%9B%E6%9C%80%E5%A4%9A%E6%B0%B4%E7%9A%84%E5%AE%B9%E5%99%A8/" title="Hot 100 --- 盛最多水的容器"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-06-01</div><div class="info-item-2">Hot 100 --- 盛最多水的容器</div></div><div class="info-2"><div class="info-item-1">本文以LeetCode经典题目"盛最多水的容器"为例，从暴力解法入手逐步推导双指针贪心策略，深入讲解如何通过移动短板缩小检索范围，将时间复杂度从O(n²)优化至O(n)</div></div></div></a><a class="pagination-related" href="/2026/06/10/Hot%20100%20---%20%E6%9C%80%E5%A4%A7%E5%AD%90%E6%95%B0%E7%BB%84%E5%92%8C/" title="Hot 100 --- 最大子数组和"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-06-10</div><div class="info-item-2">Hot 100 --- 最大子数组和</div></div><div class="info-2"><div class="info-item-1">本文以LeetCode经典题目"最大子数组和"为例，从暴力解法入手，利用前缀和优化到维护最小前缀和的O(n)解法，再从动态规划角度重新理解，系统讲解如何利用"前数组和是否对当前元素有贡献"这一关键判断，将时间复杂度从O(n²)优化到O(n)</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/%E5%A4%B4%E5%83%8F.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">青山木</div><div class="author-info-description">正在学习Java后端开发＋Python智能体开发，希望能与大家多多交流</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">28</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">57</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">3</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/LI-S-H"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/LI-S-H" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">欢迎来到我的博客，记录学习与成长的点滴。</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%80%E3%80%81%E9%A2%98%E7%9B%AE"><span class="toc-number">1.</span> <span class="toc-text">一、题目</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BA%8C%E3%80%81%E9%A2%98%E7%9B%AE%E5%88%86%E6%9E%90"><span class="toc-number">2.</span> <span class="toc-text">二、题目分析</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%80%9D%E8%B7%AF%E6%A6%82%E8%A7%88"><span class="toc-number">3.</span> <span class="toc-text">思路概览</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%89%E3%80%81%E6%80%9D%E8%B7%AF%E8%AF%A6%E8%A7%A3"><span class="toc-number">4.</span> <span class="toc-text">三、思路详解</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E6%9A%B4%E5%8A%9B%E8%A7%A3%E6%B3%95%E5%85%A5%E6%89%8B"><span class="toc-number">4.1.</span> <span class="toc-text">暴力解法入手</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%AD%90%E9%97%AE%E9%A2%98%E4%B8%80%EF%BC%9A%E5%8F%8D%E8%BD%AC%E9%93%BE%E8%A1%A8"><span class="toc-number">4.2.</span> <span class="toc-text">子问题一：反转链表</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%AD%90%E9%97%AE%E9%A2%98%E4%BA%8C%EF%BC%9A%E5%BF%AB%E6%85%A2%E6%8C%87%E9%92%88%E6%89%BE%E4%B8%AD%E7%82%B9"><span class="toc-number">4.3.</span> <span class="toc-text">子问题二：快慢指针找中点</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%9B%9E%E6%96%87%E9%93%BE%E8%A1%A8%E4%BC%98%E5%8C%96%E8%A7%A3%E6%B3%95"><span class="toc-number">4.4.</span> <span class="toc-text">回文链表优化解法</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/2026/06/20/Hot%20100%20---%20%E5%9B%9E%E6%96%87%E9%93%BE%E8%A1%A8/" title="Hot 100 --- 回文链表"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 回文链表"/></a><div class="content"><a class="title" href="/2026/06/20/Hot%20100%20---%20%E5%9B%9E%E6%96%87%E9%93%BE%E8%A1%A8/" title="Hot 100 --- 回文链表">Hot 100 --- 回文链表</a><time datetime="2026-06-20T02:00:00.000Z" title="发表于 2026-06-20 10:00:00">2026-06-20</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/06/19/Hot%20100%20---%20%E6%90%9C%E7%B4%A2%E4%BA%8C%E7%BB%B4%E7%9F%A9%E9%98%B5%20II/" title="Hot 100 --- 搜索二维矩阵 II"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 搜索二维矩阵 II"/></a><div class="content"><a class="title" href="/2026/06/19/Hot%20100%20---%20%E6%90%9C%E7%B4%A2%E4%BA%8C%E7%BB%B4%E7%9F%A9%E9%98%B5%20II/" title="Hot 100 --- 搜索二维矩阵 II">Hot 100 --- 搜索二维矩阵 II</a><time datetime="2026-06-19T02:00:00.000Z" title="发表于 2026-06-19 10:00:00">2026-06-19</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/06/18/%E6%9D%83%E9%99%90%E6%8E%A7%E5%88%B6%E6%A8%A1%E5%9E%8B%E5%85%A8%E8%A7%A3%E6%9E%90/" title="权限设计怎么做？6 种模型从原理到实战全解析"><img src="/img/title-picture/%E9%94%81.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="权限设计怎么做？6 种模型从原理到实战全解析"/></a><div class="content"><a class="title" href="/2026/06/18/%E6%9D%83%E9%99%90%E6%8E%A7%E5%88%B6%E6%A8%A1%E5%9E%8B%E5%85%A8%E8%A7%A3%E6%9E%90/" title="权限设计怎么做？6 种模型从原理到实战全解析">权限设计怎么做？6 种模型从原理到实战全解析</a><time datetime="2026-06-18T10:00:00.000Z" title="发表于 2026-06-18 18:00:00">2026-06-18</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/06/18/Hot%20100%20---%20%E6%97%8B%E8%BD%AC%E5%9B%BE%E5%83%8F/" title="Hot 100 --- 旋转图像"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 旋转图像"/></a><div class="content"><a class="title" href="/2026/06/18/Hot%20100%20---%20%E6%97%8B%E8%BD%AC%E5%9B%BE%E5%83%8F/" title="Hot 100 --- 旋转图像">Hot 100 --- 旋转图像</a><time datetime="2026-06-18T02:00:00.000Z" title="发表于 2026-06-18 10:00:00">2026-06-18</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/06/17/Hot%20100%20---%20%E8%9E%BA%E6%97%8B%E7%9F%A9%E9%98%B5/" title="Hot 100 --- 螺旋矩阵"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 螺旋矩阵"/></a><div class="content"><a class="title" href="/2026/06/17/Hot%20100%20---%20%E8%9E%BA%E6%97%8B%E7%9F%A9%E9%98%B5/" title="Hot 100 --- 螺旋矩阵">Hot 100 --- 螺旋矩阵</a><time datetime="2026-06-17T02:00:00.000Z" title="发表于 2026-06-17 10:00:00">2026-06-17</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By 青山木</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.5.4"></script><script src="/js/main.js?v=5.5.4"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.outerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+    setTimeout(() => URL.revokeObjectURL(url), 30000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        if (typeof svg === 'string') {
+          openSvgInNewTab({ source: svg, initViewBox })
+          return
+        }
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+
+    // Avoid binding multiple times on themeChange/pjax
+    if (wrap.__mermaidGestureBound) return
+    wrap.__mermaidGestureBound = true
+
+    // Helper: map client (viewport) coordinate -> viewBox coordinate
+    const clientToViewBox = (clientX, clientY) => {
+      const rect = svg.getBoundingClientRect()
+      const vb = wrap.__mermaidCurViewBox || getSvgViewBox(svg)
+      const x = vb[0] + (clientX - rect.left) * (vb[2] / rect.width)
+      const y = vb[1] + (clientY - rect.top) * (vb[3] / rect.height)
+      return { x, y, rect, vb }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      startCenter: null
+    }
+
+    const clampVb = vb => {
+      const init = wrap.__mermaidInitViewBox || vb
+      const minW = init[2] * 0.1
+      const maxW = init[2] * 10
+      const minH = init[3] * 0.1
+      const maxH = init[3] * 10
+      vb[2] = clamp(vb[2], minW, maxW)
+      vb[3] = clamp(vb[3], minH, maxH)
+      return vb
+    }
+
+    const setCurVb = vb => {
+      vb = clampVb(vb)
+      wrap.__mermaidCurViewBox = vb
+      setSvgViewBox(svg, vb)
+    }
+
+    const onPointerDown = e => {
+      // Allow only primary button for mouse
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+
+      if (state.pointers.size === 1) {
+        state.startVb = (wrap.__mermaidCurViewBox || getSvgViewBox(svg)).slice()
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = (wrap.__mermaidCurViewBox || getSvgViewBox(svg)).slice()
+        state.startCenter = { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 }
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+
+      // Pan with 1 pointer
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = [...state.pointers.values()][0]
+        const prev = { x: e.clientX - e.movementX, y: e.clientY - e.movementY }
+        // movementX/Y unreliable on touch, compute from stored last position
+        const last = wrap.__mermaidLastSinglePointer || p
+        const dxClient = p.x - last.x
+        const dyClient = p.y - last.y
+        wrap.__mermaidLastSinglePointer = p
+
+        const { rect } = clientToViewBox(p.x, p.y)
+        const vb = (wrap.__mermaidCurViewBox || getSvgViewBox(svg)).slice()
+        const dx = dxClient * (vb[2] / rect.width)
+        const dy = dyClient * (vb[3] / rect.height)
+        setCurVb([vb[0] - dx, vb[1] - dy, vb[2], vb[3]])
+        return
+      }
+
+      // Pinch zoom with 2 pointers
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist // dist bigger => zoom in (viewBox smaller)
+
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const centerClient = { x: cx, y: cy }
+
+        const pxy = clientToViewBox(centerClient.x, centerClient.y)
+        const cpx = pxy.x
+        const cpy = pxy.y
+
+        const vb = zoomAtPoint(state.startVb, factor, cpx, cpy)
+        setCurVb(vb)
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+        state.startCenter = null
+        wrap.__mermaidLastSinglePointer = null
+      } else if (state.pointers.size === 1) {
+        // reset single pointer baseline to avoid jump
+        wrap.__mermaidLastSinglePointer = [...state.pointers.values()][0]
+      }
+    }
+
+    // Wheel zoom (mouse/trackpad)
+    const onWheel = e => {
+      // ctrlKey on mac trackpad pinch; we treat both as zoom
+      e.preventDefault()
+      const delta = e.deltaY
+      const zoomFactor = delta > 0 ? 1.1 : 0.9
+      const { x, y } = clientToViewBox(e.clientX, e.clientY)
+      const vb = (wrap.__mermaidCurViewBox || getSvgViewBox(svg)).slice()
+      setCurVb(zoomAtPoint(vb, zoomFactor, x, y))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (!init) return
+      wrap.__mermaidCurViewBox = init.slice()
+      setSvgViewBox(svg, init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown)
+    svg.addEventListener('pointermove', onPointerMove)
+    svg.addEventListener('pointerup', onPointerUpOrCancel)
+    svg.addEventListener('pointercancel', onPointerUpOrCancel)
+    svg.addEventListener('wheel', onWheel, { passive: false })
+    svg.addEventListener('dblclick', onDblClick)
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+
+      // Clear old render (themeChange/pjax will rerun)
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      item.__mermaidGestureBound = false
+
+      const config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+
+      // mermaid v9 and v10 compatibility
+      typeof renderFn === 'string' ? renderMermaid(renderFn) : renderFn.then(({ svg }) => renderMermaid(svg))
+    })
+  }
+
+  const codeToMermaid = () => {
+    const codeMermaidEle = document.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    if (true) codeToMermaid()
+    const $mermaid = document.querySelectorAll('#article-container .mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid@11.12.2/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script></div><script>
+(function() {
+  /* 仅在首页标题上方插入头像 */
+  if (window.location.pathname !== '/' && !window.location.pathname.endsWith('/index.html')) return;
+  var siteTitle = document.getElementById('site-title');
+  if (siteTitle) {
+    var avatar = document.createElement('img');
+    avatar.src = '/img/头像.jpg';
+    avatar.alt = 'avatar';
+    avatar.className = 'avatar-img';
+    siteTitle.parentNode.insertBefore(avatar, siteTitle);
+  }
+})();
+</script>
+<script>
+(function() {
+  /* 将 Mermaid 代码块转为可渲染的 div */
+  document.querySelectorAll('figure.highlight').forEach(function(fig) {
+    var codePre = fig.querySelector('td.code pre');
+    if (!codePre) return;
+    var text = codePre.innerText.trim();
+    if (/^(flowchart|graph|sequenceDiagram|classDiagram|stateDiagram|gantt|pie|erDiagram|journey|gitGraph|mindmap|timeline)\b/m.test(text)) {
+      var div = document.createElement('div');
+      div.className = 'mermaid';
+      div.setAttribute('data-mermaid-src', text);
+      div.textContent = text;
+      fig.parentNode.replaceChild(div, fig);
+    }
+  });
+})();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script><script>
+mermaid.initialize({
+  startOnLoad: true,
+  theme: 'neutral',
+  themeVariables: {
+    primaryColor: '#ffffff',
+    primaryTextColor: '#1a1a1a',
+    primaryBorderColor: '#10b981',
+    lineColor: '#10b981',
+    secondaryColor: '#f8f9fa',
+    tertiaryColor: '#ffffff',
+    mainBkg: '#ffffff',
+    nodeBorder: '#10b981',
+    clusterBkg: '#f0fdf4',
+    clusterBorder: '#10b981',
+    titleColor: '#1a1a1a',
+    edgeLabelBackground: '#ffffff',
+    textColor: '#1a1a1a',
+    fontSize: '14px'
+  }
+});
+</script>
+<script id="canvas_nest" defer="defer" color="107,159,255" opacity="0.6" zIndex="-1" count="99" mobile="false" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/dist/canvas-nest.min.js"></script></div></body></html>
