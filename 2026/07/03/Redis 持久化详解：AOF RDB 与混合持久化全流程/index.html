@@ -1,0 +1,782 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="dark"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>一文讲透 Redis 持久化：AOF、RDB 与混合持久化全流程 | 青山木</title><meta name="author" content="青山木"><meta name="copyright" content="青山木"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#0d1117"><meta name="description" content="Redis 数据全部放在内存里，一旦宕机数据就全部丢失。本文从为什么需要持久化讲起，系统讲解 AOF 的写入流程与三种刷盘策略、AOF 重写与 Copy-On-Write、RDB 快照机制，以及 Redis 4.0 引入的混合持久化和 7.0 引入的 MP-AOF，最后补充大 Key 对持久化的影响。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="一文讲透 Redis 持久化：AOF、RDB 与混合持久化全流程">
+<meta property="og:url" content="https://li-s-h.github.io/2026/07/03/Redis%20%E6%8C%81%E4%B9%85%E5%8C%96%E8%AF%A6%E8%A7%A3%EF%BC%9AAOF%20RDB%20%E4%B8%8E%E6%B7%B7%E5%90%88%E6%8C%81%E4%B9%85%E5%8C%96%E5%85%A8%E6%B5%81%E7%A8%8B/index.html">
+<meta property="og:site_name" content="青山木">
+<meta property="og:description" content="Redis 数据全部放在内存里，一旦宕机数据就全部丢失。本文从为什么需要持久化讲起，系统讲解 AOF 的写入流程与三种刷盘策略、AOF 重写与 Copy-On-Write、RDB 快照机制，以及 Redis 4.0 引入的混合持久化和 7.0 引入的 MP-AOF，最后补充大 Key 对持久化的影响。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://li-s-h.github.io/img/title-picture/redis.png">
+<meta property="article:published_time" content="2026-07-03T06:00:00.000Z">
+<meta property="article:modified_time" content="2026-07-03T15:18:29.474Z">
+<meta property="article:author" content="青山木">
+<meta property="article:tag" content="Redis">
+<meta property="article:tag" content="持久化">
+<meta property="article:tag" content="AOF">
+<meta property="article:tag" content="RDB">
+<meta property="article:tag" content="混合持久化">
+<meta property="article:tag" content="MP-AOF">
+<meta property="article:tag" content="缓存">
+<meta property="article:tag" content="数据库">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://li-s-h.github.io/img/title-picture/redis.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "一文讲透 Redis 持久化：AOF、RDB 与混合持久化全流程",
+  "url": "https://li-s-h.github.io/2026/07/03/Redis%20%E6%8C%81%E4%B9%85%E5%8C%96%E8%AF%A6%E8%A7%A3%EF%BC%9AAOF%20RDB%20%E4%B8%8E%E6%B7%B7%E5%90%88%E6%8C%81%E4%B9%85%E5%8C%96%E5%85%A8%E6%B5%81%E7%A8%8B/",
+  "image": "https://li-s-h.github.io/img/title-picture/redis.png",
+  "datePublished": "2026-07-03T06:00:00.000Z",
+  "dateModified": "2026-07-03T15:18:29.474Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "青山木",
+      "url": "https://LI-S-H.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/%E5%A4%B4%E5%83%8F.jpg"><link rel="canonical" href="https://li-s-h.github.io/2026/07/03/Redis%20%E6%8C%81%E4%B9%85%E5%8C%96%E8%AF%A6%E8%A7%A3%EF%BC%9AAOF%20RDB%20%E4%B8%8E%E6%B7%B7%E5%90%88%E6%8C%81%E4%B9%85%E5%8C%96%E5%85%A8%E6%B5%81%E7%A8%8B/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="stylesheet" href="/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d1117')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', 'ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '一文讲透 Redis 持久化：AOF、RDB 与混合持久化全流程',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><style>
+  #site-title { font-size: 1.76em !important; }
+  #subtitle { font-size: 0.88em !important; }
+
+  /* 卡片悬停放大 + 辉光 */
+  #recent-posts .recent-post-item {
+    transition: transform .3s ease, box-shadow .3s ease, border-color .3s ease;
+  }
+  #recent-posts .recent-post-item:hover {
+    transform: scale(1.025) !important;
+    border-color: rgba(107,159,255,0.5) !important;
+    box-shadow: 0 0 0 1px rgba(107,159,255,0.15),
+                0 0 45px rgba(107,159,255,0.12),
+                0 8px 30px rgba(0,0,0,0.4) !important;
+  }
+
+  /* 首页标题上方头像 */
+  #site-info .avatar-img {
+    display: block;
+    width: 144px;
+    height: 144px;
+    border-radius: 50%;
+    margin: 0 auto 20px;
+    border: 3px solid rgba(107,159,255,0.6);
+    box-shadow: 0 0 30px rgba(107,159,255,0.35),
+                0 0 60px rgba(107,159,255,0.15),
+                0 4px 20px rgba(0,0,0,0.25);
+    object-fit: cover;
+    transition: box-shadow .4s ease, border-color .4s ease;
+  }
+  #site-info .avatar-img:hover {
+    border-color: rgba(107,159,255,0.9);
+    box-shadow: 0 0 40px rgba(107,159,255,0.5),
+                0 0 80px rgba(107,159,255,0.25),
+                0 4px 20px rgba(0,0,0,0.25);
+  }
+
+  /* Mermaid 白色背景适配 */
+  pre.mermaid,
+  .mermaid {
+    background: #ffffff !important;
+    padding: 12px !important;
+    border-radius: 8px !important;
+    border: 1px solid #e0e0e0 !important;
+  }
+  pre.mermaid code {
+    background: #ffffff !important;
+  }
+</style>
+<meta name="generator" content="Hexo 7.3.0"></head><body><div class="bg-animation" id="web_bg" style="background-image: url(/img/%E8%83%8C%E6%99%AF%E5%9B%BE.webp);"></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(/img/title-picture/redis.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">青山木</span></a><a class="nav-page-title" href="/"><span class="site-name">一文讲透 Redis 持久化：AOF、RDB 与混合持久化全流程</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">一文讲透 Redis 持久化：AOF、RDB 与混合持久化全流程</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-07-03T06:00:00.000Z" title="发表于 2026-07-03 14:00:00">2026-07-03</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-07-03T15:18:29.474Z" title="更新于 2026-07-03 23:18:29">2026-07-03</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/%E5%90%8E%E7%AB%AF%E5%BC%80%E5%8F%91/">后端开发</a></span></div><div class="meta-secondline"></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><blockquote>
+<p>Redis 之所以快，是因为数据都存在内存里；但也正因为如此，一旦进程重启，所有数据都会消失。本文按照“为什么需要持久化 → AOF 日志怎么写 → AOF 重写与写时复制 → RDB 快照 → 混合持久化和 MP-AOF → 大 Key 对持久化的影响”的顺序，把 Redis 持久化这条主线彻底讲清楚。这一篇也是前文《Redis 高可用详解：主从复制、哨兵机制与故障转移》里预告过的持久化篇。</p>
+</blockquote>
+<hr>
+<h2 id="一、为什么-Redis-一定要做持久化"><a href="#一、为什么-Redis-一定要做持久化" class="headerlink" title="一、为什么 Redis 一定要做持久化"></a>一、为什么 Redis 一定要做持久化</h2><p>Redis 是一个基于内存的键值数据库，读写性能极高的代价，就是数据全部依赖于内存这一介质。可以设想一个非常真实的场景：某台 Redis 实例因为机器故障、进程被 kill 或运维误操作宕机了。因为 Redis 的数据都存在内存中，一旦重启，内存里的所有键值对会全部消失。</p>
+<p>这对于线上系统来说是一个非常严重的问题：</p>
+<ul>
+<li>所有数据丢失，即使 Redis 进程被拉起来，实例里也什么都没有。</li>
+<li>重建缓存并不是一个廉价的动作，需要把冷数据从数据库慢慢回填到 Redis，这个过程通常比较漫长。</li>
+<li>在缓存重建期间，大量请求会直接打到数据库，很容易压垮后端，进而影响系统的高可用。</li>
+</ul>
+<p>所以 Redis 必须提供一种“重启后仍然能恢复数据”的机制，这就是<strong>持久化</strong>。持久化的核心思想很简单：把内存中的数据以某种形式落到硬盘上，Redis 宕机重启之后，直接读取硬盘上的持久化文件恢复数据，从而尽可能保证服务的高可用。</p>
+<p>围绕这个目标，Redis 提供了两种主要的持久化策略：</p>
+<ul>
+<li><strong>AOF（Append Only File）</strong>：以“写命令日志”的方式记录每一条修改数据的命令。</li>
+<li><strong>RDB（Redis Database）</strong>：以“内存快照”的方式，把某一时刻内存中的全部数据以二进制形式写入磁盘。</li>
+</ul>
+<p>后面还会介绍 Redis 4.0 引入的<strong>混合持久化</strong>和 Redis 7.0 引入的 <strong>MP-AOF（Multi Part AOF）</strong>，它们本质上是对上面两种基础方案的组合与优化。</p>
+<hr>
+<h2 id="二、AOF-持久化：写命令日志的完整链路"><a href="#二、AOF-持久化：写命令日志的完整链路" class="headerlink" title="二、AOF 持久化：写命令日志的完整链路"></a>二、AOF 持久化：写命令日志的完整链路</h2><h3 id="2-1-AOF-的基本原理与写入顺序"><a href="#2-1-AOF-的基本原理与写入顺序" class="headerlink" title="2.1 AOF 的基本原理与写入顺序"></a>2.1 AOF 的基本原理与写入顺序</h3><p>AOF 的思路非常直接：<strong>每来一条写命令，就把这条命令追加到 AOF 日志文件里</strong>。当 Redis 宕机重启时，只需要重新“执行”一遍 AOF 里的命令，就可以把内存状态恢复回来。这种方式的缺点也很明显：恢复过程是逐条命令 replay 的，比 RDB 直接加载二进制快照要慢很多。</p>
+<p>一个容易被忽略但非常关键的点是：AOF 的写入顺序是<strong>先执行命令，再写日志</strong>。也就是说，Redis 会先读取客户端发来的命令，先在内存里执行完毕，然后再把这条命令追加到 AOF 日志文件。这与传统数据库中“先写日志再操作数据”的 WAL（Write Ahead Log）思路是相反的。<br><img src="/img/Redis%20%E6%8C%81%E4%B9%85%E5%8C%96/AOF%E6%89%A7%E8%A1%8C%E9%A1%BA%E5%BA%8F%E5%9B%BE.png" alt="AOF执行顺序图"></p>
+<p>Redis 选择这种“后写日志”顺序，主要有两个好处：</p>
+<ul>
+<li><strong>省掉了额外的语法检查开销</strong>：AOF 追加写日志的操作也是主线程完成的。因为命令已经在内存中执行过一遍了，如果这条命令有语法问题，在操作内存的时候就会报错，根本轮不到写日志。这样对于语法错误的命令，天然就不会被写入 AOF，避免污染日志。</li>
+<li><strong>不会阻塞当前的写命令</strong>：命令先在内存里执行完，然后才去追加日志，这一步不会挡住这条命令本身的响应。</li>
+</ul>
+<p>当然这种“后写日志”的顺序也有隐患：</p>
+<ul>
+<li><strong>数据丢失风险</strong>：Redis 操作内存很快，但写硬盘相对慢很多。如果刚好在“内存操作完成、日志还没写入硬盘”的窗口里宕机，这条写命令就丢失了，等价于数据丢失。</li>
+<li><strong>写盘慢会阻塞后续命令</strong>：因为追加写日志也是主线程做的事情，如果一次写盘特别慢或者出问题，会拖住下一条命令的执行。</li>
+</ul>
+<h3 id="2-2-一条写命令从内存到硬盘的全过程"><a href="#2-2-一条写命令从内存到硬盘的全过程" class="headerlink" title="2.2 一条写命令从内存到硬盘的全过程"></a>2.2 一条写命令从内存到硬盘的全过程</h3><p>要理解 AOF 的三种刷盘策略，需要先弄清楚一条写命令在 AOF 里到底经历了哪几步：<br><img src="/img/Redis%20%E6%8C%81%E4%B9%85%E5%8C%96/AOF%E5%86%99%E5%85%A5%E5%88%B0%E7%A3%81%E7%9B%98%E7%9A%84%E8%BF%87%E7%A8%8B.png" alt="AOF写入到磁盘的过程"></p>
+<ol>
+<li><strong>执行 Redis 命令，追加到 aof_buf</strong>：命令在内存里执行完成之后，会被追加到 <code>server.aof_buf</code> 缓冲区。这一步完全在 Linux 用户态完成。</li>
+<li><strong>write() 系统调用写入内核缓冲区</strong>：Redis 通过 <code>write()</code> 系统调用，把 <code>aof_buf</code> 里的数据写入到 AOF 文件。这里非常关键——<strong>此时数据并没有真正落到硬盘上</strong>，而是被拷贝到了内核的 page cache 里，等待内核后续把数据刷回硬盘。</li>
+<li><strong>内核决定何时刷盘</strong>：page cache 里的数据什么时候真正写到磁盘上，是由内核根据自身策略决定的。</li>
+</ol>
+<p>可以看到，写入硬盘的操作涉及从用户态切换到内核态。这种切换本身是有一定开销的，如果每一条写命令都要经历完整的“write + fsync”过程，就极有可能拖慢 Redis 主线程执行核心命令的效率，反而得不偿失。</p>
+<h3 id="2-3-AOF-的三种刷盘策略：Always、Everysec、No"><a href="#2-3-AOF-的三种刷盘策略：Always、Everysec、No" class="headerlink" title="2.3 AOF 的三种刷盘策略：Always、Everysec、No"></a>2.3 AOF 的三种刷盘策略：Always、Everysec、No</h3><p><img src="/img/Redis%20%E6%8C%81%E4%B9%85%E5%8C%96/fsync%E7%9A%84%E6%B5%81%E7%A8%8B.png" alt="fsync的流程"></p>
+<p>为了让用户在“可靠性”和“性能”之间自己做取舍，Redis 提供了三种 <code>appendfsync</code> 策略：</p>
+<ul>
+<li><strong>Always（总是）</strong>：每次写操作命令执行完成后，同步将 AOF 日志数据写回硬盘（<code>write</code> + <code>fsync</code>）。这是最可靠的一档，但每条命令都要落盘，开销最大，极容易阻塞主线程。</li>
+<li><strong>Everysec（每秒）</strong>：每次写命令执行完，主线程只调用 <code>write()</code> 把命令写入到 AOF 文件的内核缓冲区（page cache），然后由一个 <strong>BIO 后台线程</strong>每隔一秒异步调用一次 <code>fsync()</code>，把 page cache 的内容真正刷回硬盘。</li>
+<li><strong>No（不主动 fsync）</strong>：Redis 不主动控制刷盘时机，<code>write()</code> 完成后就把控制权交给操作系统，由操作系统自己决定何时把 page cache 刷回硬盘。</li>
+</ul>
+<p>这三种策略并不能同时兼顾“不阻塞主线程”和“绝不丢数据”，这两个目标本身就是此消彼长的关系，只能根据业务特性做取舍：</p>
+<ul>
+<li><strong>Always</strong>：可靠性最高，几乎不会丢数据，代价是每条写命令都要写盘，开销大，容易阻塞主线程，适合对数据可靠性要求极高、TPS 不那么极端的场景。</li>
+<li><strong>Everysec</strong>：性能与可靠性折中方案。绝大部分场景下性能接近 No，但仍然存在最长 1 秒的“空窗期”，也就是宕机时最多可能丢失 1 秒内的数据。这是 Redis 默认推荐的方式。</li>
+<li><strong>No</strong>：性能最高，数据丢失的可能性最大，而且不确定性也最高，因为完全依赖操作系统的刷盘节奏。只有在“允许丢数据、追求极致性能”的业务里才建议选它。</li>
+</ul>
+<hr>
+<h2 id="三、AOF-重写：让日志文件不至于无限膨胀"><a href="#三、AOF-重写：让日志文件不至于无限膨胀" class="headerlink" title="三、AOF 重写：让日志文件不至于无限膨胀"></a>三、AOF 重写：让日志文件不至于无限膨胀</h2><h3 id="3-1-为什么必须做-AOF-重写"><a href="#3-1-为什么必须做-AOF-重写" class="headerlink" title="3.1 为什么必须做 AOF 重写"></a>3.1 为什么必须做 AOF 重写</h3><p>AOF 通过“追加写命令”来记录状态变化，随着 Redis 实例运行时间变长，AOF 文件会变得越来越大。更麻烦的是，AOF 里会有大量“对同一个 key 的重复写命令”，比如同一个计数器可能被更新了几十万次，但恢复的时候其实只需要执行最后一次 <code>SET</code> 就够了。</p>
+<p>文件越大，带来的副作用越明显：</p>
+<ul>
+<li>磁盘占用越来越高。</li>
+<li>宕机恢复时需要 replay 的命令数量越多，恢复时间越长，对系统可用性影响越大。</li>
+</ul>
+<p>因此，<strong>AOF 重写</strong>这件事就变得非常必要。</p>
+<h3 id="3-2-AOF-重写的基本思路：读内存重新生成命令"><a href="#3-2-AOF-重写的基本思路：读内存重新生成命令" class="headerlink" title="3.2 AOF 重写的基本思路：读内存重新生成命令"></a>3.2 AOF 重写的基本思路：读内存重新生成命令</h3><p>AOF 重写的思路是：当检测到 AOF 文件大小超过预设阈值时，直接读取当前 Redis 内存中的全部键值对数据，为每个键值对生成一条对应的写命令，重新组织成一个新的 AOF 文件。</p>
+<p>这样做之后，重复命令、过期数据统统被过滤掉，最终得到的 AOF 文件相当于是“当前内存状态的最小命令集合”。</p>
+<p>但显然，遍历整块内存、生成命令、写文件是一个非常消耗性能的操作，不可能让主进程去做，否则会严重拖累 Redis 的核心命令处理能力。因此 Redis 采用了 <code>bgrewriteaof</code> 机制：<strong>fork 出一个子进程，由子进程去做 AOF 重写，主进程仍然照常处理客户端请求</strong>。</p>
+<h3 id="3-3-子进程如何面对“主进程还在写”的问题"><a href="#3-3-子进程如何面对“主进程还在写”的问题" class="headerlink" title="3.3 子进程如何面对“主进程还在写”的问题"></a>3.3 子进程如何面对“主进程还在写”的问题</h3><p>一旦 fork 出子进程做重写，就必然会遇到一个棘手的问题：<strong>在重写过程中，主进程还在不停地接收写命令，怎么保证子进程写出来的新 AOF 文件跟最终内存状态一致？</strong></p>
+<p>如果每次主进程有写命令都跑去通知子进程“你要更新这个 key”，然后让子进程重新去改新文件里的对应条目，这个开销是完全无法接受的。Redis 采用了一种更精巧的做法：<strong>Copy-On-Write（写时复制，简称 COW）</strong>。</p>
+<h3 id="3-4-Copy-On-Write-机制详解"><a href="#3-4-Copy-On-Write-机制详解" class="headerlink" title="3.4 Copy-On-Write 机制详解"></a>3.4 Copy-On-Write 机制详解</h3><p>理解 COW，需要先理解“页表”和“物理内存”的关系。页表记录的是虚拟内存到物理内存的映射关系。子进程是由主进程 <code>fork()</code> 出来的，此时它的页表是从主进程复制过来的，也就是说：<strong>主进程和子进程的虚拟内存指向的是同一片物理内存</strong>。<br><img src="/img/Redis%20%E6%8C%81%E4%B9%85%E5%8C%96/fork%E8%BF%87%E7%A8%8B.png" alt="fork过程"><br>在 fork 时，操作系统还会把这些共享的物理页设置为<strong>只读</strong>。这样做的目的是：</p>
+<ul>
+<li>fork 阶段并不真正复制物理内存，只复制页表，速度很快，尽量减少对主进程的阻塞。</li>
+<li>当主进程或子进程尝试修改某个共享的物理页时，会因为“只读”触发缺页异常。</li>
+<li>操作系统在异常处理中，把这块物理页复制一份到新的物理地址，把这个进程页表指向新地址，并把权限改回可读写。之后这个进程就在新的物理页上继续写。</li>
+</ul>
+<p>这就是所谓的“写时复制”：<strong>只在真正发生写操作的时候，才复制物理内存</strong>。这样可以避免 fork 时因为一次性复制整块物理内存而长时间阻塞主进程，只有真正被修改的那部分内存才会被复制。</p>
+<p><img src="/img/Redis%20%E6%8C%81%E4%B9%85%E5%8C%96/COW%E8%BF%87%E7%A8%8B.png" alt="COW过程"></p>
+<p>当然它并不是没有代价：</p>
+<ul>
+<li>如果页表本身很大（内存占用很高的实例），fork 时复制页表这个动作本身就会带来相对明显的阻塞。</li>
+<li>触发 COW 时，需要执行一次物理内存复制，这段时间对主进程也是阻塞的，尤其是被修改的内存页比较大时更明显。</li>
+</ul>
+<h3 id="3-5-AOF-缓冲区-vs-AOF-重写缓冲区"><a href="#3-5-AOF-缓冲区-vs-AOF-重写缓冲区" class="headerlink" title="3.5 AOF 缓冲区 vs AOF 重写缓冲区"></a>3.5 AOF 缓冲区 vs AOF 重写缓冲区</h3><p>整体概览</p>
+<p><img src="/img/Redis%20%E6%8C%81%E4%B9%85%E5%8C%96/AOF%E6%95%B4%E4%BD%93%E6%A6%82%E8%A7%88.png" alt="AOF整体概览"><br>主进程在重写期间收到的写命令，不能只写到旧 AOF，否则新 AOF 一旦生成出来就跟内存对不上；也不能只写到新 AOF，否则如果重写失败，就意味着这些命令彻底丢了。Redis 的做法是：<strong>同时写两份缓冲区</strong>。</p>
+<ul>
+<li><strong>AOF 缓冲区（aof_buf）</strong>：给<strong>旧的 AOF 文件</strong>用。主进程处理完写命令后，正常把命令追加到 aof_buf，最终按刷盘策略写回到当前正在使用的旧 AOF 文件。这保证了在新 AOF 还没生成完成之前，旧 AOF 依然是完整可用的。</li>
+<li><strong>AOF 重写缓冲区</strong>：专门给<strong>新的 AOF 文件</strong>用。主进程收到写命令时，同时也把这条命令记录到 AOF 重写缓冲区。这样即便新 AOF 文件在生成过程中失败，也不会导致这部分数据丢失；如果生成成功，这些命令还可以补写到新 AOF 里。</li>
+</ul>
+<p>当子进程完成新 AOF 文件的编写之后，会向主进程发送一个<strong>信号</strong>（信号是进程间通信的一种方式，是异步的）。主进程收到信号后，会调用一个信号处理函数，主要做两件事：</p>
+<ul>
+<li>将 AOF 重写缓冲区中的所有内容追加到新 AOF 文件末尾，使新旧两个 AOF 文件所记录的数据库状态一致。</li>
+<li>对新 AOF 文件进行 rename，覆盖掉原来的 AOF 文件。</li>
+</ul>
+<p>信号处理函数执行完之后，主进程继续像往常一样处理命令。整个 AOF 后台重写过程中，除了 COW 会对主进程造成阻塞，<strong>信号处理函数执行时也会对主进程造成阻塞</strong>，其他时候都不会阻塞主进程。</p>
+<h3 id="3-6-Redis-7-0-之后的-MP-AOF：Multi-Part-AOF"><a href="#3-6-Redis-7-0-之后的-MP-AOF：Multi-Part-AOF" class="headerlink" title="3.6 Redis 7.0 之后的 MP-AOF：Multi Part AOF"></a>3.6 Redis 7.0 之后的 MP-AOF：Multi Part AOF</h3><p>上面描述的重写机制是 Redis 7.0 之前的方案。7.0 开始，Redis 引入了 <strong>MP-AOF（Multi Part AOF）</strong>，把原本一个 AOF 文件拆成了多个文件：</p>
+<ul>
+<li><strong>清单文件 manifest</strong>：记录当前 AOF 由哪些文件组成。</li>
+<li><strong>基础文件 base</strong>：使用 <strong>RDB 格式</strong>保存重写开始那一刻内存中的全量数据。</li>
+<li><strong>若干个增量文件 incr</strong>：使用 <strong>AOF 格式</strong>记录重写开始之后新产生的写命令。</li>
+</ul>
+<p>在 MP-AOF 下，重写流程也变得更清爽：</p>
+<ul>
+<li>子进程还是通过 <code>fork</code> 生成，读取当时的内存状态，但不再生成 AOF 文件，而是<strong>直接生成 RDB 格式的 base 文件</strong>。</li>
+<li>此时如果主进程有新的写命令进来，仍然会走 COW（这一部分逻辑没有变），但这些新命令不再写入“AOF 重写缓冲区”，而是<strong>直接写入一个新的 incr 文件</strong>。</li>
+<li>重写完成后，Redis 只需要原子地更新 manifest 文件，让它指向新的 base 和新的 incr，旧的 base 和旧的 incr 就可以安全删除。</li>
+</ul>
+<p>相比旧方案，MP-AOF 的好处非常直接：</p>
+<ul>
+<li>不再需要父子进程之间通过管道同步重写期间的增量命令。</li>
+<li>不再需要在主进程中维护“AOF 重写缓冲区”，也不需要在重写末尾把缓冲区一次性合并进新文件。</li>
+<li>整体上减轻了主进程的内存和 CPU 压力，AOF 重写过程更加健壮。</li>
+<li>天然支持多文件形式，运维上也更加友好。</li>
+</ul>
+<hr>
+<h2 id="四、RDB-持久化：内存快照"><a href="#四、RDB-持久化：内存快照" class="headerlink" title="四、RDB 持久化：内存快照"></a>四、RDB 持久化：内存快照</h2><h3 id="4-1-RDB-与-AOF-的本质区别"><a href="#4-1-RDB-与-AOF-的本质区别" class="headerlink" title="4.1 RDB 与 AOF 的本质区别"></a>4.1 RDB 与 AOF 的本质区别</h3><p>如果说 AOF 是“日志”，那 RDB 就是“快照”。两者最本质的区别在于：</p>
+<ul>
+<li><strong>AOF 记录的是写命令</strong>：文本形式的命令流。</li>
+<li><strong>RDB 记录的是数据本身</strong>：某一时刻内存中所有键值对的二进制表示。</li>
+</ul>
+<p>因为 RDB 是二进制格式的数据快照，加载 RDB 时不需要 replay 命令，而是直接把数据反序列化回内存，因此<strong>恢复速度比 AOF 快得多</strong>。</p>
+<p>但生成 RDB 的开销并不小：需要把内存中所有数据编码后写入磁盘，非常消耗性能。如果这一动作发生在主线程，那么在生成快照期间，主线程既要执行命令、又要写文件，会导致命令执行被阻塞较长时间。</p>
+<h3 id="4-2-save-与-bgsave"><a href="#4-2-save-与-bgsave" class="headerlink" title="4.2 save 与 bgsave"></a>4.2 save 与 bgsave</h3><p>Redis 因此提供了两个命令：</p>
+<ul>
+<li><strong>save</strong>：由主线程直接执行快照生成。生成期间主线程被完全占用，Redis 无法处理其他命令，只有在数据量非常小、允许短暂阻塞的场景才建议使用。</li>
+<li><strong>bgsave</strong>：<code>fork</code> 一个子进程来做快照生成。fork 完成后，主线程可以继续处理请求，子进程负责将内存中的数据写入 RDB 文件。fork 期间以及后续如果发生写操作，都会走 Copy-On-Write，思路和 AOF 重写完全一致。</li>
+</ul>
+<h3 id="4-3-默认触发策略：save-900-1-等配置"><a href="#4-3-默认触发策略：save-900-1-等配置" class="headerlink" title="4.3 默认触发策略：save 900 1 等配置"></a>4.3 默认触发策略：save 900 1 等配置</h3><p>Redis 默认在配置文件里给出了如下几条触发条件：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">save 900 1</span><br><span class="line">save 300 10</span><br><span class="line">save 60 10000</span><br></pre></td></tr></table></figure>
+
+<p>需要特别注意的一个细节是：<strong>别看选项名叫 <code>save</code>，实际上执行的是 <code>bgsave</code> 命令</strong>，也就是会 fork 子进程来生成 RDB 快照文件，而不是阻塞式的 <code>save</code>。</p>
+<p>这三行配置的含义分别是：</p>
+<ul>
+<li><code>save 900 1</code>：如果在 900 秒（15 分钟）内，数据库发生了<strong>至少 1 次修改</strong>，就触发 <code>bgsave</code>。</li>
+<li><code>save 300 10</code>：如果在 300 秒（5 分钟）内，数据库发生了<strong>至少 10 次修改</strong>，就触发 <code>bgsave</code>。</li>
+<li><code>save 60 10000</code>：如果在 60 秒（1 分钟）内，数据库发生了<strong>至少 10000 次修改</strong>，就触发 <code>bgsave</code>。</li>
+</ul>
+<p>三条规则任一命中即会触发。可以看到默认策略下的最短快照周期基本在几分钟量级——因为快照本身开销比较大，不适合过于频繁。</p>
+<h3 id="4-4-RDB-的两个隐患"><a href="#4-4-RDB-的两个隐患" class="headerlink" title="4.4 RDB 的两个隐患"></a>4.4 RDB 的两个隐患</h3><p>正因为 RDB 是周期性生成的，它天然存在两个问题：</p>
+<ul>
+<li><strong>数据丢失窗口较大</strong>：如果两次快照之间发生宕机，这段时间内的新写数据会全部丢失。以默认配置为例，最坏情况下可能丢失几分钟内的数据，可靠性明显比 AOF 差。</li>
+<li><strong>COW 带来的内存放大风险</strong>：bgsave 过程中，如果主进程又执行了写命令，同样会触发写时复制，进行物理内存复制。这些新的修改并不会被写进正在生成的这份 RDB 文件里，只能等下一次快照。如果<strong>在 bgsave 期间修改了大量共享内存</strong>，那么这些被修改的物理页都要被复制一份出来。极端情况下，如果被修改的量特别大，进程实际占用的物理内存可能接近翻倍，如果超过服务器物理内存上限，就可能出现操作系统 OOM 或宕机，Redis 自身也会跟着挂掉。</li>
+</ul>
+<hr>
+<h2 id="五、混合持久化：AOF-和-RDB-的结合"><a href="#五、混合持久化：AOF-和-RDB-的结合" class="headerlink" title="五、混合持久化：AOF 和 RDB 的结合"></a>五、混合持久化：AOF 和 RDB 的结合</h2><p>因为 RDB 单独使用时可靠性偏低（数据丢失窗口大），AOF 单独使用时恢复速度慢，从 <strong>Redis 4.0</strong> 开始，官方提供了一个把两者结合起来的方案，叫<strong>混合持久化</strong>。它可以通过下面这个配置开启：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">aof-use-rdb-preamble yes</span><br></pre></td></tr></table></figure>
+
+<p>这种方式其实可以看作 MP-AOF 的前身。它的核心流程是：</p>
+<ul>
+<li>触发 AOF 重写时，子进程 fork 出来之后，<strong>先将与主线程共享的内存数据以 RDB 格式写入到 AOF 文件的前半部分</strong>。</li>
+<li>在重写期间，主进程收到的新写命令通过 COW 落到 AOF 重写缓冲区。</li>
+<li>子进程完成 RDB 部分的写入后，重写缓冲区里的增量命令再以 AOF 格式写入到 AOF 文件的后半部分。</li>
+<li>写入完成后通知主进程用这个“RDB + AOF”格式的新文件替换旧的 AOF 文件。</li>
+</ul>
+<p>这样带来的直接好处是：<strong>重启加载时，前半段是 RDB，加载速度非常快；后半段是增量的 AOF 命令，量比较小，逐条执行也不会太慢</strong>，整体恢复速度显著优于纯 AOF 方案。</p>
+<p>不过如果使用的是 Redis 7.0 以上版本，建议<strong>优先使用 MP-AOF</strong>，理由前面已经讲过：</p>
+<ul>
+<li>解耦了主进程和子进程之间的增量同步逻辑。</li>
+<li>不再需要 AOF 重写缓冲区，主进程内存和 CPU 压力更小。</li>
+<li>支持多文件（manifest + base + incr），运维更友好。</li>
+<li>恢复更快，只需要原子地 rename manifest 文件即可完成新旧切换。</li>
+</ul>
+<hr>
+<h2 id="六、大-Key-对持久化的影响"><a href="#六、大-Key-对持久化的影响" class="headerlink" title="六、大 Key 对持久化的影响"></a>六、大 Key 对持久化的影响</h2><p>前面讲的都是“正常大小”键值对下的持久化行为，但如果 Redis 实例中存在<strong>大 Key</strong>，那么持久化的每一个环节几乎都会被放大。</p>
+<h3 id="6-1-大-Key-对-AOF-日常写入的影响"><a href="#6-1-大-Key-对-AOF-日常写入的影响" class="headerlink" title="6.1 大 Key 对 AOF 日常写入的影响"></a>6.1 大 Key 对 AOF 日常写入的影响</h3><p>从 AOF 日常同步的三种策略来看：</p>
+<ul>
+<li><strong>Always</strong>：如果修改了一个大 Key，那么对应的写命令本身就会非常长、数据量很大。这条命令要先写入 AOF 缓冲区，然后切换到内核态，把 aof_buf 里的数据 <code>write</code> 到 page cache，再 <code>fsync</code> 落盘。因为数据量很大，这一整套操作的耗时会显著变长，从而<strong>长时间阻塞主进程</strong>。</li>
+<li><strong>Everysec</strong>：<code>fsync</code> 由 BIO 后台线程异步执行，可以缓解一部分压力，但主线程仍然需要执行 <code>write()</code>，把大 Key 的数据从 aof_buf 复制到内核态 page cache。数据量大的时候，这次 <code>write</code> 本身就足以阻塞主进程。此外，如果<strong>上一次后台 <code>fsync()</code> 还没执行完，主线程的 <code>write()</code> 会被强制等待</strong>，此时大 Key 依然可能显著阻塞主线程。相比 Always，无论是 fsync 的频率还是每次同步的时间，都会好一些。</li>
+<li><strong>No</strong>：不需要主线程去等待 <code>fsync()</code>，只会拖慢 <code>write</code> 本身，因此在大 Key 场景下影响是三者中最小的，但可靠性相应也最差。</li>
+</ul>
+<h3 id="6-2-大-Key-对-AOF-重写与-RDB-快照的影响"><a href="#6-2-大-Key-对-AOF-重写与-RDB-快照的影响" class="headerlink" title="6.2 大 Key 对 AOF 重写与 RDB 快照的影响"></a>6.2 大 Key 对 AOF 重写与 RDB 快照的影响</h3><p>对于 AOF 重写和 RDB 快照，大 Key 影响最严重的其实是 <strong>fork 后的 Copy-On-Write 阶段</strong>：</p>
+<ul>
+<li><strong>fork 本身</strong>：主要跟内存整体规模（页表大小）相关，跟单个 Key 大不大直接关系不算特别大。</li>
+<li><strong>COW 阶段</strong>：如果在重写&#x2F;快照期间对大 Key 做了写操作，那么这个大 Key 所在的物理页就会被复制。<strong>大 Key 的数据在物理内存里往往是连续的</strong>，即使只改了其中一小部分，整片物理内存都要被复制一份，非常拖时间和性能。</li>
+<li><strong>对内存的冲击</strong>：多次大 Key 的 COW 会使内存使用量突增，如果操作了多个大 Key，甚至可能把 AOF 重写缓冲区打满，或让整个实例的物理内存占用接近翻倍。</li>
+<li><strong>对普通 RDB</strong>：本质上和上面一样，都需要 fork 和 COW，<strong>COW 才是大 Key 影响 RDB 性能的根因</strong>。</li>
+</ul>
+<p>对于<strong>混合持久化</strong>：因为流程本质上是“前半段 RDB + 后半段 AOF”，所以在 COW 阶段处理 AOF 重写缓冲区、以及复制物理内存的开销都会因为大 Key 明显变大。</p>
+<p>对于 <strong>MP-AOF</strong>：主进程新的写命令直接写入 incr 文件，也就是<strong>直接写磁盘</strong>，因此大 Key 会让每次写 incr 的耗时变久、开销变大；不过好处是不需要再走“AOF 重写缓冲区”这条内存路径，对内存本身的冲击相对小一些。</p>
+<p>一句话总结：<strong>只要 Redis 里存在大 Key，无论选哪种持久化策略，都会在写盘或 COW 环节被放大成明显的性能问题，因此在持久化调优之前，先治理大 Key 往往才是最有性价比的动作。</strong></p>
+<hr>
+<h2 id="七、总结"><a href="#七、总结" class="headerlink" title="七、总结"></a>七、总结</h2><p>回到最开始的问题：Redis 为什么需要持久化？因为纯内存的架构决定了它一旦重启就会“失忆”，而重建缓存的过程又太慢，这直接冲击了系统的高可用。围绕这个目标，Redis 演化出了一整套持久化体系：</p>
+<ul>
+<li><strong>AOF</strong>：以写命令日志的方式记录变更，可靠性高但文件体积大、恢复慢；通过 Always&#x2F;Everysec&#x2F;No 三种刷盘策略在可靠性和性能之间做权衡；通过 <code>bgrewriteaof</code> + Copy-On-Write 完成 AOF 重写，避免文件无限增长。</li>
+<li><strong>RDB</strong>：以二进制快照的方式定期把内存状态整体落盘，恢复非常快，但存在较大的丢数据窗口，并且 bgsave 期间的 COW 有内存翻倍的风险。</li>
+<li><strong>混合持久化（Redis 4.0）</strong>：AOF 重写时先写一段 RDB，再追加 AOF，兼顾恢复速度和可靠性，是长期以来主流的推荐方案。</li>
+<li><strong>MP-AOF（Redis 7.0）</strong>：进一步拆成 manifest + base + incr 的多文件结构，解耦父子进程之间的增量同步，去掉了 AOF 重写缓冲区，是当前最推荐的持久化方案。</li>
+</ul>
+<p>一些落地建议：</p>
+<ul>
+<li><strong>可靠性要求极高、TPS 不极端</strong>：选 AOF Always，或 MP-AOF + Always。</li>
+<li><strong>绝大多数在线业务</strong>：Everysec 是默认也是最平衡的选择，配合 MP-AOF 或混合持久化使用体验最好。</li>
+<li><strong>允许一定数据丢失、追求极致性能</strong>：可以考虑 No 或纯 RDB，但需要非常清楚业务能容忍多大的数据丢失窗口。</li>
+<li><strong>无论选什么方案，都优先治理大 Key</strong>：大 Key 是持久化性能问题的头号放大器，无论是日常刷盘还是重写&#x2F;快照，都会因为它被显著拖慢。</li>
+</ul>
+<p>Redis 的持久化机制其实并不复杂，但每一个细节背后都是在“性能”“可靠性”“恢复速度”这三个维度之间做权衡。理解了这些取舍，再回过头去看 <code>appendfsync</code>、<code>bgrewriteaof</code>、<code>save</code> 这些配置，就会发现它们不再是一堆孤立的选项，而是一条完整的、可以按业务需求组合出来的持久化策略链路。</p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://LI-S-H.github.io">青山木</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://li-s-h.github.io/2026/07/03/Redis%20%E6%8C%81%E4%B9%85%E5%8C%96%E8%AF%A6%E8%A7%A3%EF%BC%9AAOF%20RDB%20%E4%B8%8E%E6%B7%B7%E5%90%88%E6%8C%81%E4%B9%85%E5%8C%96%E5%85%A8%E6%B5%81%E7%A8%8B/">https://li-s-h.github.io/2026/07/03/Redis%20%E6%8C%81%E4%B9%85%E5%8C%96%E8%AF%A6%E8%A7%A3%EF%BC%9AAOF%20RDB%20%E4%B8%8E%E6%B7%B7%E5%90%88%E6%8C%81%E4%B9%85%E5%8C%96%E5%85%A8%E6%B5%81%E7%A8%8B/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://LI-S-H.github.io" target="_blank">青山木</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/Redis/">Redis</a><a class="post-meta__tags" href="/tags/%E6%8C%81%E4%B9%85%E5%8C%96/">持久化</a><a class="post-meta__tags" href="/tags/AOF/">AOF</a><a class="post-meta__tags" href="/tags/RDB/">RDB</a><a class="post-meta__tags" href="/tags/%E6%B7%B7%E5%90%88%E6%8C%81%E4%B9%85%E5%8C%96/">混合持久化</a><a class="post-meta__tags" href="/tags/MP-AOF/">MP-AOF</a><a class="post-meta__tags" href="/tags/%E7%BC%93%E5%AD%98/">缓存</a><a class="post-meta__tags" href="/tags/%E6%95%B0%E6%8D%AE%E5%BA%93/">数据库</a></div><div class="post-share"><div class="social-share" data-image="/img/title-picture/redis.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/2026/07/03/Redis%20%E9%AB%98%E5%8F%AF%E7%94%A8%E8%AF%A6%E8%A7%A3%EF%BC%9A%E4%B8%BB%E4%BB%8E%E5%A4%8D%E5%88%B6%20%E5%93%A8%E5%85%B5%E6%9C%BA%E5%88%B6%E4%B8%8E%E6%95%85%E9%9A%9C%E8%BD%AC%E7%A7%BB/" title="一文讲透 Redis 高可用：主从复制、哨兵机制与故障转移全流程"><img class="cover" src="/img/title-picture/redis.png" onerror="onerror=null;src='/img/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">一文讲透 Redis 高可用：主从复制、哨兵机制与故障转移全流程</div></div><div class="info-2"><div class="info-item-1">Redis 单节点再快也绕不开性能上限和单点故障。本文从主从架构出发，讲清楚主从复制如何保证数据同步，Sentinel 如何完成故障转移，以及为什么哨兵本身也必须集群化。</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/2026/07/03/Redis%20%E9%AB%98%E5%8F%AF%E7%94%A8%E8%AF%A6%E8%A7%A3%EF%BC%9A%E4%B8%BB%E4%BB%8E%E5%A4%8D%E5%88%B6%20%E5%93%A8%E5%85%B5%E6%9C%BA%E5%88%B6%E4%B8%8E%E6%95%85%E9%9A%9C%E8%BD%AC%E7%A7%BB/" title="一文讲透 Redis 高可用：主从复制、哨兵机制与故障转移全流程"><img class="cover" src="/img/title-picture/redis.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-03</div><div class="info-item-2">一文讲透 Redis 高可用：主从复制、哨兵机制与故障转移全流程</div></div><div class="info-2"><div class="info-item-1">Redis 单节点再快也绕不开性能上限和单点故障。本文从主从架构出发，讲清楚主从复制如何保证数据同步，Sentinel 如何完成故障转移，以及为什么哨兵本身也必须集群化。</div></div></div></a><a class="pagination-related" href="/2026/04/26/Redis%E6%A0%B8%E5%BF%83%E5%AE%9E%E6%88%98%EF%BC%9A%E4%BB%8E%E7%BC%93%E5%AD%98%E8%AE%BE%E8%AE%A1%E5%88%B0%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81%E7%9A%84%E6%B7%B1%E5%BA%A6%E8%A7%A3%E6%9E%90/" title="Redis核心实战：从缓存设计到分布式锁的深度解析"><img class="cover" src="/img/title-picture/redis.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-04-26</div><div class="info-item-2">Redis核心实战：从缓存设计到分布式锁的深度解析</div></div><div class="info-2"><div class="info-item-1">本文从实际场景入手，系统讲解Redis的核心知识，涵盖缓存设计基础（缓存策略、Key设计规范）、缓存击穿/穿透/雪崩三大问题的解决方案，以及秒杀与一人一单等业务场景下的分布式锁实战应用</div></div></div></a><a class="pagination-related" href="/2026/06/17/%E4%B8%80%E8%A1%8C%E4%BB%A3%E7%A0%81%E7%99%BB%E5%BD%95%EF%BC%8C%E5%BE%AE%E7%A7%92%E7%BA%A7%E9%89%B4%E6%9D%83%EF%BC%9ASa-Token%20+%20Redis%20Session%20%E5%AE%9E%E8%B7%B5/" title="一行代码登录，微秒级鉴权：Sa-Token + Redis Session 实践"><img class="cover" src="/img/title-picture/sa-token.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-06-17</div><div class="info-item-2">一行代码登录，微秒级鉴权：Sa-Token + Redis Session 实践</div></div><div class="info-2"><div class="info-item-1">本文从实际项目出发，深入讲解 Sa-Token 的完整使用流程、底层鉴权机制以及基于 Redis Session 共享的性能优化方案</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/%E5%A4%B4%E5%83%8F.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">青山木</div><div class="author-info-description">正在学习Java后端开发＋智能体开发，希望能与大家多多交流</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">40</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">80</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">4</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/LI-S-H"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/LI-S-H" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">欢迎来到我的博客，记录学习与成长的点滴。</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%80%E3%80%81%E4%B8%BA%E4%BB%80%E4%B9%88-Redis-%E4%B8%80%E5%AE%9A%E8%A6%81%E5%81%9A%E6%8C%81%E4%B9%85%E5%8C%96"><span class="toc-number">1.</span> <span class="toc-text">一、为什么 Redis 一定要做持久化</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%8C%E3%80%81AOF-%E6%8C%81%E4%B9%85%E5%8C%96%EF%BC%9A%E5%86%99%E5%91%BD%E4%BB%A4%E6%97%A5%E5%BF%97%E7%9A%84%E5%AE%8C%E6%95%B4%E9%93%BE%E8%B7%AF"><span class="toc-number">2.</span> <span class="toc-text">二、AOF 持久化：写命令日志的完整链路</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#2-1-AOF-%E7%9A%84%E5%9F%BA%E6%9C%AC%E5%8E%9F%E7%90%86%E4%B8%8E%E5%86%99%E5%85%A5%E9%A1%BA%E5%BA%8F"><span class="toc-number">2.1.</span> <span class="toc-text">2.1 AOF 的基本原理与写入顺序</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-2-%E4%B8%80%E6%9D%A1%E5%86%99%E5%91%BD%E4%BB%A4%E4%BB%8E%E5%86%85%E5%AD%98%E5%88%B0%E7%A1%AC%E7%9B%98%E7%9A%84%E5%85%A8%E8%BF%87%E7%A8%8B"><span class="toc-number">2.2.</span> <span class="toc-text">2.2 一条写命令从内存到硬盘的全过程</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-3-AOF-%E7%9A%84%E4%B8%89%E7%A7%8D%E5%88%B7%E7%9B%98%E7%AD%96%E7%95%A5%EF%BC%9AAlways%E3%80%81Everysec%E3%80%81No"><span class="toc-number">2.3.</span> <span class="toc-text">2.3 AOF 的三种刷盘策略：Always、Everysec、No</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%89%E3%80%81AOF-%E9%87%8D%E5%86%99%EF%BC%9A%E8%AE%A9%E6%97%A5%E5%BF%97%E6%96%87%E4%BB%B6%E4%B8%8D%E8%87%B3%E4%BA%8E%E6%97%A0%E9%99%90%E8%86%A8%E8%83%80"><span class="toc-number">3.</span> <span class="toc-text">三、AOF 重写：让日志文件不至于无限膨胀</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#3-1-%E4%B8%BA%E4%BB%80%E4%B9%88%E5%BF%85%E9%A1%BB%E5%81%9A-AOF-%E9%87%8D%E5%86%99"><span class="toc-number">3.1.</span> <span class="toc-text">3.1 为什么必须做 AOF 重写</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-2-AOF-%E9%87%8D%E5%86%99%E7%9A%84%E5%9F%BA%E6%9C%AC%E6%80%9D%E8%B7%AF%EF%BC%9A%E8%AF%BB%E5%86%85%E5%AD%98%E9%87%8D%E6%96%B0%E7%94%9F%E6%88%90%E5%91%BD%E4%BB%A4"><span class="toc-number">3.2.</span> <span class="toc-text">3.2 AOF 重写的基本思路：读内存重新生成命令</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-3-%E5%AD%90%E8%BF%9B%E7%A8%8B%E5%A6%82%E4%BD%95%E9%9D%A2%E5%AF%B9%E2%80%9C%E4%B8%BB%E8%BF%9B%E7%A8%8B%E8%BF%98%E5%9C%A8%E5%86%99%E2%80%9D%E7%9A%84%E9%97%AE%E9%A2%98"><span class="toc-number">3.3.</span> <span class="toc-text">3.3 子进程如何面对“主进程还在写”的问题</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-4-Copy-On-Write-%E6%9C%BA%E5%88%B6%E8%AF%A6%E8%A7%A3"><span class="toc-number">3.4.</span> <span class="toc-text">3.4 Copy-On-Write 机制详解</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-5-AOF-%E7%BC%93%E5%86%B2%E5%8C%BA-vs-AOF-%E9%87%8D%E5%86%99%E7%BC%93%E5%86%B2%E5%8C%BA"><span class="toc-number">3.5.</span> <span class="toc-text">3.5 AOF 缓冲区 vs AOF 重写缓冲区</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-6-Redis-7-0-%E4%B9%8B%E5%90%8E%E7%9A%84-MP-AOF%EF%BC%9AMulti-Part-AOF"><span class="toc-number">3.6.</span> <span class="toc-text">3.6 Redis 7.0 之后的 MP-AOF：Multi Part AOF</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%9B%9B%E3%80%81RDB-%E6%8C%81%E4%B9%85%E5%8C%96%EF%BC%9A%E5%86%85%E5%AD%98%E5%BF%AB%E7%85%A7"><span class="toc-number">4.</span> <span class="toc-text">四、RDB 持久化：内存快照</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#4-1-RDB-%E4%B8%8E-AOF-%E7%9A%84%E6%9C%AC%E8%B4%A8%E5%8C%BA%E5%88%AB"><span class="toc-number">4.1.</span> <span class="toc-text">4.1 RDB 与 AOF 的本质区别</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-2-save-%E4%B8%8E-bgsave"><span class="toc-number">4.2.</span> <span class="toc-text">4.2 save 与 bgsave</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-3-%E9%BB%98%E8%AE%A4%E8%A7%A6%E5%8F%91%E7%AD%96%E7%95%A5%EF%BC%9Asave-900-1-%E7%AD%89%E9%85%8D%E7%BD%AE"><span class="toc-number">4.3.</span> <span class="toc-text">4.3 默认触发策略：save 900 1 等配置</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-4-RDB-%E7%9A%84%E4%B8%A4%E4%B8%AA%E9%9A%90%E6%82%A3"><span class="toc-number">4.4.</span> <span class="toc-text">4.4 RDB 的两个隐患</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%94%E3%80%81%E6%B7%B7%E5%90%88%E6%8C%81%E4%B9%85%E5%8C%96%EF%BC%9AAOF-%E5%92%8C-RDB-%E7%9A%84%E7%BB%93%E5%90%88"><span class="toc-number">5.</span> <span class="toc-text">五、混合持久化：AOF 和 RDB 的结合</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%85%AD%E3%80%81%E5%A4%A7-Key-%E5%AF%B9%E6%8C%81%E4%B9%85%E5%8C%96%E7%9A%84%E5%BD%B1%E5%93%8D"><span class="toc-number">6.</span> <span class="toc-text">六、大 Key 对持久化的影响</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#6-1-%E5%A4%A7-Key-%E5%AF%B9-AOF-%E6%97%A5%E5%B8%B8%E5%86%99%E5%85%A5%E7%9A%84%E5%BD%B1%E5%93%8D"><span class="toc-number">6.1.</span> <span class="toc-text">6.1 大 Key 对 AOF 日常写入的影响</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-2-%E5%A4%A7-Key-%E5%AF%B9-AOF-%E9%87%8D%E5%86%99%E4%B8%8E-RDB-%E5%BF%AB%E7%85%A7%E7%9A%84%E5%BD%B1%E5%93%8D"><span class="toc-number">6.2.</span> <span class="toc-text">6.2 大 Key 对 AOF 重写与 RDB 快照的影响</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%83%E3%80%81%E6%80%BB%E7%BB%93"><span class="toc-number">7.</span> <span class="toc-text">七、总结</span></a></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/2026/07/03/Redis%20%E6%8C%81%E4%B9%85%E5%8C%96%E8%AF%A6%E8%A7%A3%EF%BC%9AAOF%20RDB%20%E4%B8%8E%E6%B7%B7%E5%90%88%E6%8C%81%E4%B9%85%E5%8C%96%E5%85%A8%E6%B5%81%E7%A8%8B/" title="一文讲透 Redis 持久化：AOF、RDB 与混合持久化全流程"><img src="/img/title-picture/redis.png" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="一文讲透 Redis 持久化：AOF、RDB 与混合持久化全流程"/></a><div class="content"><a class="title" href="/2026/07/03/Redis%20%E6%8C%81%E4%B9%85%E5%8C%96%E8%AF%A6%E8%A7%A3%EF%BC%9AAOF%20RDB%20%E4%B8%8E%E6%B7%B7%E5%90%88%E6%8C%81%E4%B9%85%E5%8C%96%E5%85%A8%E6%B5%81%E7%A8%8B/" title="一文讲透 Redis 持久化：AOF、RDB 与混合持久化全流程">一文讲透 Redis 持久化：AOF、RDB 与混合持久化全流程</a><time datetime="2026-07-03T06:00:00.000Z" title="发表于 2026-07-03 14:00:00">2026-07-03</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/07/03/Redis%20%E9%AB%98%E5%8F%AF%E7%94%A8%E8%AF%A6%E8%A7%A3%EF%BC%9A%E4%B8%BB%E4%BB%8E%E5%A4%8D%E5%88%B6%20%E5%93%A8%E5%85%B5%E6%9C%BA%E5%88%B6%E4%B8%8E%E6%95%85%E9%9A%9C%E8%BD%AC%E7%A7%BB/" title="一文讲透 Redis 高可用：主从复制、哨兵机制与故障转移全流程"><img src="/img/title-picture/redis.png" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="一文讲透 Redis 高可用：主从复制、哨兵机制与故障转移全流程"/></a><div class="content"><a class="title" href="/2026/07/03/Redis%20%E9%AB%98%E5%8F%AF%E7%94%A8%E8%AF%A6%E8%A7%A3%EF%BC%9A%E4%B8%BB%E4%BB%8E%E5%A4%8D%E5%88%B6%20%E5%93%A8%E5%85%B5%E6%9C%BA%E5%88%B6%E4%B8%8E%E6%95%85%E9%9A%9C%E8%BD%AC%E7%A7%BB/" title="一文讲透 Redis 高可用：主从复制、哨兵机制与故障转移全流程">一文讲透 Redis 高可用：主从复制、哨兵机制与故障转移全流程</a><time datetime="2026-07-03T01:00:00.000Z" title="发表于 2026-07-03 09:00:00">2026-07-03</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/07/02/Hot%20100%20---%20%E5%90%88%E5%B9%B6%20K%20%E4%B8%AA%E5%8D%87%E5%BA%8F%E9%93%BE%E8%A1%A8/" title="Hot 100 --- 合并 K 个升序链表"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 合并 K 个升序链表"/></a><div class="content"><a class="title" href="/2026/07/02/Hot%20100%20---%20%E5%90%88%E5%B9%B6%20K%20%E4%B8%AA%E5%8D%87%E5%BA%8F%E9%93%BE%E8%A1%A8/" title="Hot 100 --- 合并 K 个升序链表">Hot 100 --- 合并 K 个升序链表</a><time datetime="2026-07-02T02:00:00.000Z" title="发表于 2026-07-02 10:00:00">2026-07-02</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2026/07/02/%E5%BF%AB%E9%80%9F%E6%90%AD%E5%BB%BA%E5%85%8D%E8%B4%B9%E7%9A%84%E4%B8%AA%E4%BA%BA%E5%8D%9A%E5%AE%A2%E7%BD%91%E7%AB%99%EF%BC%9AHexo%20+%20GitHub%20Pages%20+%20Butterfly%20%E5%AE%8C%E6%95%B4%E6%8C%87%E5%8D%97/" title="快速搭建免费的个人博客网站：Hexo + GitHub Pages + Butterfly 完整指南">快速搭建免费的个人博客网站：Hexo + GitHub Pages + Butterfly 完整指南</a><time datetime="2026-07-01T16:36:38.000Z" title="发表于 2026-07-02 00:36:38">2026-07-02</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/07/01/Hot%20100%20---%20%E6%8E%92%E5%BA%8F%E9%93%BE%E8%A1%A8/" title="Hot 100 --- 排序链表"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 排序链表"/></a><div class="content"><a class="title" href="/2026/07/01/Hot%20100%20---%20%E6%8E%92%E5%BA%8F%E9%93%BE%E8%A1%A8/" title="Hot 100 --- 排序链表">Hot 100 --- 排序链表</a><time datetime="2026-07-01T02:00:00.000Z" title="发表于 2026-07-01 10:00:00">2026-07-01</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By 青山木</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.5.4"></script><script src="/js/main.js?v=5.5.4"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.outerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+    setTimeout(() => URL.revokeObjectURL(url), 30000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        if (typeof svg === 'string') {
+          openSvgInNewTab({ source: svg, initViewBox })
+          return
+        }
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+
+    // Avoid binding multiple times on themeChange/pjax
+    if (wrap.__mermaidGestureBound) return
+    wrap.__mermaidGestureBound = true
+
+    // Helper: map client (viewport) coordinate -> viewBox coordinate
+    const clientToViewBox = (clientX, clientY) => {
+      const rect = svg.getBoundingClientRect()
+      const vb = wrap.__mermaidCurViewBox || getSvgViewBox(svg)
+      const x = vb[0] + (clientX - rect.left) * (vb[2] / rect.width)
+      const y = vb[1] + (clientY - rect.top) * (vb[3] / rect.height)
+      return { x, y, rect, vb }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      startCenter: null
+    }
+
+    const clampVb = vb => {
+      const init = wrap.__mermaidInitViewBox || vb
+      const minW = init[2] * 0.1
+      const maxW = init[2] * 10
+      const minH = init[3] * 0.1
+      const maxH = init[3] * 10
+      vb[2] = clamp(vb[2], minW, maxW)
+      vb[3] = clamp(vb[3], minH, maxH)
+      return vb
+    }
+
+    const setCurVb = vb => {
+      vb = clampVb(vb)
+      wrap.__mermaidCurViewBox = vb
+      setSvgViewBox(svg, vb)
+    }
+
+    const onPointerDown = e => {
+      // Allow only primary button for mouse
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+
+      if (state.pointers.size === 1) {
+        state.startVb = (wrap.__mermaidCurViewBox || getSvgViewBox(svg)).slice()
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = (wrap.__mermaidCurViewBox || getSvgViewBox(svg)).slice()
+        state.startCenter = { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 }
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+
+      // Pan with 1 pointer
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = [...state.pointers.values()][0]
+        const prev = { x: e.clientX - e.movementX, y: e.clientY - e.movementY }
+        // movementX/Y unreliable on touch, compute from stored last position
+        const last = wrap.__mermaidLastSinglePointer || p
+        const dxClient = p.x - last.x
+        const dyClient = p.y - last.y
+        wrap.__mermaidLastSinglePointer = p
+
+        const { rect } = clientToViewBox(p.x, p.y)
+        const vb = (wrap.__mermaidCurViewBox || getSvgViewBox(svg)).slice()
+        const dx = dxClient * (vb[2] / rect.width)
+        const dy = dyClient * (vb[3] / rect.height)
+        setCurVb([vb[0] - dx, vb[1] - dy, vb[2], vb[3]])
+        return
+      }
+
+      // Pinch zoom with 2 pointers
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist // dist bigger => zoom in (viewBox smaller)
+
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const centerClient = { x: cx, y: cy }
+
+        const pxy = clientToViewBox(centerClient.x, centerClient.y)
+        const cpx = pxy.x
+        const cpy = pxy.y
+
+        const vb = zoomAtPoint(state.startVb, factor, cpx, cpy)
+        setCurVb(vb)
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+        state.startCenter = null
+        wrap.__mermaidLastSinglePointer = null
+      } else if (state.pointers.size === 1) {
+        // reset single pointer baseline to avoid jump
+        wrap.__mermaidLastSinglePointer = [...state.pointers.values()][0]
+      }
+    }
+
+    // Wheel zoom (mouse/trackpad)
+    const onWheel = e => {
+      // ctrlKey on mac trackpad pinch; we treat both as zoom
+      e.preventDefault()
+      const delta = e.deltaY
+      const zoomFactor = delta > 0 ? 1.1 : 0.9
+      const { x, y } = clientToViewBox(e.clientX, e.clientY)
+      const vb = (wrap.__mermaidCurViewBox || getSvgViewBox(svg)).slice()
+      setCurVb(zoomAtPoint(vb, zoomFactor, x, y))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (!init) return
+      wrap.__mermaidCurViewBox = init.slice()
+      setSvgViewBox(svg, init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown)
+    svg.addEventListener('pointermove', onPointerMove)
+    svg.addEventListener('pointerup', onPointerUpOrCancel)
+    svg.addEventListener('pointercancel', onPointerUpOrCancel)
+    svg.addEventListener('wheel', onWheel, { passive: false })
+    svg.addEventListener('dblclick', onDblClick)
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+
+      // Clear old render (themeChange/pjax will rerun)
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      item.__mermaidGestureBound = false
+
+      const config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+
+      // mermaid v9 and v10 compatibility
+      typeof renderFn === 'string' ? renderMermaid(renderFn) : renderFn.then(({ svg }) => renderMermaid(svg))
+    })
+  }
+
+  const codeToMermaid = () => {
+    const codeMermaidEle = document.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    if (true) codeToMermaid()
+    const $mermaid = document.querySelectorAll('#article-container .mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid@11.12.2/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script></div><script>
+(function() {
+  /* 仅在首页标题上方插入头像 */
+  if (window.location.pathname !== '/' && !window.location.pathname.endsWith('/index.html')) return;
+  var siteTitle = document.getElementById('site-title');
+  if (siteTitle) {
+    var avatar = document.createElement('img');
+    avatar.src = '/img/头像.jpg';
+    avatar.alt = 'avatar';
+    avatar.className = 'avatar-img';
+    siteTitle.parentNode.insertBefore(avatar, siteTitle);
+  }
+})();
+</script>
+<script>
+(function() {
+  /* 将 Mermaid 代码块转为可渲染的 div */
+  document.querySelectorAll('figure.highlight').forEach(function(fig) {
+    var codePre = fig.querySelector('td.code pre');
+    if (!codePre) return;
+    var text = codePre.innerText.trim();
+    if (/^(flowchart|graph|sequenceDiagram|classDiagram|stateDiagram|gantt|pie|erDiagram|journey|gitGraph|mindmap|timeline)\b/m.test(text)) {
+      var div = document.createElement('div');
+      div.className = 'mermaid';
+      div.setAttribute('data-mermaid-src', text);
+      div.textContent = text;
+      fig.parentNode.replaceChild(div, fig);
+    }
+  });
+})();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script><script>
+mermaid.initialize({
+  startOnLoad: true,
+  theme: 'neutral',
+  themeVariables: {
+    primaryColor: '#ffffff',
+    primaryTextColor: '#1a1a1a',
+    primaryBorderColor: '#10b981',
+    lineColor: '#10b981',
+    secondaryColor: '#f8f9fa',
+    tertiaryColor: '#ffffff',
+    mainBkg: '#ffffff',
+    nodeBorder: '#10b981',
+    clusterBkg: '#f0fdf4',
+    clusterBorder: '#10b981',
+    titleColor: '#1a1a1a',
+    edgeLabelBackground: '#ffffff',
+    textColor: '#1a1a1a',
+    fontSize: '14px'
+  }
+});
+</script>
+<script id="canvas_nest" defer="defer" color="107,159,255" opacity="0.6" zIndex="-1" count="99" mobile="false" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/dist/canvas-nest.min.js"></script></div></body></html>
