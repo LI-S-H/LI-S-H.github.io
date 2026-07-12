@@ -199,10 +199,11 @@
   /* Mermaid 图表容器样式 */
   .mermaid-wrap {
     position: relative;
-    background: #ffffff !important;
+    /* 图表固定使用深色画布，主题切换无需销毁并重绘所有 SVG。 */
+    background: #1e1e1e !important;
     padding: 12px !important;
     border-radius: 8px !important;
-    border: 1px solid #e0e0e0 !important;
+    border: 1px solid #444 !important;
     text-align: center;
     margin: 0 0 20px 0;
     overflow-x: auto;
@@ -213,7 +214,7 @@
     display: block;
     margin: 0 auto;
   }
-  /* 暗色模式适配 */
+  /* 深色图表画布在两种站点主题下保持一致，避免切换时重排。 */
   [data-theme="dark"] .mermaid-wrap {
     background: #1e1e1e !important;
     border-color: #444 !important;
@@ -1690,7 +1691,8 @@
       script.onload = function() {
         mermaid.initialize({
           startOnLoad: false,
-          theme: document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'neutral',
+          // 图表主题固定，避免站点深浅色切换时重新解析整篇文章的所有 Mermaid 图。
+          theme: 'dark',
           securityLevel: 'loose'
         });
         resolve();
@@ -1772,29 +1774,6 @@
     return renderTask;
   }
 
-  /* 主题切换时重新渲染 */
-  function reRenderOnThemeChange() {
-    var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-    if (window.mermaid) {
-      mermaid.initialize({
-        startOnLoad: false,
-        theme: isDark ? 'dark' : 'neutral',
-        securityLevel: 'loose'
-      });
-    }
-    // 移除已渲染的 SVG，重新渲染
-    document.querySelectorAll('#article-container .mermaid-wrap').forEach(function(wrap) {
-      var pre = wrap.querySelector('pre.mermaid-src');
-      var svg = wrap.querySelector('svg');
-      if (svg) svg.remove();
-      if (pre) {
-        pre.dataset.rendered = 'false';
-        pre.style.display = '';
-      }
-    });
-    renderMermaidDiagrams();
-  }
-
   // 页面加载完成后渲染
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', renderMermaidDiagrams);
@@ -1835,12 +1814,6 @@
     });
   }, true);
 
-  // 监听主题变化
-  document.addEventListener('click', function(e) {
-    if (e.target.closest('#darkmode')) {
-      setTimeout(reRenderOnThemeChange, 100);
-    }
-  });
 })();
 </script>
 <script id="canvas_nest" defer="defer" color="107,159,255" opacity="0.6" zIndex="-1" count="99" mobile="false" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/dist/canvas-nest.min.js"></script></div></body></html>

@@ -179,10 +179,11 @@
   /* Mermaid 图表容器样式 */
   .mermaid-wrap {
     position: relative;
-    background: #ffffff !important;
+    /* 图表固定使用深色画布，主题切换无需销毁并重绘所有 SVG。 */
+    background: #1e1e1e !important;
     padding: 12px !important;
     border-radius: 8px !important;
-    border: 1px solid #e0e0e0 !important;
+    border: 1px solid #444 !important;
     text-align: center;
     margin: 0 0 20px 0;
     overflow-x: auto;
@@ -193,7 +194,7 @@
     display: block;
     margin: 0 auto;
   }
-  /* 暗色模式适配 */
+  /* 深色图表画布在两种站点主题下保持一致，避免切换时重排。 */
   [data-theme="dark"] .mermaid-wrap {
     background: #1e1e1e !important;
     border-color: #444 !important;
@@ -206,7 +207,7 @@
           </div>
           <ul class="card-category-list" id="aside-cat-list">
             <li class="card-category-list-item "><a class="card-category-list-link" href="/categories/LeetCode-%E7%83%AD%E9%A2%98-HOT-100/"><span class="card-category-list-name">LeetCode 热题 HOT 100</span><span class="card-category-list-count">29</span></a></li><li class="card-category-list-item "><a class="card-category-list-link" href="/categories/agent/"><span class="card-category-list-name">agent</span><span class="card-category-list-count">5</span></a></li><li class="card-category-list-item "><a class="card-category-list-link" href="/categories/%E5%8D%9A%E5%AE%A2%E6%90%AD%E5%BB%BA/"><span class="card-category-list-name">博客搭建</span><span class="card-category-list-count">1</span></a></li><li class="card-category-list-item "><a class="card-category-list-link" href="/categories/%E5%90%8E%E7%AB%AF%E5%BC%80%E5%8F%91/"><span class="card-category-list-name">后端开发</span><span class="card-category-list-count">9</span></a></li>
-          </ul></div><div class="card-widget card-tags"><div class="item-headline"><i class="fas fa-tags"></i><span>标签</span></div><div class="card-tag-cloud"><a href="/tags/RDB/" style="font-size: 1.1em; color: #999">RDB</a> <a href="/tags/%E5%8D%95%E8%B0%83%E9%98%9F%E5%88%97/" style="font-size: 1.1em; color: #999">单调队列</a> <a href="/tags/%E6%B7%B1%E5%BA%A6%E4%BC%98%E5%85%88%E6%90%9C%E7%B4%A2/" style="font-size: 1.1em; color: #999">深度优先搜索</a> <a href="/tags/%E5%B9%BF%E5%BA%A6%E4%BC%98%E5%85%88%E6%90%9C%E7%B4%A2/" style="font-size: 1.1em; color: #999">广度优先搜索</a> <a href="/tags/%E6%95%85%E9%9A%9C%E8%BD%AC%E7%A7%BB/" style="font-size: 1.1em; color: #999">故障转移</a> <a href="/tags/%E7%99%BB%E5%BD%95%E8%AE%A4%E8%AF%81/" style="font-size: 1.1em; color: #999">登录认证</a> <a href="/tags/Sentinel/" style="font-size: 1.1em; color: #999">Sentinel</a> <a href="/tags/%E7%AE%97%E6%B3%95/" style="font-size: 1.5em; color: #99a9bf">算法</a> <a href="/tags/%E5%93%88%E5%B8%8C%E8%A1%A8/" style="font-size: 1.33em; color: #99a2af">哈希表</a> <a href="/tags/%E6%9D%83%E9%99%90%E6%8E%A7%E5%88%B6/" style="font-size: 1.1em; color: #999">权限控制</a> <a href="/tags/%E5%8A%A8%E6%80%81%E8%A7%84%E5%88%92/" style="font-size: 1.16em; color: #999b9e">动态规划</a> <a href="/tags/%E5%8F%8C%E6%8C%87%E9%92%88/" style="font-size: 1.44em; color: #99a7ba">双指针</a> <a href="/tags/%E7%BF%BB%E8%BD%AC/" style="font-size: 1.1em; color: #999">翻转</a> <a href="/tags/%E6%BB%91%E5%8A%A8%E7%AA%97%E5%8F%A3/" style="font-size: 1.27em; color: #99a0a9">滑动窗口</a> <a href="/tags/%E9%AB%98%E5%8F%AF%E7%94%A8/" style="font-size: 1.1em; color: #999">高可用</a> <a href="/tags/%E9%83%A8%E7%BD%B2/" style="font-size: 1.1em; color: #999">部署</a> <a href="/tags/Model-Context-Protocol/" style="font-size: 1.1em; color: #999">Model Context Protocol</a> <a href="/tags/%E6%8E%92%E5%BA%8F/" style="font-size: 1.1em; color: #999">排序</a> <a href="/tags/leetcode/" style="font-size: 1.5em; color: #99a9bf">leetcode</a> <a href="/tags/%E4%BA%8C%E5%8F%89%E6%A0%91/" style="font-size: 1.16em; color: #999b9e">二叉树</a> <a href="/tags/%E9%93%BE%E8%A1%A8/" style="font-size: 1.39em; color: #99a4b4">链表</a> <a href="/tags/%E6%95%B0%E7%BB%84/" style="font-size: 1.27em; color: #99a0a9">数组</a> <a href="/tags/Spring/" style="font-size: 1.1em; color: #999">Spring</a> <a href="/tags/Cluster/" style="font-size: 1.1em; color: #999">Cluster</a> <a href="/tags/%E5%A4%A7%E6%A8%A1%E5%9E%8B/" style="font-size: 1.1em; color: #999">大模型</a> <a href="/tags/Agent/" style="font-size: 1.16em; color: #999b9e">Agent</a> <a href="/tags/%E5%8F%8C%E7%AB%AF%E9%98%9F%E5%88%97/" style="font-size: 1.1em; color: #999">双端队列</a> <a href="/tags/%E6%A8%A1%E6%8B%9F/" style="font-size: 1.27em; color: #99a0a9">模拟</a> <a href="/tags/%E6%95%B0%E5%AD%A6%E6%8E%A8%E5%AF%BC/" style="font-size: 1.1em; color: #999">数学推导</a> <a href="/tags/%E4%B8%BB%E4%BB%8E%E5%A4%8D%E5%88%B6/" style="font-size: 1.1em; color: #999">主从复制</a> <a href="/tags/%E7%A9%BA%E9%97%B4%E6%8D%A2%E6%97%B6%E9%97%B4/" style="font-size: 1.1em; color: #999">空间换时间</a> <a href="/tags/Spring-AI-Alibaba/" style="font-size: 1.21em; color: #999ea4">Spring AI Alibaba</a> <a href="/tags/%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81/" style="font-size: 1.1em; color: #999">分布式锁</a> <a href="/tags/MP-AOF/" style="font-size: 1.1em; color: #999">MP-AOF</a> <a href="/tags/AI/" style="font-size: 1.1em; color: #999">AI</a> <a href="/tags/Hexo/" style="font-size: 1.1em; color: #999">Hexo</a> <a href="/tags/%E5%8D%9A%E5%AE%A2%E6%90%AD%E5%BB%BA/" style="font-size: 1.1em; color: #999">博客搭建</a> <a href="/tags/%E6%95%99%E7%A8%8B/" style="font-size: 1.1em; color: #999">教程</a> <a href="/tags/Sa-Token/" style="font-size: 1.1em; color: #999">Sa-Token</a> <a href="/tags/%E6%9D%83%E9%99%90/" style="font-size: 1.1em; color: #999">权限</a></div></div><div class="card-widget card-archives">
+          </ul></div><div class="card-widget card-tags"><div class="item-headline"><i class="fas fa-tags"></i><span>标签</span></div><div class="card-tag-cloud"><a href="/tags/%E5%B9%BF%E5%BA%A6%E4%BC%98%E5%85%88%E6%90%9C%E7%B4%A2/" style="font-size: 1.1em; color: #999">广度优先搜索</a> <a href="/tags/ABAC/" style="font-size: 1.1em; color: #999">ABAC</a> <a href="/tags/%E5%93%A8%E5%85%B5%E6%9C%BA%E5%88%B6/" style="font-size: 1.1em; color: #999">哨兵机制</a> <a href="/tags/ACL/" style="font-size: 1.1em; color: #999">ACL</a> <a href="/tags/%E6%A8%A1%E6%8B%9F/" style="font-size: 1.17em; color: #999c9f">模拟</a> <a href="/tags/%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81/" style="font-size: 1.1em; color: #999">分布式锁</a> <a href="/tags/Redis/" style="font-size: 1.23em; color: #999ea6">Redis</a> <a href="/tags/GitHub-Pages/" style="font-size: 1.1em; color: #999">GitHub Pages</a> <a href="/tags/%E5%B7%A5%E4%BD%9C%E6%B5%81/" style="font-size: 1.1em; color: #999">工作流</a> <a href="/tags/MP-AOF/" style="font-size: 1.1em; color: #999">MP-AOF</a> <a href="/tags/PBAC/" style="font-size: 1.1em; color: #999">PBAC</a> <a href="/tags/%E6%95%B0%E7%BB%84/" style="font-size: 1.17em; color: #999c9f">数组</a> <a href="/tags/%E6%9D%83%E9%99%90/" style="font-size: 1.1em; color: #999">权限</a> <a href="/tags/%E5%89%8D%E7%AB%AF%E5%BC%80%E5%8F%91/" style="font-size: 1.1em; color: #999">前端开发</a> <a href="/tags/%E6%B7%B7%E5%90%88%E6%8C%81%E4%B9%85%E5%8C%96/" style="font-size: 1.1em; color: #999">混合持久化</a> <a href="/tags/Spring/" style="font-size: 1.1em; color: #999">Spring</a> <a href="/tags/%E5%8D%95%E8%B0%83%E9%98%9F%E5%88%97/" style="font-size: 1.1em; color: #999">单调队列</a> <a href="/tags/%E9%83%A8%E7%BD%B2/" style="font-size: 1.1em; color: #999">部署</a> <a href="/tags/AI-Agent/" style="font-size: 1.1em; color: #999">AI Agent</a> <a href="/tags/Sentinel/" style="font-size: 1.1em; color: #999">Sentinel</a> <a href="/tags/%E5%90%8E%E7%AB%AF/" style="font-size: 1.17em; color: #999c9f">后端</a> <a href="/tags/Docker/" style="font-size: 1.1em; color: #999">Docker</a> <a href="/tags/leetcode/" style="font-size: 1.5em; color: #99a9bf">leetcode</a> <a href="/tags/Sa-Token/" style="font-size: 1.1em; color: #999">Sa-Token</a> <a href="/tags/%E7%AE%97%E6%B3%95/" style="font-size: 1.5em; color: #99a9bf">算法</a> <a href="/tags/%E9%93%BE%E8%A1%A8/" style="font-size: 1.37em; color: #99a4b2">链表</a> <a href="/tags/%E5%93%88%E5%B8%8C%E8%A1%A8/" style="font-size: 1.3em; color: #99a1ac">哈希表</a> <a href="/tags/%E5%A4%A7%E8%AF%AD%E8%A8%80%E6%A8%A1%E5%9E%8B/" style="font-size: 1.1em; color: #999">大语言模型</a> <a href="/tags/%E5%89%8D%E7%BC%80%E7%A7%AF/" style="font-size: 1.1em; color: #999">前缀积</a> <a href="/tags/%E5%8F%8C%E6%8C%87%E9%92%88/" style="font-size: 1.43em; color: #99a6b9">双指针</a> <a href="/tags/%E7%A9%BA%E9%97%B4%E6%8D%A2%E6%97%B6%E9%97%B4/" style="font-size: 1.1em; color: #999">空间换时间</a> <a href="/tags/%E6%95%B0%E5%AD%A6%E6%8E%A8%E5%AF%BC/" style="font-size: 1.1em; color: #999">数学推导</a> <a href="/tags/%E4%B8%BB%E4%BB%8E%E5%A4%8D%E5%88%B6/" style="font-size: 1.1em; color: #999">主从复制</a> <a href="/tags/%E9%80%92%E5%BD%92/" style="font-size: 1.1em; color: #999">递归</a> <a href="/tags/Maven/" style="font-size: 1.1em; color: #999">Maven</a> <a href="/tags/Cluster/" style="font-size: 1.1em; color: #999">Cluster</a> <a href="/tags/Butterfly/" style="font-size: 1.1em; color: #999">Butterfly</a> <a href="/tags/%E5%8F%8D%E8%BD%AC%E9%93%BE%E8%A1%A8/" style="font-size: 1.1em; color: #999">反转链表</a> <a href="/tags/RBAC/" style="font-size: 1.1em; color: #999">RBAC</a> <a href="/tags/%E6%95%85%E9%9A%9C%E8%BD%AC%E7%A7%BB/" style="font-size: 1.1em; color: #999">故障转移</a></div></div><div class="card-widget card-archives">
     <div class="item-headline">
       <i class="fas fa-archive"></i>
       <span>归档</span>
@@ -252,7 +253,7 @@
         </li>
       
     </ul>
-  </div><div class="card-widget card-webinfo"><div class="item-headline"><i class="fas fa-chart-line"></i><span>网站信息</span></div><div class="webinfo"><div class="webinfo-item"><div class="item-name">文章数目 :</div><div class="item-count">44</div></div><div class="webinfo-item"><div class="item-name">最后更新时间 :</div><div class="item-count" id="last-push-date" data-lastPushDate="2026-07-12T16:57:34.618Z"><i class="fa-solid fa-spinner fa-spin"></i></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By 青山木</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.5.4"></script><script src="/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script>
+  </div><div class="card-widget card-webinfo"><div class="item-headline"><i class="fas fa-chart-line"></i><span>网站信息</span></div><div class="webinfo"><div class="webinfo-item"><div class="item-name">文章数目 :</div><div class="item-count">44</div></div><div class="webinfo-item"><div class="item-name">最后更新时间 :</div><div class="item-count" id="last-push-date" data-lastPushDate="2026-07-12T17:20:45.794Z"><i class="fa-solid fa-spinner fa-spin"></i></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By 青山木</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.5.4"></script><script src="/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script>
 (function() {
   /* 仅在首页标题上方插入头像 */
   if (window.location.pathname !== '/' && !window.location.pathname.endsWith('/index.html')) return;
@@ -276,7 +277,8 @@
       script.onload = function() {
         mermaid.initialize({
           startOnLoad: false,
-          theme: document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'neutral',
+          // 图表主题固定，避免站点深浅色切换时重新解析整篇文章的所有 Mermaid 图。
+          theme: 'dark',
           securityLevel: 'loose'
         });
         resolve();
@@ -358,29 +360,6 @@
     return renderTask;
   }
 
-  /* 主题切换时重新渲染 */
-  function reRenderOnThemeChange() {
-    var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-    if (window.mermaid) {
-      mermaid.initialize({
-        startOnLoad: false,
-        theme: isDark ? 'dark' : 'neutral',
-        securityLevel: 'loose'
-      });
-    }
-    // 移除已渲染的 SVG，重新渲染
-    document.querySelectorAll('#article-container .mermaid-wrap').forEach(function(wrap) {
-      var pre = wrap.querySelector('pre.mermaid-src');
-      var svg = wrap.querySelector('svg');
-      if (svg) svg.remove();
-      if (pre) {
-        pre.dataset.rendered = 'false';
-        pre.style.display = '';
-      }
-    });
-    renderMermaidDiagrams();
-  }
-
   // 页面加载完成后渲染
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', renderMermaidDiagrams);
@@ -421,12 +400,6 @@
     });
   }, true);
 
-  // 监听主题变化
-  document.addEventListener('click', function(e) {
-    if (e.target.closest('#darkmode')) {
-      setTimeout(reRenderOnThemeChange, 100);
-    }
-  });
 })();
 </script>
 <script id="canvas_nest" defer="defer" color="107,159,255" opacity="0.6" zIndex="-1" count="99" mobile="false" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/dist/canvas-nest.min.js"></script></div></body></html>
