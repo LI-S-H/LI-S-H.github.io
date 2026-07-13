@@ -1,0 +1,437 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="dark"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>将有序数组转换为二叉搜索树：分治递归的优雅实践 | 青山木</title><meta name="author" content="青山木"><meta name="copyright" content="青山木"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#0d1117"><meta name="description" content="一道经典的二叉树构建题，将有序数组转换为平衡二叉搜索树的分治递归解法详解">
+<meta property="og:type" content="article">
+<meta property="og:title" content="将有序数组转换为二叉搜索树：分治递归的优雅实践">
+<meta property="og:url" content="https://li-s-h.github.io/2026/07/14/%E5%B0%86%E6%9C%89%E5%BA%8F%E6%95%B0%E7%BB%84%E8%BD%AC%E6%8D%A2%E4%B8%BA%E4%BA%8C%E5%8F%89%E6%90%9C%E7%B4%A2%E6%A0%91/index.html">
+<meta property="og:site_name" content="青山木">
+<meta property="og:description" content="一道经典的二叉树构建题，将有序数组转换为平衡二叉搜索树的分治递归解法详解">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://li-s-h.github.io/img/title-picture/%E5%8A%9B%E6%89%A3.jpg">
+<meta property="article:published_time" content="2026-07-14T06:00:00.000Z">
+<meta property="article:modified_time" content="2026-07-13T17:59:56.122Z">
+<meta property="article:author" content="青山木">
+<meta property="article:tag" content="二叉树">
+<meta property="article:tag" content="递归">
+<meta property="article:tag" content="分治">
+<meta property="article:tag" content="LeetCode">
+<meta property="article:tag" content="BST">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://li-s-h.github.io/img/title-picture/%E5%8A%9B%E6%89%A3.jpg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "将有序数组转换为二叉搜索树：分治递归的优雅实践",
+  "url": "https://li-s-h.github.io/2026/07/14/%E5%B0%86%E6%9C%89%E5%BA%8F%E6%95%B0%E7%BB%84%E8%BD%AC%E6%8D%A2%E4%B8%BA%E4%BA%8C%E5%8F%89%E6%90%9C%E7%B4%A2%E6%A0%91/",
+  "image": "https://li-s-h.github.io/img/title-picture/%E5%8A%9B%E6%89%A3.jpg",
+  "datePublished": "2026-07-14T06:00:00.000Z",
+  "dateModified": "2026-07-13T17:59:56.122Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "青山木",
+      "url": "https://LI-S-H.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/%E5%A4%B4%E5%83%8F.jpg"><link rel="canonical" href="https://li-s-h.github.io/2026/07/14/%E5%B0%86%E6%9C%89%E5%BA%8F%E6%95%B0%E7%BB%84%E8%BD%AC%E6%8D%A2%E4%B8%BA%E4%BA%8C%E5%8F%89%E6%90%9C%E7%B4%A2%E6%A0%91/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="stylesheet" href="/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d1117')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', 'ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '将有序数组转换为二叉搜索树：分治递归的优雅实践',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><style>
+  #site-title { font-size: 1.76em !important; }
+  #subtitle { font-size: 0.88em !important; }
+
+  /* 卡片悬停放大 + 辉光 */
+  #recent-posts .recent-post-item {
+    transition: transform .3s ease, box-shadow .3s ease, border-color .3s ease;
+  }
+  #recent-posts .recent-post-item:hover {
+    transform: scale(1.025) !important;
+    border-color: rgba(107,159,255,0.5) !important;
+    box-shadow: 0 0 0 1px rgba(107,159,255,0.15),
+                0 0 45px rgba(107,159,255,0.12),
+                0 8px 30px rgba(0,0,0,0.4) !important;
+  }
+
+  /* 首页标题上方头像 */
+  #site-info .avatar-img {
+    display: block;
+    width: 144px;
+    height: 144px;
+    border-radius: 50%;
+    margin: 0 auto 20px;
+    border: 3px solid rgba(107,159,255,0.6);
+    box-shadow: 0 0 30px rgba(107,159,255,0.35),
+                0 0 60px rgba(107,159,255,0.15),
+                0 4px 20px rgba(0,0,0,0.25);
+    object-fit: cover;
+    transition: box-shadow .4s ease, border-color .4s ease;
+  }
+  #site-info .avatar-img:hover {
+    border-color: rgba(107,159,255,0.9);
+    box-shadow: 0 0 40px rgba(107,159,255,0.5),
+                0 0 80px rgba(107,159,255,0.25),
+                0 4px 20px rgba(0,0,0,0.25);
+  }
+
+  /* Mermaid 图表容器样式 */
+  .mermaid-wrap {
+    position: relative;
+    /* 图表固定使用深色画布，主题切换无需销毁并重绘所有 SVG。 */
+    background: #1e1e1e !important;
+    padding: 12px !important;
+    border-radius: 8px !important;
+    border: 1px solid #444 !important;
+    text-align: center;
+    margin: 0 0 20px 0;
+    overflow-x: auto;
+  }
+  .mermaid-wrap > svg {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+  }
+  /* 深色图表画布在两种站点主题下保持一致，避免切换时重排。 */
+  [data-theme="dark"] .mermaid-wrap {
+    background: #1e1e1e !important;
+    border-color: #444 !important;
+  }
+</style>
+<meta name="generator" content="Hexo 7.3.0"></head><body><div class="bg-animation" id="web_bg" style="background-image: url(/img/%E8%83%8C%E6%99%AF%E5%9B%BE.webp);"></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(/img/title-picture/%E5%8A%9B%E6%89%A3.jpg);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">青山木</span></a><a class="nav-page-title" href="/"><span class="site-name">将有序数组转换为二叉搜索树：分治递归的优雅实践</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">将有序数组转换为二叉搜索树：分治递归的优雅实践</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-07-14T06:00:00.000Z" title="发表于 2026-07-14 14:00:00">2026-07-14</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-07-13T17:59:56.122Z" title="更新于 2026-07-14 01:59:56">2026-07-14</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/LeetCode-%E7%83%AD%E9%A2%98-HOT-100/">LeetCode 热题 HOT 100</a></span></div><div class="meta-secondline"></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><blockquote>
+<p>一道经典的二叉树构建题，核心在于理解&quot;平衡&quot;与&quot;搜索&quot;两个约束如何同时被满足，而答案就藏在对数组不断切半的递归过程中。</p>
+</blockquote>
+<hr>
+<h2 id="一、题目条件分析"><a href="#一、题目条件分析" class="headerlink" title="一、题目条件分析"></a>一、题目条件分析</h2><p><img src="/img/%E5%B0%86%E6%9C%89%E5%BA%8F%E6%95%B0%E7%BB%84%E8%BD%AC%E5%8C%96%E4%B8%BA%E6%90%9C%E7%B4%A2%E4%BA%8C%E5%8F%89%E6%A0%91/%E5%B0%86%E6%9C%89%E5%BA%8F%E6%95%B0%E7%BB%84%E8%BD%AC%E5%8C%96%E4%B8%BA%E6%90%9C%E7%B4%A2%E4%BA%8C%E5%8F%89%E6%A0%91.png" alt="将有序数组转换为二叉搜索树题目"></p>
+<p>先来拆解题目给出的关键条件：</p>
+<ul>
+<li><strong>输入是有序数组</strong>：数组已经按升序排列，这是整个解法的前提。如果没有&quot;有序&quot;这个条件，问题会复杂得多——我们需要先排序或采用别的策略。而正因为数组有序，我们才有机会利用中间元素来保证平衡。</li>
+<li><strong>输出是二叉搜索树（BST）</strong>：BST 的性质是——左子树所有节点的值 &lt; 根节点的值 &lt; 右子树所有节点的值。这个性质与升序数组的排列天然契合：数组中任意一个元素，它左边的所有值都比它小，右边的所有值都比它大。</li>
+<li><strong>树必须是平衡的</strong>：平衡的定义是，任意节点的左右子树高度差不超过 1。这意味着我们不能把所有元素都挂到一侧，必须尽可能均匀地分配左右子树的节点数量。</li>
+</ul>
+<p>这三个条件环环相扣：<strong>有序</strong>保证了我们可以直接利用位置关系来满足 <strong>BST 性质</strong>，而<strong>平衡</strong>要求我们在分配节点时做到左右均匀。当三个条件同时被考虑时，一个自然的策略就浮现出来了——取中间元素为根，左右两半分别构建子树。</p>
+<hr>
+<h2 id="二、思路概览与代码"><a href="#二、思路概览与代码" class="headerlink" title="二、思路概览与代码"></a>二、思路概览与代码</h2><h3 id="思路概览"><a href="#思路概览" class="headerlink" title="思路概览"></a>思路概览</h3><p>一句话概括：<strong>每次取数组中间元素作为根节点，左半部分递归构建左子树，右半部分递归构建右子树，直到无法再分割为止。</strong></p>
+<p>这个思路同时满足了两个核心约束：</p>
+<ul>
+<li><strong>BST 性质</strong>：因为数组升序，中间元素左边的值都更小、右边的值都更大，天然满足左 &lt; 根 &lt; 右。</li>
+<li><strong>平衡性质</strong>：每次取中间元素，左右两半的元素数量最多相差 1，因此构建出的树高度差不会超过 1。</li>
+</ul>
+<h3 id="代码"><a href="#代码" class="headerlink" title="代码"></a>代码</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * Definition for a binary tree node.</span></span><br><span class="line"><span class="comment"> * public class TreeNode &#123;</span></span><br><span class="line"><span class="comment"> *     int val;</span></span><br><span class="line"><span class="comment"> *     TreeNode left;</span></span><br><span class="line"><span class="comment"> *     TreeNode right;</span></span><br><span class="line"><span class="comment"> *     TreeNode() &#123;&#125;</span></span><br><span class="line"><span class="comment"> *     TreeNode(int val) &#123; this.val = val; &#125;</span></span><br><span class="line"><span class="comment"> *     TreeNode(int val, TreeNode left, TreeNode right) &#123;</span></span><br><span class="line"><span class="comment"> *         this.val = val;</span></span><br><span class="line"><span class="comment"> *         this.left = left;</span></span><br><span class="line"><span class="comment"> *         this.right = right;</span></span><br><span class="line"><span class="comment"> *     &#125;</span></span><br><span class="line"><span class="comment"> * &#125;</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="keyword">class</span> <span class="title class_">Solution</span> &#123;</span><br><span class="line">    <span class="keyword">public</span> TreeNode <span class="title function_">sortedArrayToBST</span><span class="params">(<span class="type">int</span>[] nums)</span> &#123;</span><br><span class="line">        <span class="keyword">return</span> buildTree(nums, <span class="number">0</span>, nums.length - <span class="number">1</span>);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> TreeNode <span class="title function_">buildTree</span><span class="params">(<span class="type">int</span>[] nums, <span class="type">int</span> left, <span class="type">int</span> right)</span> &#123;</span><br><span class="line">        <span class="comment">// 退出条件</span></span><br><span class="line">        <span class="keyword">if</span> (left &gt; right) &#123;</span><br><span class="line">            <span class="keyword">return</span> <span class="literal">null</span>;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// 得到中间值</span></span><br><span class="line">        <span class="type">int</span> <span class="variable">mid</span> <span class="operator">=</span> (left + right) / <span class="number">2</span>;</span><br><span class="line">        <span class="comment">// 构建根节点</span></span><br><span class="line">        <span class="type">TreeNode</span> <span class="variable">root</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">TreeNode</span>(nums[mid]);</span><br><span class="line">        <span class="comment">// 构建左子树</span></span><br><span class="line">        root.left = buildTree(nums, left, mid - <span class="number">1</span>);</span><br><span class="line">        <span class="comment">// 构建右子树</span></span><br><span class="line">        root.right = buildTree(nums, mid + <span class="number">1</span>, right);</span><br><span class="line">        <span class="keyword">return</span> root;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="三、思路详解"><a href="#三、思路详解" class="headerlink" title="三、思路详解"></a>三、思路详解</h2><h3 id="3-1-为什么取中间元素就能保证平衡？"><a href="#3-1-为什么取中间元素就能保证平衡？" class="headerlink" title="3.1 为什么取中间元素就能保证平衡？"></a>3.1 为什么取中间元素就能保证平衡？</h3><p>这是整道题的核心问题。我们从&quot;平衡&quot;的定义出发——左右子树高度差不超过 1。</p>
+<p>假设数组长度为 n，我们取中间位置 mid，那么：</p>
+<ul>
+<li>左子树包含 <code>mid - left</code> 个元素</li>
+<li>右子树包含 <code>right - mid</code> 个元素</li>
+</ul>
+<p>当 n 为奇数时，左右子树元素数完全相等；当 n 为偶数时，左右相差 1 个元素。无论哪种情况，左右子树的元素数量差距都不超过 1。</p>
+<p>而一棵由 k 个节点构建的平衡树，其高度为 ⌊log₂k⌋ + 1。由于左右子树的节点数差距至多为 1，它们的高度差自然不会超过 1。这个性质在每一层递归中都成立，因此最终构建出的整棵树一定满足平衡条件。</p>
+<h3 id="3-2-为什么取中间元素就能保证-BST-性质？"><a href="#3-2-为什么取中间元素就能保证-BST-性质？" class="headerlink" title="3.2 为什么取中间元素就能保证 BST 性质？"></a>3.2 为什么取中间元素就能保证 BST 性质？</h3><p>BST 的性质要求：左子树所有节点值 &lt; 根节点值 &lt; 右子树所有节点值。</p>
+<p>数组是升序的，这意味着：</p>
+<ul>
+<li>下标在 <code>[left, mid - 1]</code> 范围内的元素，值都小于 <code>nums[mid]</code></li>
+<li>下标在 <code>[mid + 1, right]</code> 范围内的元素，值都大于 <code>nums[mid]</code></li>
+</ul>
+<p>所以我们用 <code>nums[mid]</code> 作为根节点，<code>[left, mid - 1]</code> 去构建左子树，<code>[mid + 1, right]</code> 去构建右子树，这个分配方式完美满足了 BST 的性质要求。每一层递归都是如此，因此整棵树一定是合法的 BST。</p>
+<h3 id="3-3-递归过程的拆解"><a href="#3-3-递归过程的拆解" class="headerlink" title="3.3 递归过程的拆解"></a>3.3 递归过程的拆解</h3><p>把整个递归过程拆开来看，每一步做的事情非常清晰：</p>
+<ol>
+<li><strong>判断当前区间是否有效</strong>：<code>left &gt; right</code> 时说明区间为空，没有元素可处理，返回 <code>null</code>。这是递归的终止条件。</li>
+<li><strong>取中间元素作为根节点</strong>：<code>mid = (left + right) / 2</code>，用 <code>nums[mid]</code> 创建新的树节点。</li>
+<li><strong>递归构建左子树</strong>：在 <code>[left, mid - 1]</code> 区间上重复上述过程，返回的子树挂到 <code>root.left</code>。</li>
+<li><strong>递归构建右子树</strong>：在 <code>[mid + 1, right]</code> 区间上重复上述过程，返回的子树挂到 <code>root.right</code>。</li>
+<li><strong>返回当前根节点</strong>：整棵子树构建完毕，向上层返回。</li>
+</ol>
+<p>用一个具体例子来走一遍。假设输入数组为 <code>[-10, -3, 0, 5, 9]</code>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">第一层：区间 [0, 4]，mid = 2，根节点 = 0</span><br><span class="line">  ├── 左子树：区间 [0, 1]，mid = 0，根节点 = -10</span><br><span class="line">  │     ├── 左子树：区间 [0, -1] → null</span><br><span class="line">  │     └── 右子树：区间 [1, 1]，mid = 1，根节点 = -3</span><br><span class="line">  │           ├── 左子树：区间 [1, 0] → null</span><br><span class="line">  │           └── 右子树：区间 [2, 1] → null</span><br><span class="line">  └── 右子树：区间 [3, 4]，mid = 3，根节点 = 5</span><br><span class="line">        ├── 左子树：区间 [3, 2] → null</span><br><span class="line">        └── 右子树：区间 [4, 4]，mid = 4，根节点 = 9</span><br><span class="line">              ├── 左子树：区间 [4, 3] → null</span><br><span class="line">              └── 右子树：区间 [5, 4] → null</span><br></pre></td></tr></table></figure>
+
+<p>最终构建出的树：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">      0</span><br><span class="line">     / \</span><br><span class="line">   -3   9</span><br><span class="line">   /   /</span><br><span class="line">-10   5</span><br></pre></td></tr></table></figure>
+
+<p>每一层都严格满足：左子树值 &lt; 根 &lt; 右子树值，且左右高度差不超过 1。</p>
+<h3 id="3-4-关于-mid-的取法"><a href="#3-4-关于-mid-的取法" class="headerlink" title="3.4 关于 mid 的取法"></a>3.4 关于 mid 的取法</h3><p>代码中 <code>mid = (left + right) / 2</code>，这是最朴素的中间值取法。在数组长度为偶数时，这种取法会偏向左边（取左中位数），比如区间 <code>[0, 3]</code> 时 mid 为 1 而非 2。</p>
+<p>实际上，取左中位数还是右中位数都是可以的，两种取法都能构建出满足条件的平衡 BST，只是最终的树形结构略有不同。本题答案不唯一，任意一种平衡的 BST 都是合法解。</p>
+<p>另外需要注意，<code>(left + right) / 2</code> 在极端情况下可能存在整数溢出的风险，更安全的写法是 <code>left + (right - left) / 2</code>，不过在本题的数据范围内一般不会触发这个问题。</p>
+<h3 id="3-5-复杂度分析"><a href="#3-5-复杂度分析" class="headerlink" title="3.5 复杂度分析"></a>3.5 复杂度分析</h3><ul>
+<li><strong>时间复杂度</strong>：O(n)。每个数组元素被访问且仅被访问一次，用于创建对应的树节点。</li>
+<li><strong>空间复杂度</strong>：O(log n)。递归调用栈的深度等于树的高度，而平衡树的高度为 log n。此外还使用了 O(n) 的空间存储构建出的树节点，但通常不计入额外空间复杂度。</li>
+</ul>
+<hr>
+<p><strong>总结</strong>：这道题的优雅之处在于，&quot;有序数组&quot;与&quot;平衡 BST&quot;之间存在一个天然桥梁——二分。利用数组的有序性，我们通过不断取中间元素来同时满足 BST 性质和平衡性质，整个过程就是一个标准的分治递归。理解了这个对应关系，代码就水到渠成了。</p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://LI-S-H.github.io">青山木</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://li-s-h.github.io/2026/07/14/%E5%B0%86%E6%9C%89%E5%BA%8F%E6%95%B0%E7%BB%84%E8%BD%AC%E6%8D%A2%E4%B8%BA%E4%BA%8C%E5%8F%89%E6%90%9C%E7%B4%A2%E6%A0%91/">https://li-s-h.github.io/2026/07/14/%E5%B0%86%E6%9C%89%E5%BA%8F%E6%95%B0%E7%BB%84%E8%BD%AC%E6%8D%A2%E4%B8%BA%E4%BA%8C%E5%8F%89%E6%90%9C%E7%B4%A2%E6%A0%91/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://LI-S-H.github.io" target="_blank">青山木</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E4%BA%8C%E5%8F%89%E6%A0%91/">二叉树</a><a class="post-meta__tags" href="/tags/%E9%80%92%E5%BD%92/">递归</a><a class="post-meta__tags" href="/tags/%E5%88%86%E6%B2%BB/">分治</a><a class="post-meta__tags" href="/tags/LeetCode/">LeetCode</a><a class="post-meta__tags" href="/tags/BST/">BST</a></div><div class="post-share"><div class="social-share" data-image="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/2026/07/13/Redis%20key%20%E8%BF%87%E6%9C%9F%E4%BA%86%E5%B0%B1%E4%B8%80%E5%AE%9A%E4%BC%9A%E8%A2%AB%E5%88%A0%E5%90%97%EF%BC%9F%E8%AE%B2%E9%80%8F%E8%BF%87%E6%9C%9F%E5%88%A0%E9%99%A4%E4%B8%8E%E5%86%85%E5%AD%98%E6%B7%98%E6%B1%B0%E7%AD%96%E7%95%A5/" title="Redis key 过期了就一定会被删吗？讲透过期删除与内存淘汰策略"><img class="cover" src="/img/title-picture/Redis%20key%20%E8%BF%87%E6%9C%9F%E4%BA%86%E5%B0%B1%E4%B8%80%E5%AE%9A%E4%BC%9A%E8%A2%AB%E5%88%A0%E5%90%97%EF%BC%9F%E8%AE%B2%E9%80%8F%E8%BF%87%E6%9C%9F%E5%88%A0%E9%99%A4%E4%B8%8E%E5%86%85%E5%AD%98%E6%B7%98%E6%B1%B0%E7%AD%96%E7%95%A5.jpg" onerror="onerror=null;src='/img/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">Redis key 过期了就一定会被删吗？讲透过期删除与内存淘汰策略</div></div><div class="info-2"><div class="info-item-1">Redis 的 key 设置了过期时间真的会到期就删吗？内存满了又要淘汰谁？本文从过期字典讲起，系统讲清三种过期删除策略（惰性、定时、定期）及 Redis 的组合方案，再过渡到 8 种内存淘汰策略，最后深入 LRU 近似实现与 LFU 的概率递增、时间衰减机制。</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/2026/07/04/Hot%20100%20---%20%E4%BA%8C%E5%8F%89%E6%A0%91%E4%B8%8E%E9%80%92%E5%BD%92/" title="Hot 100 --- 二叉树与递归"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-04</div><div class="info-item-2">Hot 100 --- 二叉树与递归</div></div><div class="info-2"><div class="info-item-1">二叉树方面的算法基本都要使用递归，本文系统讲解二叉树的结构和递归的三个核心问题（什么时候用递归、递归的开始与结束、怎么编写递归函数），并配合五道Hot 100入门题进行说明</div></div></div></a><a class="pagination-related" href="/2026/07/01/Hot%20100%20---%20%E6%8E%92%E5%BA%8F%E9%93%BE%E8%A1%A8/" title="Hot 100 --- 排序链表"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-01</div><div class="info-item-2">Hot 100 --- 排序链表</div></div><div class="info-2"><div class="info-item-1">本文以LeetCode经典题目"排序链表"为例，从暴力选择最小节点的思路入手，分析为什么O(n log n)的时间复杂度自然指向归并排序，再结合代码讲解如何用快慢指针拆分链表、递归排序左右链表并合并两个有序链表</div></div></div></a><a class="pagination-related" href="/2026/07/02/Hot%20100%20---%20%E5%90%88%E5%B9%B6%20K%20%E4%B8%AA%E5%8D%87%E5%BA%8F%E9%93%BE%E8%A1%A8/" title="Hot 100 --- 合并 K 个升序链表"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-02</div><div class="info-item-2">Hot 100 --- 合并 K 个升序链表</div></div><div class="info-2"><div class="info-item-1">本文以LeetCode经典题目"合并 K 个升序链表"为例，从顺序合并的暴力思路入手，分析为什么越早参与合并的节点会被重复遍历，再引出分治合并，将时间复杂度从O(Nk)优化到O(N log k)</div></div></div></a><a class="pagination-related" href="/2026/07/11/Hot%20100%20---%20%E4%BA%8C%E5%8F%89%E6%A0%91%E7%9A%84%E5%B1%82%E5%BA%8F%E9%81%8D%E5%8E%86/" title="Hot 100 --- 二叉树的层序遍历"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-11</div><div class="info-item-2">Hot 100 --- 二叉树的层序遍历</div></div><div class="info-2"><div class="info-item-1">本文以LeetCode题目"二叉树的层序遍历"为例，详细讲解BFS（广度优先搜索）的原理和实现，重点说明为什么用队列、队列如何保证层序、以及如何按层分组输出</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/%E5%A4%B4%E5%83%8F.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">青山木</div><div class="author-info-description">正在学习Java后端开发＋智能体开发，希望能与大家多多交流</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">46</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">101</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">4</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/LI-S-H"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/LI-S-H" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">欢迎来到我的博客，记录学习与成长的点滴。</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%80%E3%80%81%E9%A2%98%E7%9B%AE%E6%9D%A1%E4%BB%B6%E5%88%86%E6%9E%90"><span class="toc-number">1.</span> <span class="toc-text">一、题目条件分析</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%8C%E3%80%81%E6%80%9D%E8%B7%AF%E6%A6%82%E8%A7%88%E4%B8%8E%E4%BB%A3%E7%A0%81"><span class="toc-number">2.</span> <span class="toc-text">二、思路概览与代码</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%80%9D%E8%B7%AF%E6%A6%82%E8%A7%88"><span class="toc-number">2.1.</span> <span class="toc-text">思路概览</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BB%A3%E7%A0%81"><span class="toc-number">2.2.</span> <span class="toc-text">代码</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%89%E3%80%81%E6%80%9D%E8%B7%AF%E8%AF%A6%E8%A7%A3"><span class="toc-number">3.</span> <span class="toc-text">三、思路详解</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#3-1-%E4%B8%BA%E4%BB%80%E4%B9%88%E5%8F%96%E4%B8%AD%E9%97%B4%E5%85%83%E7%B4%A0%E5%B0%B1%E8%83%BD%E4%BF%9D%E8%AF%81%E5%B9%B3%E8%A1%A1%EF%BC%9F"><span class="toc-number">3.1.</span> <span class="toc-text">3.1 为什么取中间元素就能保证平衡？</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-2-%E4%B8%BA%E4%BB%80%E4%B9%88%E5%8F%96%E4%B8%AD%E9%97%B4%E5%85%83%E7%B4%A0%E5%B0%B1%E8%83%BD%E4%BF%9D%E8%AF%81-BST-%E6%80%A7%E8%B4%A8%EF%BC%9F"><span class="toc-number">3.2.</span> <span class="toc-text">3.2 为什么取中间元素就能保证 BST 性质？</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-3-%E9%80%92%E5%BD%92%E8%BF%87%E7%A8%8B%E7%9A%84%E6%8B%86%E8%A7%A3"><span class="toc-number">3.3.</span> <span class="toc-text">3.3 递归过程的拆解</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-4-%E5%85%B3%E4%BA%8E-mid-%E7%9A%84%E5%8F%96%E6%B3%95"><span class="toc-number">3.4.</span> <span class="toc-text">3.4 关于 mid 的取法</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-5-%E5%A4%8D%E6%9D%82%E5%BA%A6%E5%88%86%E6%9E%90"><span class="toc-number">3.5.</span> <span class="toc-text">3.5 复杂度分析</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/2026/07/14/%E5%B0%86%E6%9C%89%E5%BA%8F%E6%95%B0%E7%BB%84%E8%BD%AC%E6%8D%A2%E4%B8%BA%E4%BA%8C%E5%8F%89%E6%90%9C%E7%B4%A2%E6%A0%91/" title="将有序数组转换为二叉搜索树：分治递归的优雅实践"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="将有序数组转换为二叉搜索树：分治递归的优雅实践"/></a><div class="content"><a class="title" href="/2026/07/14/%E5%B0%86%E6%9C%89%E5%BA%8F%E6%95%B0%E7%BB%84%E8%BD%AC%E6%8D%A2%E4%B8%BA%E4%BA%8C%E5%8F%89%E6%90%9C%E7%B4%A2%E6%A0%91/" title="将有序数组转换为二叉搜索树：分治递归的优雅实践">将有序数组转换为二叉搜索树：分治递归的优雅实践</a><time datetime="2026-07-14T06:00:00.000Z" title="发表于 2026-07-14 14:00:00">2026-07-14</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/07/13/Redis%20key%20%E8%BF%87%E6%9C%9F%E4%BA%86%E5%B0%B1%E4%B8%80%E5%AE%9A%E4%BC%9A%E8%A2%AB%E5%88%A0%E5%90%97%EF%BC%9F%E8%AE%B2%E9%80%8F%E8%BF%87%E6%9C%9F%E5%88%A0%E9%99%A4%E4%B8%8E%E5%86%85%E5%AD%98%E6%B7%98%E6%B1%B0%E7%AD%96%E7%95%A5/" title="Redis key 过期了就一定会被删吗？讲透过期删除与内存淘汰策略"><img src="/img/title-picture/Redis%20key%20%E8%BF%87%E6%9C%9F%E4%BA%86%E5%B0%B1%E4%B8%80%E5%AE%9A%E4%BC%9A%E8%A2%AB%E5%88%A0%E5%90%97%EF%BC%9F%E8%AE%B2%E9%80%8F%E8%BF%87%E6%9C%9F%E5%88%A0%E9%99%A4%E4%B8%8E%E5%86%85%E5%AD%98%E6%B7%98%E6%B1%B0%E7%AD%96%E7%95%A5.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Redis key 过期了就一定会被删吗？讲透过期删除与内存淘汰策略"/></a><div class="content"><a class="title" href="/2026/07/13/Redis%20key%20%E8%BF%87%E6%9C%9F%E4%BA%86%E5%B0%B1%E4%B8%80%E5%AE%9A%E4%BC%9A%E8%A2%AB%E5%88%A0%E5%90%97%EF%BC%9F%E8%AE%B2%E9%80%8F%E8%BF%87%E6%9C%9F%E5%88%A0%E9%99%A4%E4%B8%8E%E5%86%85%E5%AD%98%E6%B7%98%E6%B1%B0%E7%AD%96%E7%95%A5/" title="Redis key 过期了就一定会被删吗？讲透过期删除与内存淘汰策略">Redis key 过期了就一定会被删吗？讲透过期删除与内存淘汰策略</a><time datetime="2026-07-13T06:00:00.000Z" title="发表于 2026-07-13 14:00:00">2026-07-13</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/07/12/Redis%20%E9%AB%98%E5%8F%AF%E7%94%A8%E7%9A%84%E6%9C%80%E5%90%8E%E4%B8%80%E5%85%AC%E9%87%8C%EF%BC%9ACluster%20%E5%88%86%E7%89%87%20Gossip%20%E4%B8%8E%E6%95%85%E9%9A%9C%E8%BD%AC%E7%A7%BB%E5%85%A8%E6%B5%81%E7%A8%8B/" title="Redis 高可用的最后一公里：Cluster 分片、Gossip 与故障转移全流程"><img src="/img/title-picture/redis.png" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Redis 高可用的最后一公里：Cluster 分片、Gossip 与故障转移全流程"/></a><div class="content"><a class="title" href="/2026/07/12/Redis%20%E9%AB%98%E5%8F%AF%E7%94%A8%E7%9A%84%E6%9C%80%E5%90%8E%E4%B8%80%E5%85%AC%E9%87%8C%EF%BC%9ACluster%20%E5%88%86%E7%89%87%20Gossip%20%E4%B8%8E%E6%95%85%E9%9A%9C%E8%BD%AC%E7%A7%BB%E5%85%A8%E6%B5%81%E7%A8%8B/" title="Redis 高可用的最后一公里：Cluster 分片、Gossip 与故障转移全流程">Redis 高可用的最后一公里：Cluster 分片、Gossip 与故障转移全流程</a><time datetime="2026-07-12T10:00:00.000Z" title="发表于 2026-07-12 18:00:00">2026-07-12</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/07/11/Hot%20100%20---%20%E4%BA%8C%E5%8F%89%E6%A0%91%E7%9A%84%E5%B1%82%E5%BA%8F%E9%81%8D%E5%8E%86/" title="Hot 100 --- 二叉树的层序遍历"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 二叉树的层序遍历"/></a><div class="content"><a class="title" href="/2026/07/11/Hot%20100%20---%20%E4%BA%8C%E5%8F%89%E6%A0%91%E7%9A%84%E5%B1%82%E5%BA%8F%E9%81%8D%E5%8E%86/" title="Hot 100 --- 二叉树的层序遍历">Hot 100 --- 二叉树的层序遍历</a><time datetime="2026-07-11T14:00:00.000Z" title="发表于 2026-07-11 22:00:00">2026-07-11</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/07/04/Hot%20100%20---%20%E4%BA%8C%E5%8F%89%E6%A0%91%E4%B8%8E%E9%80%92%E5%BD%92/" title="Hot 100 --- 二叉树与递归"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 二叉树与递归"/></a><div class="content"><a class="title" href="/2026/07/04/Hot%20100%20---%20%E4%BA%8C%E5%8F%89%E6%A0%91%E4%B8%8E%E9%80%92%E5%BD%92/" title="Hot 100 --- 二叉树与递归">Hot 100 --- 二叉树与递归</a><time datetime="2026-07-04T13:00:00.000Z" title="发表于 2026-07-04 21:00:00">2026-07-04</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By 青山木</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.5.4"></script><script src="/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script>
+(function() {
+  /* 仅在首页标题上方插入头像 */
+  if (window.location.pathname !== '/' && !window.location.pathname.endsWith('/index.html')) return;
+  var siteTitle = document.getElementById('site-title');
+  if (siteTitle) {
+    var avatar = document.createElement('img');
+    avatar.src = '/img/头像.jpg';
+    avatar.alt = 'avatar';
+    avatar.className = 'avatar-img';
+    siteTitle.parentNode.insertBefore(avatar, siteTitle);
+  }
+})();
+</script>
+<script>
+(function() {
+  function initMermaid() {
+    if (window.mermaid) return Promise.resolve();
+    return new Promise(function(resolve, reject) {
+      var script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/mermaid@11.12.2/dist/mermaid.min.js';
+      script.onload = function() {
+        mermaid.initialize({
+          startOnLoad: false,
+          // 图表主题固定，避免站点深浅色切换时重新解析整篇文章的所有 Mermaid 图。
+          theme: 'dark',
+          securityLevel: 'loose'
+        });
+        resolve();
+      };
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  }
+
+  // Mermaid 会异步改变文章高度；目录跳转必须等所有图表完成布局后再读取标题位置。
+  window.mermaidReady = Promise.resolve();
+  var renderSequence = 0;
+
+  function waitForStableLayout() {
+    return new Promise(function(resolve) {
+      requestAnimationFrame(function() {
+        requestAnimationFrame(function() {
+          // 让 SVG 内的 foreignObject 完成一次实际布局，再刷新 Butterfly 的标题位置缓存。
+          setTimeout(resolve, 50);
+        });
+      });
+    });
+  }
+
+  function showMermaidSource(pre) {
+    pre.hidden = false;
+    pre.style.display = 'block';
+    pre.style.color = '#d32f2f';
+    pre.style.whiteSpace = 'pre-wrap';
+    pre.style.fontSize = '13px';
+  }
+
+  function refreshTocPositions() {
+    // Butterfly 只在 resize 时重新缓存标题坐标。
+    window.dispatchEvent(new Event('resize'));
+    document.dispatchEvent(new CustomEvent('mermaid:rendered'));
+  }
+
+  function renderMermaidDiagrams() {
+    var wraps = document.querySelectorAll('#article-container .mermaid-wrap');
+    if (wraps.length === 0) {
+      window.mermaidReady = Promise.resolve();
+      return window.mermaidReady;
+    }
+
+    var renderTask = initMermaid().then(function() {
+      return Promise.all(Array.prototype.map.call(wraps, function(wrap, index) {
+        var pre = wrap.querySelector('pre.mermaid-src');
+        if (!pre || pre.dataset.rendered === 'true') return Promise.resolve();
+
+        var code = pre.textContent;
+        var id = 'mermaid-' + index + '-' + (++renderSequence);
+        return Promise.resolve().then(function() {
+          return mermaid.render(id, code);
+        }).then(function(result) {
+          pre.dataset.rendered = 'true';
+          pre.style.display = 'none';
+          var div = document.createElement('div');
+          div.innerHTML = result.svg;
+          wrap.insertBefore(div.firstChild, pre.nextSibling);
+        }).catch(function(err) {
+          console.error('[Mermaid] Block #' + index + ' render failed:', err);
+          showMermaidSource(pre);
+        });
+      }));
+    }).then(function() {
+      return waitForStableLayout();
+    }).then(function() {
+      refreshTocPositions();
+    }).catch(function(err) {
+      console.error('[Mermaid] Failed to load mermaid.js:', err);
+      wraps.forEach(function(wrap) {
+        var pre = wrap.querySelector('pre.mermaid-src');
+        if (pre) showMermaidSource(pre);
+      });
+    });
+
+    window.mermaidReady = renderTask;
+    return renderTask;
+  }
+
+  // 页面加载完成后渲染
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', renderMermaidDiagrams);
+  } else {
+    renderMermaidDiagrams();
+  }
+
+  // 拦截目录点击：若图表仍在渲染，等待布局稳定后按实时坐标滚动。
+  // 使用捕获阶段，避免 Butterfly 先按渲染前的坐标启动平滑滚动。
+  var tocNavigationSequence = 0;
+  document.addEventListener('click', function(e) {
+    var link = e.target.closest('#card-toc .toc-link');
+    if (!link) return;
+
+    var href = link.getAttribute('href') || '';
+    var hashIndex = href.indexOf('#');
+    if (hashIndex < 0) return;
+
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    var navigationSequence = ++tocNavigationSequence;
+    var headingId = decodeURI(href.slice(hashIndex + 1));
+
+    (window.mermaidReady || Promise.resolve()).then(function() {
+      return waitForStableLayout();
+    }).then(function() {
+      if (navigationSequence !== tocNavigationSequence) return;
+      var heading = document.getElementById(headingId);
+      if (!heading) return;
+
+      // 使用点击时的实际位置，避免异步 SVG 插入改变标题高度后跳错章节。
+      var top = heading.getBoundingClientRect().top + window.scrollY;
+      if (window.btf && window.btf.scrollToDest) {
+        window.btf.scrollToDest(top, 300);
+      } else {
+        window.scrollTo({ top: top, behavior: 'smooth' });
+      }
+    });
+  }, true);
+
+})();
+</script>
+<script id="canvas_nest" defer="defer" color="107,159,255" opacity="0.6" zIndex="-1" count="99" mobile="false" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/dist/canvas-nest.min.js"></script></div></body></html>
