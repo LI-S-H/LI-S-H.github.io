@@ -1,0 +1,479 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="dark"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>Hot 100 --- 子集 | 青山木</title><meta name="author" content="青山木"><meta name="copyright" content="青山木"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#0d1117"><meta name="description" content="本文以LeetCode题目&quot;子集&quot;为例，讲解选与不选的两种回溯写法——方法一选&#x2F;不选分支决策树，方法二for循环+start参数">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Hot 100 --- 子集">
+<meta property="og:url" content="https://li-s-h.github.io/2026/07/26/Hot%20100%20---%20%E5%AD%90%E9%9B%86/index.html">
+<meta property="og:site_name" content="青山木">
+<meta property="og:description" content="本文以LeetCode题目&quot;子集&quot;为例，讲解选与不选的两种回溯写法——方法一选&#x2F;不选分支决策树，方法二for循环+start参数">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://li-s-h.github.io/img/title-picture/%E5%8A%9B%E6%89%A3.jpg">
+<meta property="article:published_time" content="2026-07-26T15:00:00.000Z">
+<meta property="article:modified_time" content="2026-07-27T14:48:39.489Z">
+<meta property="article:author" content="青山木">
+<meta property="article:tag" content="算法">
+<meta property="article:tag" content="leetcode">
+<meta property="article:tag" content="递归">
+<meta property="article:tag" content="回溯">
+<meta property="article:tag" content="DFS">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://li-s-h.github.io/img/title-picture/%E5%8A%9B%E6%89%A3.jpg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Hot 100 --- 子集",
+  "url": "https://li-s-h.github.io/2026/07/26/Hot%20100%20---%20%E5%AD%90%E9%9B%86/",
+  "image": "https://li-s-h.github.io/img/title-picture/%E5%8A%9B%E6%89%A3.jpg",
+  "datePublished": "2026-07-26T15:00:00.000Z",
+  "dateModified": "2026-07-27T14:48:39.489Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "青山木",
+      "url": "https://LI-S-H.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/%E5%A4%B4%E5%83%8F.jpg"><link rel="canonical" href="https://li-s-h.github.io/2026/07/26/Hot%20100%20---%20%E5%AD%90%E9%9B%86/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="stylesheet" href="/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d1117')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', 'ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: 'Hot 100 --- 子集',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><style>
+  #site-title { font-size: 1.76em !important; }
+  #subtitle { font-size: 0.88em !important; }
+
+  /* 卡片悬停放大 + 辉光 */
+  #recent-posts .recent-post-item {
+    transition: transform .3s ease, box-shadow .3s ease, border-color .3s ease;
+  }
+  #recent-posts .recent-post-item:hover {
+    transform: scale(1.025) !important;
+    border-color: rgba(107,159,255,0.5) !important;
+    box-shadow: 0 0 0 1px rgba(107,159,255,0.15),
+                0 0 45px rgba(107,159,255,0.12),
+                0 8px 30px rgba(0,0,0,0.4) !important;
+  }
+
+  /* 首页标题上方头像 */
+  #site-info .avatar-img {
+    display: block;
+    width: 144px;
+    height: 144px;
+    border-radius: 50%;
+    margin: 0 auto 20px;
+    border: 3px solid rgba(107,159,255,0.6);
+    box-shadow: 0 0 30px rgba(107,159,255,0.35),
+                0 0 60px rgba(107,159,255,0.15),
+                0 4px 20px rgba(0,0,0,0.25);
+    object-fit: cover;
+    transition: box-shadow .4s ease, border-color .4s ease;
+  }
+  #site-info .avatar-img:hover {
+    border-color: rgba(107,159,255,0.9);
+    box-shadow: 0 0 40px rgba(107,159,255,0.5),
+                0 0 80px rgba(107,159,255,0.25),
+                0 4px 20px rgba(0,0,0,0.25);
+  }
+
+  /* Mermaid 图表容器样式 */
+  .mermaid-wrap {
+    position: relative;
+    /* 图表固定使用深色画布，主题切换无需销毁并重绘所有 SVG。 */
+    background: #1e1e1e !important;
+    padding: 12px !important;
+    border-radius: 8px !important;
+    border: 1px solid #444 !important;
+    text-align: center;
+    margin: 0 0 20px 0;
+    overflow-x: auto;
+  }
+  .mermaid-wrap > svg {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+  }
+  /* 深色图表画布在两种站点主题下保持一致，避免切换时重排。 */
+  [data-theme="dark"] .mermaid-wrap {
+    background: #1e1e1e !important;
+    border-color: #444 !important;
+  }
+</style>
+<meta name="generator" content="Hexo 7.3.0"></head><body><div class="bg-animation" id="web_bg" style="background-image: url(/img/%E8%83%8C%E6%99%AF%E5%9B%BE.webp);"></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(/img/title-picture/%E5%8A%9B%E6%89%A3.jpg);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">青山木</span></a><a class="nav-page-title" href="/"><span class="site-name">Hot 100 --- 子集</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">Hot 100 --- 子集</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-07-26T15:00:00.000Z" title="发表于 2026-07-26 23:00:00">2026-07-26</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-07-27T14:48:39.489Z" title="更新于 2026-07-27 22:48:39">2026-07-27</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/%E5%90%8E%E7%AB%AF%E5%BC%80%E5%8F%91/">后端开发</a></span></div><div class="meta-secondline"></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><blockquote>
+<p><strong>本文概览</strong>：本文以LeetCode题目&quot;子集&quot;为例，讲解选与不选的两种回溯写法——方法一选&#x2F;不选分支决策树，方法二for循环+start参数</p>
+</blockquote>
+<hr>
+<h3 id="一、题目"><a href="#一、题目" class="headerlink" title="一、题目"></a>一、题目</h3><p><img src="/img/hot%20100%20%E5%AD%90%E9%9B%86/%E5%AD%90%E9%9B%86%E9%A2%98%E7%9B%AE.png" alt="子集题目"></p>
+<h3 id="二、题目分析"><a href="#二、题目分析" class="headerlink" title="二、题目分析"></a>二、题目分析</h3><p>题目要求：给定一个没有重复元素的数组，返回所有可能的子集（幂集）</p>
+<p>这题考察的是离散数学里的<strong>幂集</strong>——一个集合所有子集的集合。比如 {1, 2} 的子集有 4 个：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">&#123;&#125;        ← 都不选</span><br><span class="line">&#123;1&#125;       ← 只选 1</span><br><span class="line">&#123;2&#125;       ← 只选 2</span><br><span class="line">&#123;1, 2&#125;    ← 都选</span><br></pre></td></tr></table></figure>
+
+<p>n 个元素的子集数 &#x3D; 2ⁿ，因为每个元素都有&quot;选&quot;或&quot;不选&quot;两种选择</p>
+<p>和上一题全排列的区别：全排列关心顺序，{1,2} 和 {2,1} 是不同的排列；子集不关心顺序，{1,2} 和 {2,1} 是同一个子集。所以不需要像全排列那样每次从 0 开始扫描换顺序，只需要<strong>按数组顺序往后选</strong>，避免产生重复的子集</p>
+<p>子集问题有两种常见的回溯写法</p>
+<h3 id="思路概览"><a href="#思路概览" class="headerlink" title="思路概览"></a>思路概览</h3><p><strong>方法一：选&#x2F;不选分支（决策树）</strong></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> List&lt;List&lt;Integer&gt;&gt; <span class="title function_">subsets</span><span class="params">(<span class="type">int</span>[] nums)</span> &#123;</span><br><span class="line">    List&lt;List&lt;Integer&gt;&gt; res = <span class="keyword">new</span> <span class="title class_">ArrayList</span>&lt;&gt;();</span><br><span class="line">    backtrack(res, <span class="number">0</span>, nums, <span class="keyword">new</span> <span class="title class_">ArrayList</span>&lt;&gt;());</span><br><span class="line">    <span class="keyword">return</span> res;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title function_">backtrack</span><span class="params">(List&lt;List&lt;Integer&gt;&gt; res, <span class="type">int</span> index, <span class="type">int</span>[] nums, List&lt;Integer&gt; path)</span> &#123;</span><br><span class="line">    <span class="comment">// 递归出口：处理完所有元素，收集结果</span></span><br><span class="line">    <span class="keyword">if</span> (index == nums.length) &#123;</span><br><span class="line">        res.add(<span class="keyword">new</span> <span class="title class_">ArrayList</span>&lt;&gt;(path));</span><br><span class="line">        <span class="keyword">return</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 分支1：不选 nums[index]</span></span><br><span class="line">    backtrack(res, index + <span class="number">1</span>, nums, path);</span><br><span class="line">    <span class="comment">// 分支2：选 nums[index]</span></span><br><span class="line">    path.add(nums[index]);</span><br><span class="line">    backtrack(res, index + <span class="number">1</span>, nums, path);</span><br><span class="line">    <span class="comment">// 回溯</span></span><br><span class="line">    path.removeLast();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>方法二：for 循环 + start</strong></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> List&lt;List&lt;Integer&gt;&gt; <span class="title function_">subsets</span><span class="params">(<span class="type">int</span>[] nums)</span> &#123;</span><br><span class="line">    List&lt;List&lt;Integer&gt;&gt; res = <span class="keyword">new</span> <span class="title class_">ArrayList</span>&lt;&gt;();</span><br><span class="line">    backtrack(res, <span class="number">0</span>, nums, <span class="keyword">new</span> <span class="title class_">ArrayList</span>&lt;&gt;());</span><br><span class="line">    <span class="keyword">return</span> res;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title function_">backtrack</span><span class="params">(List&lt;List&lt;Integer&gt;&gt; res, <span class="type">int</span> start, <span class="type">int</span>[] nums, ArrayList&lt;Integer&gt; subset)</span> &#123;</span><br><span class="line">    <span class="comment">// 每次进入就收集当前子集</span></span><br><span class="line">    res.add(<span class="keyword">new</span> <span class="title class_">ArrayList</span>&lt;&gt;(subset));</span><br><span class="line">    <span class="comment">// 从 start 往后选</span></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> <span class="variable">j</span> <span class="operator">=</span> start; j &lt; nums.length; j++) &#123;</span><br><span class="line">        subset.add(nums[j]);</span><br><span class="line">        backtrack(res, j + <span class="number">1</span>, nums, subset);</span><br><span class="line">        <span class="comment">// 回溯</span></span><br><span class="line">        subset.removeLast();</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>思路简要说明</strong></p>
+<ol>
+<li><strong>方法一</strong>：每个元素两个分支——选或不选，递归 n 层到叶子节点收集结果</li>
+<li><strong>方法二</strong>：用 for 循环从 start 往后选，每次进入 backtrack 就收集结果，不需要等到选完</li>
+<li><strong>两种方法结果相同</strong>：都是 2ⁿ 个子集，只是视角不同</li>
+</ol>
+<hr>
+<h3 id="方法一：选-不选分支（决策树）"><a href="#方法一：选-不选分支（决策树）" class="headerlink" title="方法一：选&#x2F;不选分支（决策树）"></a>方法一：选&#x2F;不选分支（决策树）</h3><h4 id="思路"><a href="#思路" class="headerlink" title="思路"></a>思路</h4><p>对每个元素做&quot;选&quot;或&quot;不选&quot;两种分支，递归 n 层后到叶子节点收集结果。以 nums &#x3D; [1, 2] 为例：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">           根</span><br><span class="line">          / \</span><br><span class="line">     选1 /   \ 不选1</span><br><span class="line">        /     \</span><br><span class="line">     &#123;1&#125;       &#123;&#125;</span><br><span class="line">     / \       / \</span><br><span class="line">选2 /   \不选2/   \不选2</span><br><span class="line">   /     \   /     \</span><br><span class="line">&#123;1,2&#125;   &#123;1&#125; &#123;&#125;     &#123;2&#125;</span><br></pre></td></tr></table></figure>
+
+<p>4 个叶子节点就是 4 个子集。每往下走一层就是处理一个元素的选&#x2F;不选</p>
+<h4 id="代码"><a href="#代码" class="headerlink" title="代码"></a>代码</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> List&lt;List&lt;Integer&gt;&gt; <span class="title function_">subsets</span><span class="params">(<span class="type">int</span>[] nums)</span> &#123;</span><br><span class="line">    List&lt;List&lt;Integer&gt;&gt; res = <span class="keyword">new</span> <span class="title class_">ArrayList</span>&lt;&gt;();</span><br><span class="line">    backtrack(res, <span class="number">0</span>, nums, <span class="keyword">new</span> <span class="title class_">ArrayList</span>&lt;&gt;());</span><br><span class="line">    <span class="keyword">return</span> res;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title function_">backtrack</span><span class="params">(List&lt;List&lt;Integer&gt;&gt; res, <span class="type">int</span> index, <span class="type">int</span>[] nums, List&lt;Integer&gt; path)</span> &#123;</span><br><span class="line">    <span class="comment">// 递归出口：处理完所有元素，收集结果</span></span><br><span class="line">    <span class="keyword">if</span> (index == nums.length) &#123;</span><br><span class="line">        res.add(<span class="keyword">new</span> <span class="title class_">ArrayList</span>&lt;&gt;(path));</span><br><span class="line">        <span class="keyword">return</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 分支1：不选 nums[index]</span></span><br><span class="line">    backtrack(res, index + <span class="number">1</span>, nums, path);</span><br><span class="line">    <span class="comment">// 分支2：选 nums[index]</span></span><br><span class="line">    path.add(nums[index]);</span><br><span class="line">    backtrack(res, index + <span class="number">1</span>, nums, path);</span><br><span class="line">    <span class="comment">// 回溯</span></span><br><span class="line">    path.removeLast();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="关键点"><a href="#关键点" class="headerlink" title="关键点"></a>关键点</h4><ul>
+<li><strong>index 参数</strong>：表示当前处理到第几个元素，每层 index+1，到 nums.length 时收集结果</li>
+<li><strong>两个分支</strong>：先走&quot;不选&quot;分支（不需要 add），再走&quot;选&quot;分支（add 后递归，回来 removeLast）</li>
+<li><strong>只在叶子节点收集</strong>：index &#x3D;&#x3D; nums.length 时才存结果，因为每个元素都做了选择，这才是一个完整的子集</li>
+</ul>
+<h4 id="执行过程"><a href="#执行过程" class="headerlink" title="执行过程"></a>执行过程</h4><p>以 nums &#x3D; [1, 2] 为例：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">backtrack(index=0, path=[])</span><br><span class="line">├── 不选1 → backtrack(index=1, path=[])</span><br><span class="line">│   ├── 不选2 → backtrack(index=2, path=[])</span><br><span class="line">│   │   └── 收集 []                    ← &#123;&#125;</span><br><span class="line">│   └── 选2 → backtrack(index=2, path=[2])</span><br><span class="line">│       └── 收集 [2]                   ← &#123;2&#125;</span><br><span class="line">├── 选1 → backtrack(index=1, path=[1])</span><br><span class="line">│   ├── 不选2 → backtrack(index=2, path=[1])</span><br><span class="line">│   │   └── 收集 [1]                   ← &#123;1&#125;</span><br><span class="line">│   └── 选2 → backtrack(index=2, path=[1,2])</span><br><span class="line">│       └── 收集 [1,2]                 ← &#123;1,2&#125;</span><br></pre></td></tr></table></figure>
+
+<p>结果：[[], [2], [1], [1,2]]，共 4 个 &#x3D; 2²</p>
+<hr>
+<h3 id="方法二：for-循环-start"><a href="#方法二：for-循环-start" class="headerlink" title="方法二：for 循环 + start"></a>方法二：for 循环 + start</h3><h4 id="思路-1"><a href="#思路-1" class="headerlink" title="思路"></a>思路</h4><p>不显式区分&quot;选&#x2F;不选&quot;两个分支，而是用 for 循环从 start 往后遍历，<strong>每次进入 backtrack 就收集结果</strong>，然后选一个元素往下走</p>
+<p>和方法一的区别：方法一每个元素必须选或不选，递归 n 层到叶子才收集；方法二每次进入就收集，for 循环从 start 往后选，天然避免了重复</p>
+<h4 id="代码-1"><a href="#代码-1" class="headerlink" title="代码"></a>代码</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> List&lt;List&lt;Integer&gt;&gt; <span class="title function_">subsets</span><span class="params">(<span class="type">int</span>[] nums)</span> &#123;</span><br><span class="line">    List&lt;List&lt;Integer&gt;&gt; res = <span class="keyword">new</span> <span class="title class_">ArrayList</span>&lt;&gt;();</span><br><span class="line">    backtrack(res, <span class="number">0</span>, nums, <span class="keyword">new</span> <span class="title class_">ArrayList</span>&lt;&gt;());</span><br><span class="line">    <span class="keyword">return</span> res;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title function_">backtrack</span><span class="params">(List&lt;List&lt;Integer&gt;&gt; res, <span class="type">int</span> start, <span class="type">int</span>[] nums, ArrayList&lt;Integer&gt; subset)</span> &#123;</span><br><span class="line">    <span class="comment">// 每次进入就收集当前子集</span></span><br><span class="line">    res.add(<span class="keyword">new</span> <span class="title class_">ArrayList</span>&lt;&gt;(subset));</span><br><span class="line">    <span class="comment">// 从 start 往后选</span></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> <span class="variable">j</span> <span class="operator">=</span> start; j &lt; nums.length; j++) &#123;</span><br><span class="line">        subset.add(nums[j]);</span><br><span class="line">        backtrack(res, j + <span class="number">1</span>, nums, subset);</span><br><span class="line">        <span class="comment">// 回溯</span></span><br><span class="line">        subset.removeLast();</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="关键点-1"><a href="#关键点-1" class="headerlink" title="关键点"></a>关键点</h4><ol>
+<li><strong>每次进入 backtrack 就收集</strong>：子集不需要选满 n 个元素，空集是子集，选了 1 个也是子集，选了 2 个也是子集。所以第一件事就是 <code>res.add(new ArrayList&lt;&gt;(subset))</code></li>
+<li><strong>start 控制只往后选</strong>：for 循环从 start 开始而不是 0，保证只往后选不回头，避免 {1,2} 和 {2,1} 重复</li>
+<li><strong>回溯 &#x3D; 选完后撤销换下一个</strong>：选了 nums[j] 往下递归，回来后 removeLast，for 循环 j++ 相当于&quot;这个不选了，选下一个&quot;</li>
+</ol>
+<p><strong>选就是 add，不选就是 removeLast 后让 for 循环选下一个</strong>。进入 backtrack 先存结果就是&quot;到这为止不选后面的了&quot;，for 循环往下选就是&quot;选这个&quot;</p>
+<h4 id="为什么每次进入就存结果？"><a href="#为什么每次进入就存结果？" class="headerlink" title="为什么每次进入就存结果？"></a>为什么每次进入就存结果？</h4><p>方法一在每个元素都做了选&#x2F;不选后，到叶子节点才收集。方法二不一样——<strong>任何一种选择组合都是子集</strong>，不管选了几个元素：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">path = []     → 空集，是子集</span><br><span class="line">path = [1]    → 选了 1，是子集</span><br><span class="line">path = [1,2]  → 选了 1 和 2，是子集</span><br><span class="line">path = [1,2,3]→ 全选，是子集</span><br></pre></td></tr></table></figure>
+
+<p>所以每次进入 backtrack 就存，不需要等到选完</p>
+<h4 id="start-参数的作用"><a href="#start-参数的作用" class="headerlink" title="start 参数的作用"></a>start 参数的作用</h4><p>全排列每次从 i&#x3D;0 开始扫描，因为要换顺序产生不同的排列。但子集不关心顺序，{1,2} 和 {2,1} 是同一个子集，所以<strong>只往后选就行</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">start = 0: 可选 1, 2, 3</span><br><span class="line">  选了 1</span><br><span class="line">    start = 1: 可选 2, 3（不能回头选 1，否则 &#123;1,2,1&#125; 没意义）</span><br><span class="line">      选了 2</span><br><span class="line">        start = 2: 可选 3</span><br></pre></td></tr></table></figure>
+
+<p><code>backtrack(res, j + 1, nums, subset)</code> 中 j+1 就是把 start 移到下一个位置，保证后面的选择只从 j+1 往后取</p>
+<h4 id="执行过程-1"><a href="#执行过程-1" class="headerlink" title="执行过程"></a>执行过程</h4><p>以 nums &#x3D; [1, 2, 3] 为例：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line">backtrack(start=0, path=[])</span><br><span class="line">├── add []                              ← ① 收集空集</span><br><span class="line">├── i=0: add 1 → backtrack(start=1, path=[1])</span><br><span class="line">│   ├── add [1]                         ← ② 收集 &#123;1&#125;</span><br><span class="line">│   ├── i=1: add 2 → backtrack(start=2, path=[1,2])</span><br><span class="line">│   │   ├── add [1,2]                   ← ③ 收集 &#123;1,2&#125;</span><br><span class="line">│   │   ├── i=2: add 3 → backtrack(start=3, path=[1,2,3])</span><br><span class="line">│   │   │   ├── add [1,2,3]             ← ④ 收集 &#123;1,2,3&#125;</span><br><span class="line">│   │   │   └── (for 不执行)</span><br><span class="line">│   │   └── remove 3</span><br><span class="line">│   ├── i=2: add 3 → backtrack(start=3, path=[1,3])</span><br><span class="line">│   │   ├── add [1,3]                   ← ⑤ 收集 &#123;1,3&#125;</span><br><span class="line">│   │   └── (for 不执行)</span><br><span class="line">│   └── remove 3</span><br><span class="line">├── i=1: add 2 → backtrack(start=2, path=[2])</span><br><span class="line">│   ├── add [2]                         ← ⑥ 收集 &#123;2&#125;</span><br><span class="line">│   ├── i=2: add 3 → backtrack(start=3, path=[2,3])</span><br><span class="line">│   │   ├── add [2,3]                   ← ⑦ 收集 &#123;2,3&#125;</span><br><span class="line">│   │   └── (for 不执行)</span><br><span class="line">│   └── remove 3</span><br><span class="line">├── i=2: add 3 → backtrack(start=3, path=[3])</span><br><span class="line">│   ├── add [3]                         ← ⑧ 收集 &#123;3&#125;</span><br><span class="line">│   └── (for 不执行)</span><br><span class="line">└── remove 3</span><br></pre></td></tr></table></figure>
+
+<p>结果：[[], [1], [1,2], [1,2,3], [1,3], [2], [2,3], [3]]，共 8 个 &#x3D; 2³</p>
+<hr>
+<h3 id="两种方法对比"><a href="#两种方法对比" class="headerlink" title="两种方法对比"></a>两种方法对比</h3><table>
+<thead>
+<tr>
+<th></th>
+<th>方法一：选&#x2F;不选分支</th>
+<th>方法二：for 循环 + start</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>分支方式</td>
+<td>每个元素两个分支：选 &#x2F; 不选</td>
+<td>for 循环从 start 往后选</td>
+</tr>
+<tr>
+<td>收集时机</td>
+<td>只在叶子节点收集</td>
+<td>每次进入 backtrack 就收集</td>
+</tr>
+<tr>
+<td>递归参数</td>
+<td>index（当前处理第几个）</td>
+<td>start（从哪开始选）</td>
+</tr>
+<tr>
+<td>代码结构</td>
+<td>两路递归 + index+1</td>
+<td>for 循环 + start 参数</td>
+</tr>
+<tr>
+<td>结果</td>
+<td>2ⁿ 个子集</td>
+<td>2ⁿ 个子集</td>
+</tr>
+</tbody></table>
+<p>两种方法本质相同，只是视角不同。方法一直观体现&quot;选&#x2F;不选&quot;的思想，方法二代码更简洁，后续的组合、切割问题也会用方法二的模板</p>
+<h3 id="复杂度分析"><a href="#复杂度分析" class="headerlink" title="复杂度分析"></a>复杂度分析</h3><ul>
+<li><strong>时间复杂度</strong>：O(n × 2ⁿ)，共 2ⁿ 个子集，每个子集需要 O(n) 时间复制到结果</li>
+<li><strong>空间复杂度</strong>：O(n)，递归深度最大为 n，subset 最多存 n 个元素</li>
+</ul>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://LI-S-H.github.io">青山木</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://li-s-h.github.io/2026/07/26/Hot%20100%20---%20%E5%AD%90%E9%9B%86/">https://li-s-h.github.io/2026/07/26/Hot%20100%20---%20%E5%AD%90%E9%9B%86/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://LI-S-H.github.io" target="_blank">青山木</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E7%AE%97%E6%B3%95/">算法</a><a class="post-meta__tags" href="/tags/leetcode/">leetcode</a><a class="post-meta__tags" href="/tags/%E9%80%92%E5%BD%92/">递归</a><a class="post-meta__tags" href="/tags/%E5%9B%9E%E6%BA%AF/">回溯</a><a class="post-meta__tags" href="/tags/DFS/">DFS</a></div><div class="post-share"><div class="social-share" data-image="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/2026/07/26/Hot%20100%20---%20%E5%85%A8%E6%8E%92%E5%88%97/" title="Hot 100 --- 全排列"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="onerror=null;src='/img/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">Hot 100 --- 全排列</div></div><div class="info-2"><div class="info-item-1">本文以LeetCode题目"全排列"为例，讲解回溯法的核心思路——已选择/未选择的划分，visited数组维护顺序，回溯就是撤销选择换下一个</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/2026/07/26/Hot%20100%20---%20%E5%85%A8%E6%8E%92%E5%88%97/" title="Hot 100 --- 全排列"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-26</div><div class="info-item-2">Hot 100 --- 全排列</div></div><div class="info-2"><div class="info-item-1">本文以LeetCode题目"全排列"为例，讲解回溯法的核心思路——已选择/未选择的划分，visited数组维护顺序，回溯就是撤销选择换下一个</div></div></div></a><a class="pagination-related" href="/2026/07/19/Hot%20100%20---%20%E4%BA%8C%E5%8F%89%E6%A0%91%E7%9A%84%E6%9C%80%E8%BF%91%E5%85%AC%E5%85%B1%E7%A5%96%E5%85%88/" title="Hot 100 --- 二叉树的最近公共祖先"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-19</div><div class="info-item-2">Hot 100 --- 二叉树的最近公共祖先</div></div><div class="info-2"><div class="info-item-1">本文以LeetCode题目"二叉树的最近公共祖先"为例，讲解后序遍历+回溯汇总的思路，重点说明三种返回值情况的处理</div></div></div></a><a class="pagination-related" href="/2026/07/22/Hot%20100%20---%20%E4%BA%8C%E5%8F%89%E6%A0%91%E4%B8%AD%E7%9A%84%E6%9C%80%E5%A4%A7%E8%B7%AF%E5%BE%84%E5%92%8C/" title="Hot 100 --- 二叉树中的最大路径和"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-22</div><div class="info-item-2">Hot 100 --- 二叉树中的最大路径和</div></div><div class="info-2"><div class="info-item-1">本文以LeetCode题目"二叉树中的最大路径和"为例，讲解"拐点"视角的思路，每个节点作为拐点更新全局最大值，同时只传单边最大路径给父节点</div></div></div></a><a class="pagination-related" href="/2026/07/19/Hot%20100%20---%20%E8%B7%AF%E5%BE%84%E6%80%BB%E5%92%8C%20III/" title="Hot 100 --- 路径总和 III"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-19</div><div class="info-item-2">Hot 100 --- 路径总和 III</div></div><div class="info-2"><div class="info-item-1">本文以LeetCode题目"路径总和III"为例，讲解二叉树上的前缀和+哈希表方法，重点说明与数组版560题的区别——多路径导致需要回溯哈希表</div></div></div></a><a class="pagination-related" href="/2026/07/22/Hot%20100%20---%20%E5%B2%9B%E5%B1%BF%E6%95%B0%E9%87%8F/" title="Hot 100 --- 岛屿数量"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-22</div><div class="info-item-2">Hot 100 --- 岛屿数量</div></div><div class="info-2"><div class="info-item-1">本文以LeetCode题目"岛屿数量"为例，从二叉树的递归视角迁移到二维网格的四方向递归，讲解DFS和BFS两种标记岛屿的方法</div></div></div></a><a class="pagination-related" href="/2026/07/15/Hot%20100%20---%20%E4%BA%8C%E5%8F%89%E6%90%9C%E7%B4%A2%E6%A0%91%E4%B8%AD%E7%AC%ACK%E5%B0%8F%E7%9A%84%E5%85%83%E7%B4%A0/" title="Hot 100 --- 二叉搜索树中第K小的元素"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-15</div><div class="info-item-2">Hot 100 --- 二叉搜索树中第K小的元素</div></div><div class="info-2"><div class="info-item-1">本文以LeetCode题目"二叉搜索树中第K小的元素"为例，讲解如何利用BST中序遍历递增的性质，通过全局计数器在遍历过程中找到第K小的元素</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/%E5%A4%B4%E5%83%8F.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">青山木</div><div class="author-info-description">正在学习Java后端开发＋智能体开发，希望能与大家多多交流</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">63</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">134</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">4</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/LI-S-H"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/LI-S-H" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">欢迎来到我的博客，记录学习与成长的点滴。</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%80%E3%80%81%E9%A2%98%E7%9B%AE"><span class="toc-number">1.</span> <span class="toc-text">一、题目</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BA%8C%E3%80%81%E9%A2%98%E7%9B%AE%E5%88%86%E6%9E%90"><span class="toc-number">2.</span> <span class="toc-text">二、题目分析</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%80%9D%E8%B7%AF%E6%A6%82%E8%A7%88"><span class="toc-number">3.</span> <span class="toc-text">思路概览</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%96%B9%E6%B3%95%E4%B8%80%EF%BC%9A%E9%80%89-%E4%B8%8D%E9%80%89%E5%88%86%E6%94%AF%EF%BC%88%E5%86%B3%E7%AD%96%E6%A0%91%EF%BC%89"><span class="toc-number">4.</span> <span class="toc-text">方法一：选&#x2F;不选分支（决策树）</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E6%80%9D%E8%B7%AF"><span class="toc-number">4.1.</span> <span class="toc-text">思路</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E4%BB%A3%E7%A0%81"><span class="toc-number">4.2.</span> <span class="toc-text">代码</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%85%B3%E9%94%AE%E7%82%B9"><span class="toc-number">4.3.</span> <span class="toc-text">关键点</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E6%89%A7%E8%A1%8C%E8%BF%87%E7%A8%8B"><span class="toc-number">4.4.</span> <span class="toc-text">执行过程</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%96%B9%E6%B3%95%E4%BA%8C%EF%BC%9Afor-%E5%BE%AA%E7%8E%AF-start"><span class="toc-number">5.</span> <span class="toc-text">方法二：for 循环 + start</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E6%80%9D%E8%B7%AF-1"><span class="toc-number">5.1.</span> <span class="toc-text">思路</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E4%BB%A3%E7%A0%81-1"><span class="toc-number">5.2.</span> <span class="toc-text">代码</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%85%B3%E9%94%AE%E7%82%B9-1"><span class="toc-number">5.3.</span> <span class="toc-text">关键点</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E6%AF%8F%E6%AC%A1%E8%BF%9B%E5%85%A5%E5%B0%B1%E5%AD%98%E7%BB%93%E6%9E%9C%EF%BC%9F"><span class="toc-number">5.4.</span> <span class="toc-text">为什么每次进入就存结果？</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#start-%E5%8F%82%E6%95%B0%E7%9A%84%E4%BD%9C%E7%94%A8"><span class="toc-number">5.5.</span> <span class="toc-text">start 参数的作用</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E6%89%A7%E8%A1%8C%E8%BF%87%E7%A8%8B-1"><span class="toc-number">5.6.</span> <span class="toc-text">执行过程</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%A4%E7%A7%8D%E6%96%B9%E6%B3%95%E5%AF%B9%E6%AF%94"><span class="toc-number">6.</span> <span class="toc-text">两种方法对比</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%A4%8D%E6%9D%82%E5%BA%A6%E5%88%86%E6%9E%90"><span class="toc-number">7.</span> <span class="toc-text">复杂度分析</span></a></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/2026/07/26/Hot%20100%20---%20%E5%AD%90%E9%9B%86/" title="Hot 100 --- 子集"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 子集"/></a><div class="content"><a class="title" href="/2026/07/26/Hot%20100%20---%20%E5%AD%90%E9%9B%86/" title="Hot 100 --- 子集">Hot 100 --- 子集</a><time datetime="2026-07-26T15:00:00.000Z" title="发表于 2026-07-26 23:00:00">2026-07-26</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/07/26/Hot%20100%20---%20%E5%85%A8%E6%8E%92%E5%88%97/" title="Hot 100 --- 全排列"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 全排列"/></a><div class="content"><a class="title" href="/2026/07/26/Hot%20100%20---%20%E5%85%A8%E6%8E%92%E5%88%97/" title="Hot 100 --- 全排列">Hot 100 --- 全排列</a><time datetime="2026-07-26T12:00:00.000Z" title="发表于 2026-07-26 20:00:00">2026-07-26</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/07/24/Hot%20100%20---%20%E8%AF%BE%E7%A8%8B%E8%A1%A8/" title="Hot 100 --- 课程表"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 课程表"/></a><div class="content"><a class="title" href="/2026/07/24/Hot%20100%20---%20%E8%AF%BE%E7%A8%8B%E8%A1%A8/" title="Hot 100 --- 课程表">Hot 100 --- 课程表</a><time datetime="2026-07-24T15:00:00.000Z" title="发表于 2026-07-24 23:00:00">2026-07-24</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/07/24/Hot%20100%20---%20%E8%85%90%E7%83%82%E7%9A%84%E6%A9%98%E5%AD%90/" title="Hot 100 --- 腐烂的橘子"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 腐烂的橘子"/></a><div class="content"><a class="title" href="/2026/07/24/Hot%20100%20---%20%E8%85%90%E7%83%82%E7%9A%84%E6%A9%98%E5%AD%90/" title="Hot 100 --- 腐烂的橘子">Hot 100 --- 腐烂的橘子</a><time datetime="2026-07-23T16:00:00.000Z" title="发表于 2026-07-24 00:00:00">2026-07-24</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/07/22/Hot%20100%20---%20%E5%AE%9E%E7%8E%B0%20Trie%20(%E5%89%8D%E7%BC%80%E6%A0%91)/" title="Hot 100 --- 实现 Trie (前缀树)"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 实现 Trie (前缀树)"/></a><div class="content"><a class="title" href="/2026/07/22/Hot%20100%20---%20%E5%AE%9E%E7%8E%B0%20Trie%20(%E5%89%8D%E7%BC%80%E6%A0%91)/" title="Hot 100 --- 实现 Trie (前缀树)">Hot 100 --- 实现 Trie (前缀树)</a><time datetime="2026-07-22T14:00:00.000Z" title="发表于 2026-07-22 22:00:00">2026-07-22</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By 青山木</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.5.4"></script><script src="/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script>
+(function() {
+  /* 仅在首页标题上方插入头像 */
+  if (window.location.pathname !== '/' && !window.location.pathname.endsWith('/index.html')) return;
+  var siteTitle = document.getElementById('site-title');
+  if (siteTitle) {
+    var avatar = document.createElement('img');
+    avatar.src = '/img/头像.jpg';
+    avatar.alt = 'avatar';
+    avatar.className = 'avatar-img';
+    siteTitle.parentNode.insertBefore(avatar, siteTitle);
+  }
+})();
+</script>
+<script>
+(function() {
+  function initMermaid() {
+    if (window.mermaid) return Promise.resolve();
+    return new Promise(function(resolve, reject) {
+      var script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/mermaid@11.12.2/dist/mermaid.min.js';
+      script.onload = function() {
+        mermaid.initialize({
+          startOnLoad: false,
+          // 图表主题固定，避免站点深浅色切换时重新解析整篇文章的所有 Mermaid 图。
+          theme: 'dark',
+          securityLevel: 'loose'
+        });
+        resolve();
+      };
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  }
+
+  // Mermaid 会异步改变文章高度；目录跳转必须等所有图表完成布局后再读取标题位置。
+  window.mermaidReady = Promise.resolve();
+  var renderSequence = 0;
+
+  function waitForStableLayout() {
+    return new Promise(function(resolve) {
+      requestAnimationFrame(function() {
+        requestAnimationFrame(function() {
+          // 让 SVG 内的 foreignObject 完成一次实际布局，再刷新 Butterfly 的标题位置缓存。
+          setTimeout(resolve, 50);
+        });
+      });
+    });
+  }
+
+  function showMermaidSource(pre) {
+    pre.hidden = false;
+    pre.style.display = 'block';
+    pre.style.color = '#d32f2f';
+    pre.style.whiteSpace = 'pre-wrap';
+    pre.style.fontSize = '13px';
+  }
+
+  function refreshTocPositions() {
+    // Butterfly 只在 resize 时重新缓存标题坐标。
+    window.dispatchEvent(new Event('resize'));
+    document.dispatchEvent(new CustomEvent('mermaid:rendered'));
+  }
+
+  function renderMermaidDiagrams() {
+    var wraps = document.querySelectorAll('#article-container .mermaid-wrap');
+    if (wraps.length === 0) {
+      window.mermaidReady = Promise.resolve();
+      return window.mermaidReady;
+    }
+
+    var renderTask = initMermaid().then(function() {
+      return Promise.all(Array.prototype.map.call(wraps, function(wrap, index) {
+        var pre = wrap.querySelector('pre.mermaid-src');
+        if (!pre || pre.dataset.rendered === 'true') return Promise.resolve();
+
+        var code = pre.textContent;
+        var id = 'mermaid-' + index + '-' + (++renderSequence);
+        return Promise.resolve().then(function() {
+          return mermaid.render(id, code);
+        }).then(function(result) {
+          pre.dataset.rendered = 'true';
+          pre.style.display = 'none';
+          var div = document.createElement('div');
+          div.innerHTML = result.svg;
+          wrap.insertBefore(div.firstChild, pre.nextSibling);
+        }).catch(function(err) {
+          console.error('[Mermaid] Block #' + index + ' render failed:', err);
+          showMermaidSource(pre);
+        });
+      }));
+    }).then(function() {
+      return waitForStableLayout();
+    }).then(function() {
+      refreshTocPositions();
+    }).catch(function(err) {
+      console.error('[Mermaid] Failed to load mermaid.js:', err);
+      wraps.forEach(function(wrap) {
+        var pre = wrap.querySelector('pre.mermaid-src');
+        if (pre) showMermaidSource(pre);
+      });
+    });
+
+    window.mermaidReady = renderTask;
+    return renderTask;
+  }
+
+  // 页面加载完成后渲染
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', renderMermaidDiagrams);
+  } else {
+    renderMermaidDiagrams();
+  }
+
+  // 拦截目录点击：若图表仍在渲染，等待布局稳定后按实时坐标滚动。
+  // 使用捕获阶段，避免 Butterfly 先按渲染前的坐标启动平滑滚动。
+  var tocNavigationSequence = 0;
+  document.addEventListener('click', function(e) {
+    var link = e.target.closest('#card-toc .toc-link');
+    if (!link) return;
+
+    var href = link.getAttribute('href') || '';
+    var hashIndex = href.indexOf('#');
+    if (hashIndex < 0) return;
+
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    var navigationSequence = ++tocNavigationSequence;
+    var headingId = decodeURI(href.slice(hashIndex + 1));
+
+    (window.mermaidReady || Promise.resolve()).then(function() {
+      return waitForStableLayout();
+    }).then(function() {
+      if (navigationSequence !== tocNavigationSequence) return;
+      var heading = document.getElementById(headingId);
+      if (!heading) return;
+
+      // 使用点击时的实际位置，避免异步 SVG 插入改变标题高度后跳错章节。
+      var top = heading.getBoundingClientRect().top + window.scrollY;
+      if (window.btf && window.btf.scrollToDest) {
+        window.btf.scrollToDest(top, 300);
+      } else {
+        window.scrollTo({ top: top, behavior: 'smooth' });
+      }
+    });
+  }, true);
+
+})();
+</script>
+<script id="canvas_nest" defer="defer" color="107,159,255" opacity="0.6" zIndex="-1" count="99" mobile="false" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/dist/canvas-nest.min.js"></script></div></body></html>
