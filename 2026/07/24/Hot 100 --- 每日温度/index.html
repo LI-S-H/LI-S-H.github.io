@@ -1,0 +1,482 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="dark"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>Hot 100 --- 每日温度 | 青山木</title><meta name="author" content="青山木"><meta name="copyright" content="青山木"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#0d1117"><meta name="description" content="本文讲解每日温度的核心思路：用单调栈优化暴力遍历，从 O(n²) 降到 O(n)">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Hot 100 --- 每日温度">
+<meta property="og:url" content="https://li-s-h.github.io/2026/07/24/Hot%20100%20---%20%E6%AF%8F%E6%97%A5%E6%B8%A9%E5%BA%A6/index.html">
+<meta property="og:site_name" content="青山木">
+<meta property="og:description" content="本文讲解每日温度的核心思路：用单调栈优化暴力遍历，从 O(n²) 降到 O(n)">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://li-s-h.github.io/img/Hot%20100/%E6%AF%8F%E6%97%A5%E6%B8%A9%E5%BA%A6/cover.png">
+<meta property="article:published_time" content="2026-07-23T16:30:00.000Z">
+<meta property="article:modified_time" content="2026-08-14T11:28:47.393Z">
+<meta property="article:author" content="青山木">
+<meta property="article:tag" content="算法">
+<meta property="article:tag" content="leetcode">
+<meta property="article:tag" content="数组">
+<meta property="article:tag" content="栈">
+<meta property="article:tag" content="单调栈">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://li-s-h.github.io/img/Hot%20100/%E6%AF%8F%E6%97%A5%E6%B8%A9%E5%BA%A6/cover.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Hot 100 --- 每日温度",
+  "url": "https://li-s-h.github.io/2026/07/24/Hot%20100%20---%20%E6%AF%8F%E6%97%A5%E6%B8%A9%E5%BA%A6/",
+  "image": "https://li-s-h.github.io/img/Hot%20100/%E6%AF%8F%E6%97%A5%E6%B8%A9%E5%BA%A6/cover.png",
+  "datePublished": "2026-07-23T16:30:00.000Z",
+  "dateModified": "2026-08-14T11:28:47.393Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "青山木",
+      "url": "https://LI-S-H.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/%E5%A4%B4%E5%83%8F.jpg"><link rel="canonical" href="https://li-s-h.github.io/2026/07/24/Hot%20100%20---%20%E6%AF%8F%E6%97%A5%E6%B8%A9%E5%BA%A6/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="stylesheet" href="/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d1117')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', 'ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: 'Hot 100 --- 每日温度',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><style>
+  #site-title { font-size: 1.76em !important; }
+  #subtitle { font-size: 0.88em !important; }
+
+  /* 卡片悬停放大 + 辉光 */
+  #recent-posts .recent-post-item {
+    transition: transform .3s ease, box-shadow .3s ease, border-color .3s ease;
+  }
+  #recent-posts .recent-post-item:hover {
+    transform: scale(1.025) !important;
+    border-color: rgba(107,159,255,0.5) !important;
+    box-shadow: 0 0 0 1px rgba(107,159,255,0.15),
+                0 0 45px rgba(107,159,255,0.12),
+                0 8px 30px rgba(0,0,0,0.4) !important;
+  }
+
+  /* 首页标题上方头像 */
+  #site-info .avatar-img {
+    display: block;
+    width: 144px;
+    height: 144px;
+    border-radius: 50%;
+    margin: 0 auto 20px;
+    border: 3px solid rgba(107,159,255,0.6);
+    box-shadow: 0 0 30px rgba(107,159,255,0.35),
+                0 0 60px rgba(107,159,255,0.15),
+                0 4px 20px rgba(0,0,0,0.25);
+    object-fit: cover;
+    transition: box-shadow .4s ease, border-color .4s ease;
+  }
+  #site-info .avatar-img:hover {
+    border-color: rgba(107,159,255,0.9);
+    box-shadow: 0 0 40px rgba(107,159,255,0.5),
+                0 0 80px rgba(107,159,255,0.25),
+                0 4px 20px rgba(0,0,0,0.25);
+  }
+
+  /* Mermaid 图表容器样式 */
+  .mermaid-wrap {
+    position: relative;
+    /* 图表固定使用深色画布，主题切换无需销毁并重绘所有 SVG。 */
+    background: #1e1e1e !important;
+    padding: 12px !important;
+    border-radius: 8px !important;
+    border: 1px solid #444 !important;
+    text-align: center;
+    margin: 0 0 20px 0;
+    overflow-x: auto;
+  }
+  .mermaid-wrap > svg {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+  }
+  /* 深色图表画布在两种站点主题下保持一致，避免切换时重排。 */
+  [data-theme="dark"] .mermaid-wrap {
+    background: #1e1e1e !important;
+    border-color: #444 !important;
+  }
+</style>
+<meta name="generator" content="Hexo 7.3.0"></head><body><div class="bg-animation" id="web_bg" style="background-image: url(/img/%E8%83%8C%E6%99%AF%E5%9B%BE.webp);"></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(/img/Hot%20100/%E6%AF%8F%E6%97%A5%E6%B8%A9%E5%BA%A6/cover.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">青山木</span></a><a class="nav-page-title" href="/"><span class="site-name">Hot 100 --- 每日温度</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">Hot 100 --- 每日温度</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-07-23T16:30:00.000Z" title="发表于 2026-07-24 00:30:00">2026-07-24</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-08-14T11:28:47.393Z" title="更新于 2026-08-14 19:28:47">2026-08-14</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/LeetCode-%E7%83%AD%E9%A2%98-HOT-100/">LeetCode 热题 HOT 100</a></span></div><div class="meta-secondline"></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><blockquote>
+<p><strong>本文概览</strong>：本文讲解每日温度的核心思路：用单调栈优化暴力遍历，从 O(n²) 降到 O(n)</p>
+</blockquote>
+<hr>
+<h3 id="一、题目"><a href="#一、题目" class="headerlink" title="一、题目"></a>一、题目</h3><p><img src="/img/Hot%20100/%E6%AF%8F%E6%97%A5%E6%B8%A9%E5%BA%A6/image-20250724003000001.png" alt="image-20250724003000001"></p>
+<hr>
+<h3 id="二、题目分析"><a href="#二、题目分析" class="headerlink" title="二、题目分析"></a>二、题目分析</h3><h4 id="1-题目要求"><a href="#1-题目要求" class="headerlink" title="1. 题目要求"></a>1. 题目要求</h4><p>给定一个温度数组 <code>temperatures</code>，返回一个同样长度的数组 <code>answer</code>，其中 <code>answer[i]</code> 表示第 <code>i</code> 天到下一个更高温度的天数。如果之后都不会升高，用 0 代替。</p>
+<p><strong>例子</strong>：<code>temperatures = [73, 74, 75, 71, 72, 76, 73]</code></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">第 0 天：73 → 第 1 天 74 更高 → answer[0] = 1</span><br><span class="line">第 1 天：74 → 第 2 天 75 更高 → answer[1] = 1</span><br><span class="line">第 2 天：75 → 第 5 天 76 更高 → answer[2] = 3</span><br><span class="line">第 3 天：71 → 第 4 天 72 更高 → answer[3] = 1</span><br><span class="line">第 4 天：72 → 第 5 天 76 更高 → answer[4] = 1</span><br><span class="line">第 5 天：76 → 之后没有更高的 → answer[5] = 0</span><br><span class="line">第 6 天：73 → 之后没有更高的 → answer[6] = 0</span><br><span class="line"></span><br><span class="line">结果：[1, 1, 3, 1, 1, 0, 0]</span><br></pre></td></tr></table></figure>
+
+<h4 id="2-暴力思路的问题"><a href="#2-暴力思路的问题" class="headerlink" title="2. 暴力思路的问题"></a>2. 暴力思路的问题</h4><p><strong>最直觉的做法</strong>：对每个位置，往后遍历找到第一个更高的温度。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">for</span> (<span class="type">int</span> <span class="variable">i</span> <span class="operator">=</span> <span class="number">0</span>; i &lt; n; i++) &#123;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> <span class="variable">j</span> <span class="operator">=</span> i + <span class="number">1</span>; j &lt; n; j++) &#123;</span><br><span class="line">        <span class="keyword">if</span> (temperatures[j] &gt; temperatures[i]) &#123;</span><br><span class="line">            answer[i] = j - i;</span><br><span class="line">            <span class="keyword">break</span>;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>时间复杂度</strong>：O(n²)，最坏情况下（温度递减）会超时。</p>
+<h4 id="3-核心观察：暴力遍历中的浪费"><a href="#3-核心观察：暴力遍历中的浪费" class="headerlink" title="3. 核心观察：暴力遍历中的浪费"></a>3. 核心观察：暴力遍历中的浪费</h4><p><strong>关键问题</strong>：暴力遍历中，我们其实获取了很多信息，但没有利用。</p>
+<p><strong>例子</strong>：温度数组 <code>[76, 68, 72, 77]</code></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">从 76 开始往后遍历：</span><br><span class="line"></span><br><span class="line">遍历到 68：</span><br><span class="line">  68 &lt; 76，不是，但记录下来</span><br><span class="line"></span><br><span class="line">遍历到 72：</span><br><span class="line">  72 &gt; 68，所以 68 的结果已经知道了（72 - 68 的天数）</span><br><span class="line">  72 &lt; 76，继续</span><br><span class="line"></span><br><span class="line">遍历到 77：</span><br><span class="line">  77 &gt; 72，所以 72 的结果也知道了</span><br><span class="line">  77 &gt; 76，所以 76 的结果也知道了</span><br><span class="line"></span><br><span class="line">一次遍历，找到了 3 个结果！</span><br></pre></td></tr></table></figure>
+
+<p><strong>问题</strong>：在暴力方法中，这些中间结果完全被浪费了。68 和 72 的结果在遍历 76 时就已经确定了，但暴力方法会在后面重新遍历一遍。</p>
+<p><strong>优化思路</strong>：边遍历边比较，已经遍历过的温度如果能确定结果，就立即回填，不要等到后面再遍历。</p>
+<hr>
+<h3 id="三、思路概览"><a href="#三、思路概览" class="headerlink" title="三、思路概览"></a>三、思路概览</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="type">int</span>[] dailyTemperatures(<span class="type">int</span>[] temperatures) &#123;</span><br><span class="line">    <span class="keyword">if</span> (temperatures.length == <span class="number">0</span>) &#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">new</span> <span class="title class_">int</span>[<span class="number">0</span>];</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 单调栈</span></span><br><span class="line">    Deque&lt;Integer&gt; stack = <span class="keyword">new</span> <span class="title class_">ArrayDeque</span>&lt;&gt;();</span><br><span class="line">    <span class="type">int</span>[] result = <span class="keyword">new</span> <span class="title class_">int</span>[temperatures.length];</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> <span class="variable">i</span> <span class="operator">=</span> <span class="number">0</span>; i &lt; temperatures.length; i++) &#123;</span><br><span class="line">        <span class="comment">// 栈空，直接入栈</span></span><br><span class="line">        <span class="keyword">if</span> (stack.isEmpty()) &#123;</span><br><span class="line">            stack.push(i);</span><br><span class="line">            <span class="keyword">continue</span>;</span><br><span class="line">        &#125;   </span><br><span class="line">        <span class="comment">// 栈非空，比较温度</span></span><br><span class="line">        <span class="keyword">while</span> (!stack.isEmpty() &amp;&amp; temperatures[i] &gt; temperatures[stack.peek()]) &#123;</span><br><span class="line">            <span class="comment">// 出栈</span></span><br><span class="line">            <span class="type">int</span> <span class="variable">index</span> <span class="operator">=</span> stack.pop();</span><br><span class="line">            <span class="comment">// 计算天数</span></span><br><span class="line">            result[index] = i - index;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// 入栈</span></span><br><span class="line">        stack.push(i);</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 栈中剩余的元素，天数为0</span></span><br><span class="line">    <span class="keyword">while</span> (!stack.isEmpty()) &#123;</span><br><span class="line">        <span class="type">int</span> <span class="variable">index</span> <span class="operator">=</span> stack.pop();</span><br><span class="line">        result[index] = <span class="number">0</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> result;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>思路简要说明：</p>
+<ol>
+<li><strong>栈存储索引</strong>：存索引而不是温度值，这样可以 O(1) 获取温度，还能直接算出天数差</li>
+<li><strong>单调递减栈</strong>：栈内温度从底到顶递减</li>
+<li><strong>遍历过程</strong>：<ul>
+<li>新温度 &gt; 栈顶温度：栈顶出栈，回填结果（天数 &#x3D; 当前索引 - 出栈索引）</li>
+<li>重复直到栈顶温度 &gt;&#x3D; 新温度，或栈为空</li>
+<li>新温度索引入栈</li>
+</ul>
+</li>
+<li><strong>遍历结束后</strong>：栈内剩余的元素就是之后没有更高温度的天，结果为 0</li>
+</ol>
+<hr>
+<h3 id="四、思路详解"><a href="#四、思路详解" class="headerlink" title="四、思路详解"></a>四、思路详解</h3><h4 id="第一步：怎么实现-边遍历边比较-？"><a href="#第一步：怎么实现-边遍历边比较-？" class="headerlink" title="第一步：怎么实现&quot;边遍历边比较&quot;？"></a>第一步：怎么实现&quot;边遍历边比较&quot;？</h4><p>从上面的分析我们知道，需要边遍历边回填已经确定的结果。那么问题来了：怎么实现？</p>
+<p><strong>需求</strong>：</p>
+<ul>
+<li>需要记住还没找到更高温度的那些天</li>
+<li>每次遍历到新温度时，和记住的那些天比较</li>
+<li>如果新温度更高，就回填结果，并从记住的列表中删除</li>
+</ul>
+<p><strong>数据结构</strong>：栈！</p>
+<ul>
+<li>栈里存储还没找到更高温度的天的索引</li>
+<li>每次遍历到新温度时，和栈顶比较</li>
+<li>如果新温度更高，栈顶出栈并回填结果</li>
+<li>重复这个过程，直到栈顶温度 &gt;&#x3D; 新温度，或栈为空</li>
+<li>然后把新温度的索引入栈</li>
+</ul>
+<h4 id="第二步：为什么是单调栈？"><a href="#第二步：为什么是单调栈？" class="headerlink" title="第二步：为什么是单调栈？"></a>第二步：为什么是单调栈？</h4><p><strong>单调栈</strong>：栈内元素从栈底到栈顶单调递减（或递增）。</p>
+<p><strong>这题为什么用递减栈？</strong></p>
+<p>因为我们要找&quot;下一个更高的温度&quot;，所以栈里存的是还没找到更高温度的天。如果新温度比栈顶高，栈顶就找到答案了，出栈。</p>
+<p><strong>栈的特性</strong>：</p>
+<ul>
+<li>栈底：最早遍历的，温度最高（或相等）</li>
+<li>栈顶：最晚遍历的，温度最低</li>
+<li>每次新温度入栈前，会把所有比它低的栈顶弹出</li>
+</ul>
+<p>这样栈内温度从底到顶递减，就是单调递减栈。</p>
+<h4 id="第三步：为什么栈里存索引而不是温度值？"><a href="#第三步：为什么栈里存索引而不是温度值？" class="headerlink" title="第三步：为什么栈里存索引而不是温度值？"></a>第三步：为什么栈里存索引而不是温度值？</h4><p><strong>存索引的好处</strong>：</p>
+<ol>
+<li>可以通过 <code>temperatures[index]</code> 获取温度值</li>
+<li>可以直接算出天数差：<code>i - index</code></li>
+</ol>
+<p><strong>如果存温度值</strong>：还需要额外记录这个温度是哪一天的，多了一步操作。</p>
+<h4 id="第二步：单调栈的工作原理"><a href="#第二步：单调栈的工作原理" class="headerlink" title="第二步：单调栈的工作原理"></a>第二步：单调栈的工作原理</h4><p><strong>核心思想</strong>：每次遍历到新温度时，把所有比它低的栈顶弹出并回填结果。</p>
+<p><strong>为什么可以这样做？</strong></p>
+<p>因为栈内温度从底到顶递减，如果新温度比栈顶高，栈顶就找到了&quot;下一个更高的温度&quot;，可以立即回填结果。</p>
+<p><strong>例子</strong>：栈内 <code>[76, 72, 68]</code>（栈顶是 68），新温度 77</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">77 &gt; 68，68 出栈，回填结果</span><br><span class="line">77 &gt; 72，72 出栈，回填结果</span><br><span class="line">77 &gt; 76，76 出栈，回填结果</span><br><span class="line">栈为空，77 入栈</span><br></pre></td></tr></table></figure>
+
+<p>一次遍历，找到了 3 个结果！</p>
+<h4 id="第三步：为什么是-O-n-而不是-O-n²-？"><a href="#第三步：为什么是-O-n-而不是-O-n²-？" class="headerlink" title="第三步：为什么是 O(n) 而不是 O(n²)？"></a>第三步：为什么是 O(n) 而不是 O(n²)？</h4><p><strong>看起来有 while 循环，应该是 O(n²)？</strong></p>
+<p><strong>实际上</strong>：每个索引最多入栈一次，出栈一次。</p>
+<ul>
+<li>外层 for 循环：n 次</li>
+<li>内层 while 循环：所有索引总共出栈 n 次</li>
+</ul>
+<p>所以总操作次数是 2n，时间复杂度 O(n)。</p>
+<h4 id="第四步：遍历结束后栈内剩余的元素"><a href="#第四步：遍历结束后栈内剩余的元素" class="headerlink" title="第四步：遍历结束后栈内剩余的元素"></a>第四步：遍历结束后栈内剩余的元素</h4><p>遍历结束后，栈内还有元素，说明这些天之后没有更高的温度了，结果为 0。</p>
+<p><strong>例子</strong>：温度数组 <code>[76, 72, 68]</code></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">76 入栈：stack = [76]</span><br><span class="line">72 &lt; 76，72 入栈：stack = [76, 72]</span><br><span class="line">68 &lt; 72，68 入栈：stack = [76, 72, 68]</span><br><span class="line"></span><br><span class="line">遍历结束，栈内还有 3 个元素</span><br><span class="line">result[76的索引] = 0</span><br><span class="line">result[72的索引] = 0</span><br><span class="line">result[68的索引] = 0</span><br></pre></td></tr></table></figure>
+
+<h4 id="完整执行过程"><a href="#完整执行过程" class="headerlink" title="完整执行过程"></a>完整执行过程</h4><p>以 <code>temperatures = [73, 74, 75, 71, 72, 76, 73]</code> 为例：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br></pre></td><td class="code"><pre><span class="line">初始：stack = [], result = [0, 0, 0, 0, 0, 0, 0]</span><br><span class="line"></span><br><span class="line">i=0, temp=73：</span><br><span class="line">  栈为空，73 入栈</span><br><span class="line">  stack = [0]（存索引，对应温度 73）</span><br><span class="line"></span><br><span class="line">i=1, temp=74：</span><br><span class="line">  74 &gt; 73，栈顶 0 出栈</span><br><span class="line">  result[0] = 1 - 0 = 1</span><br><span class="line">  栈为空，74 入栈</span><br><span class="line">  stack = [1]</span><br><span class="line"></span><br><span class="line">i=2, temp=75：</span><br><span class="line">  75 &gt; 74，栈顶 1 出栈</span><br><span class="line">  result[1] = 2 - 1 = 1</span><br><span class="line">  栈为空，75 入栈</span><br><span class="line">  stack = [2]</span><br><span class="line"></span><br><span class="line">i=3, temp=71：</span><br><span class="line">  71 &lt; 75，71 入栈</span><br><span class="line">  stack = [2, 3]（栈底 75，栈顶 71）</span><br><span class="line"></span><br><span class="line">i=4, temp=72：</span><br><span class="line">  72 &gt; 71，栈顶 3 出栈</span><br><span class="line">  result[3] = 4 - 3 = 1</span><br><span class="line">  72 &lt; 75，72 入栈</span><br><span class="line">  stack = [2, 4]（栈底 75，栈顶 72）</span><br><span class="line"></span><br><span class="line">i=5, temp=76：</span><br><span class="line">  76 &gt; 72，栈顶 4 出栈</span><br><span class="line">  result[4] = 5 - 4 = 1</span><br><span class="line">  76 &gt; 75，栈顶 2 出栈</span><br><span class="line">  result[2] = 5 - 2 = 3</span><br><span class="line">  栈为空，76 入栈</span><br><span class="line">  stack = [5]</span><br><span class="line"></span><br><span class="line">i=6, temp=73：</span><br><span class="line">  73 &lt; 76，73 入栈</span><br><span class="line">  stack = [5, 6]（栈底 76，栈顶 73）</span><br><span class="line"></span><br><span class="line">遍历结束，栈内还有元素：</span><br><span class="line">  result[5] = 0</span><br><span class="line">  result[6] = 0</span><br><span class="line"></span><br><span class="line">最终结果：[1, 1, 3, 1, 1, 0, 0] ✓</span><br></pre></td></tr></table></figure>
+
+<p>再以 <code>temperatures = [30, 40, 50, 60]</code> 为例（递增序列）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line">初始：stack = [], result = [0, 0, 0, 0]</span><br><span class="line"></span><br><span class="line">i=0, temp=30：</span><br><span class="line">  栈为空，30 入栈</span><br><span class="line">  stack = [0]</span><br><span class="line"></span><br><span class="line">i=1, temp=40：</span><br><span class="line">  40 &gt; 30，栈顶 0 出栈</span><br><span class="line">  result[0] = 1 - 0 = 1</span><br><span class="line">  栈为空，40 入栈</span><br><span class="line">  stack = [1]</span><br><span class="line"></span><br><span class="line">i=2, temp=50：</span><br><span class="line">  50 &gt; 40，栈顶 1 出栈</span><br><span class="line">  result[1] = 2 - 1 = 1</span><br><span class="line">  栈为空，50 入栈</span><br><span class="line">  stack = [2]</span><br><span class="line"></span><br><span class="line">i=3, temp=60：</span><br><span class="line">  60 &gt; 50，栈顶 2 出栈</span><br><span class="line">  result[2] = 3 - 2 = 1</span><br><span class="line">  栈为空，60 入栈</span><br><span class="line">  stack = [3]</span><br><span class="line"></span><br><span class="line">遍历结束，栈内还有元素：</span><br><span class="line">  result[3] = 0</span><br><span class="line"></span><br><span class="line">最终结果：[1, 1, 1, 0] ✓</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h3 id="五、总结"><a href="#五、总结" class="headerlink" title="五、总结"></a>五、总结</h3><p>每日温度的核心思路：</p>
+<ol>
+<li><strong>单调栈</strong>：栈内温度从底到顶递减</li>
+<li><strong>栈存储索引</strong>：方便获取温度值和计算天数差</li>
+<li><strong>遍历过程</strong>：新温度 &gt; 栈顶温度时，栈顶出栈并回填结果</li>
+<li>**时间复杂度 O(n)**：每个索引最多入栈一次，出栈一次</li>
+<li>**空间复杂度 O(n)**：栈最多存储 n 个索引</li>
+</ol>
+<p><strong>单调栈的适用场景</strong>：</p>
+<ul>
+<li>找&quot;下一个更大&#x2F;更小的元素&quot;</li>
+<li>需要维护一个单调序列</li>
+<li>暴力遍历中有重复计算，可以优化</li>
+</ul>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://LI-S-H.github.io">青山木</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://li-s-h.github.io/2026/07/24/Hot%20100%20---%20%E6%AF%8F%E6%97%A5%E6%B8%A9%E5%BA%A6/">https://li-s-h.github.io/2026/07/24/Hot%20100%20---%20%E6%AF%8F%E6%97%A5%E6%B8%A9%E5%BA%A6/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://LI-S-H.github.io" target="_blank">青山木</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E7%AE%97%E6%B3%95/">算法</a><a class="post-meta__tags" href="/tags/leetcode/">leetcode</a><a class="post-meta__tags" href="/tags/%E6%95%B0%E7%BB%84/">数组</a><a class="post-meta__tags" href="/tags/%E6%A0%88/">栈</a><a class="post-meta__tags" href="/tags/%E5%8D%95%E8%B0%83%E6%A0%88/">单调栈</a></div><div class="post-share"><div class="social-share" data-image="/img/Hot%20100/%E6%AF%8F%E6%97%A5%E6%B8%A9%E5%BA%A6/cover.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/2026/07/24/Hot%20100%20---%20%E8%AF%BE%E7%A8%8B%E8%A1%A8/" title="Hot 100 --- 课程表"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="onerror=null;src='/img/404.jpg'" alt="cover of previous post"><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">Hot 100 --- 课程表</div></div><div class="info-2"><div class="info-item-1">本文以LeetCode题目"课程表"为例，讲解拓扑排序的BFS入度法——构建邻接表，每次去掉0入度节点，最终用计数器判断是否有环</div></div></div></a><a class="pagination-related" href="/2026/07/24/Hot%20100%20---%20%E8%85%90%E7%83%82%E7%9A%84%E6%A9%98%E5%AD%90/" title="Hot 100 --- 腐烂的橘子"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="onerror=null;src='/img/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">Hot 100 --- 腐烂的橘子</div></div><div class="info-2"><div class="info-item-1">本文以LeetCode题目"腐烂的橘子"为例，讲解多源BFS的思路——所有腐烂橘子同时扩散，每轮加1分钟，最后用新鲜橘子计数判断是否全部腐烂</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/2026/08/11/Hot%20100%20---%20%E6%9C%80%E5%B0%8F%E6%A0%88/" title="Hot 100 --- 最小栈"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-11</div><div class="info-item-2">Hot 100 --- 最小栈</div></div><div class="info-2"><div class="info-item-1">本文讲解最小栈的核心思路：用辅助栈记录每个时刻的最小值，实现 O(1) 获取最小值</div></div></div></a><a class="pagination-related" href="/2026/08/10/Hot%20100%20---%20%E6%9C%89%E6%95%88%E7%9A%84%E6%8B%AC%E5%8F%B7/" title="Hot 100 --- 有效的括号"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-10</div><div class="info-item-2">Hot 100 --- 有效的括号</div></div><div class="info-2"><div class="info-item-1">本文讲解有效的括号的核心思路：用栈实现括号的匹配，左括号入栈，右括号出栈匹配</div></div></div></a><a class="pagination-related" href="/2026/06/14/Hot%20100%20---%20%E9%99%A4%E8%87%AA%E8%BA%AB%E4%BB%A5%E5%A4%96%E6%95%B0%E7%BB%84%E7%9A%84%E4%B9%98%E7%A7%AF/" title="Hot 100 --- 除自身以外数组的乘积"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-06-14</div><div class="info-item-2">Hot 100 --- 除自身以外数组的乘积</div></div><div class="info-2"><div class="info-item-1">本文以LeetCode经典题目"除自身以外数组的乘积"为例，从暴力解法入手，分析不能使用除法导致的重复计算问题，再通过空间换时间的方式用右累计乘积数组优化，将时间复杂度从O(n²)优化到O(n)</div></div></div></a><a class="pagination-related" href="/2026/06/13/Hot%20100%20---%20%E8%BD%AE%E8%BD%AC%E6%95%B0%E7%BB%84/" title="Hot 100 --- 轮转数组"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-06-13</div><div class="info-item-2">Hot 100 --- 轮转数组</div></div><div class="info-2"><div class="info-item-1">本文以LeetCode经典题目"轮转数组"为例，从暴力解法入手，逐步优化到O(n)额外空间的解法，再通过三次翻转法实现O(1)空间复杂度的原地修改，系统讲解如何用红黑笔的比喻理解三次翻转的巧妙之处</div></div></div></a><a class="pagination-related" href="/2026/06/15/Hot%20100%20---%20%E7%BC%BA%E5%A4%B1%E7%9A%84%E7%AC%AC%E4%B8%80%E4%B8%AA%E6%AD%A3%E6%95%B0/" title="Hot 100 --- 缺失的第一个正数"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-06-15</div><div class="info-item-2">Hot 100 --- 缺失的第一个正数</div></div><div class="info-2"><div class="info-item-1">本文以LeetCode经典题目"缺失的第一个正数"为例，从暴力解法入手，逐一分析哈希表和排序两种常见优化思路为何不满足O(n)时间+O(1)空间的要求，再引出原地哈希解法，系统讲解如何利用数组本身作为哈希表，将元素放到正确的位置上</div></div></div></a><a class="pagination-related" href="/2026/06/12/Hot%20100%20---%20%E5%90%88%E5%B9%B6%E5%8C%BA%E9%97%B4/" title="Hot 100 --- 合并区间"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-06-12</div><div class="info-item-2">Hot 100 --- 合并区间</div></div><div class="info-2"><div class="info-item-1">本文以LeetCode经典题目"合并区间"为例，从暴力解法入手，分析其必须遍历全部剩余数组的原因，再通过排序将"未知"变为"已知"，系统讲解如何利用排序后天然满足的重叠判断条件，将时间复杂度从O(n²)优化到O(n log n)</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/%E5%A4%B4%E5%83%8F.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">青山木</div><div class="author-info-description">正在学习Java后端开发＋智能体开发，希望能与大家多多交流</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">78</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">156</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">4</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/LI-S-H"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/LI-S-H" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">欢迎来到我的博客，记录学习与成长的点滴。</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%80%E3%80%81%E9%A2%98%E7%9B%AE"><span class="toc-number">1.</span> <span class="toc-text">一、题目</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BA%8C%E3%80%81%E9%A2%98%E7%9B%AE%E5%88%86%E6%9E%90"><span class="toc-number">2.</span> <span class="toc-text">二、题目分析</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#1-%E9%A2%98%E7%9B%AE%E8%A6%81%E6%B1%82"><span class="toc-number">2.1.</span> <span class="toc-text">1. 题目要求</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#2-%E6%9A%B4%E5%8A%9B%E6%80%9D%E8%B7%AF%E7%9A%84%E9%97%AE%E9%A2%98"><span class="toc-number">2.2.</span> <span class="toc-text">2. 暴力思路的问题</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#3-%E6%A0%B8%E5%BF%83%E8%A7%82%E5%AF%9F%EF%BC%9A%E6%9A%B4%E5%8A%9B%E9%81%8D%E5%8E%86%E4%B8%AD%E7%9A%84%E6%B5%AA%E8%B4%B9"><span class="toc-number">2.3.</span> <span class="toc-text">3. 核心观察：暴力遍历中的浪费</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%89%E3%80%81%E6%80%9D%E8%B7%AF%E6%A6%82%E8%A7%88"><span class="toc-number">3.</span> <span class="toc-text">三、思路概览</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9B%9B%E3%80%81%E6%80%9D%E8%B7%AF%E8%AF%A6%E8%A7%A3"><span class="toc-number">4.</span> <span class="toc-text">四、思路详解</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%AC%AC%E4%B8%80%E6%AD%A5%EF%BC%9A%E6%80%8E%E4%B9%88%E5%AE%9E%E7%8E%B0-%E8%BE%B9%E9%81%8D%E5%8E%86%E8%BE%B9%E6%AF%94%E8%BE%83-%EF%BC%9F"><span class="toc-number">4.1.</span> <span class="toc-text">第一步：怎么实现&quot;边遍历边比较&quot;？</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%AC%AC%E4%BA%8C%E6%AD%A5%EF%BC%9A%E4%B8%BA%E4%BB%80%E4%B9%88%E6%98%AF%E5%8D%95%E8%B0%83%E6%A0%88%EF%BC%9F"><span class="toc-number">4.2.</span> <span class="toc-text">第二步：为什么是单调栈？</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%AC%AC%E4%B8%89%E6%AD%A5%EF%BC%9A%E4%B8%BA%E4%BB%80%E4%B9%88%E6%A0%88%E9%87%8C%E5%AD%98%E7%B4%A2%E5%BC%95%E8%80%8C%E4%B8%8D%E6%98%AF%E6%B8%A9%E5%BA%A6%E5%80%BC%EF%BC%9F"><span class="toc-number">4.3.</span> <span class="toc-text">第三步：为什么栈里存索引而不是温度值？</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%AC%AC%E4%BA%8C%E6%AD%A5%EF%BC%9A%E5%8D%95%E8%B0%83%E6%A0%88%E7%9A%84%E5%B7%A5%E4%BD%9C%E5%8E%9F%E7%90%86"><span class="toc-number">4.4.</span> <span class="toc-text">第二步：单调栈的工作原理</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%AC%AC%E4%B8%89%E6%AD%A5%EF%BC%9A%E4%B8%BA%E4%BB%80%E4%B9%88%E6%98%AF-O-n-%E8%80%8C%E4%B8%8D%E6%98%AF-O-n%C2%B2-%EF%BC%9F"><span class="toc-number">4.5.</span> <span class="toc-text">第三步：为什么是 O(n) 而不是 O(n²)？</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%AC%AC%E5%9B%9B%E6%AD%A5%EF%BC%9A%E9%81%8D%E5%8E%86%E7%BB%93%E6%9D%9F%E5%90%8E%E6%A0%88%E5%86%85%E5%89%A9%E4%BD%99%E7%9A%84%E5%85%83%E7%B4%A0"><span class="toc-number">4.6.</span> <span class="toc-text">第四步：遍历结束后栈内剩余的元素</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%AE%8C%E6%95%B4%E6%89%A7%E8%A1%8C%E8%BF%87%E7%A8%8B"><span class="toc-number">4.7.</span> <span class="toc-text">完整执行过程</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BA%94%E3%80%81%E6%80%BB%E7%BB%93"><span class="toc-number">5.</span> <span class="toc-text">五、总结</span></a></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/2026/08/11/Hot%20100%20---%20%E6%9C%80%E5%B0%8F%E6%A0%88/" title="Hot 100 --- 最小栈"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 最小栈"/></a><div class="content"><a class="title" href="/2026/08/11/Hot%20100%20---%20%E6%9C%80%E5%B0%8F%E6%A0%88/" title="Hot 100 --- 最小栈">Hot 100 --- 最小栈</a><time datetime="2026-08-11T15:00:00.000Z" title="发表于 2026-08-11 23:00:00">2026-08-11</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/08/10/Hot%20100%20---%20%E6%9C%89%E6%95%88%E7%9A%84%E6%8B%AC%E5%8F%B7/" title="Hot 100 --- 有效的括号"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 有效的括号"/></a><div class="content"><a class="title" href="/2026/08/10/Hot%20100%20---%20%E6%9C%89%E6%95%88%E7%9A%84%E6%8B%AC%E5%8F%B7/" title="Hot 100 --- 有效的括号">Hot 100 --- 有效的括号</a><time datetime="2026-08-10T15:00:00.000Z" title="发表于 2026-08-10 23:00:00">2026-08-10</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/08/09/Hot%20100%20---%20%E5%AF%BB%E6%89%BE%E4%B8%A4%E4%B8%AA%E6%AD%A3%E5%BA%8F%E6%95%B0%E7%BB%84%E7%9A%84%E4%B8%AD%E4%BD%8D%E6%95%B0/" title="Hot 100 --- 寻找两个正序数组的中位数"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 寻找两个正序数组的中位数"/></a><div class="content"><a class="title" href="/2026/08/09/Hot%20100%20---%20%E5%AF%BB%E6%89%BE%E4%B8%A4%E4%B8%AA%E6%AD%A3%E5%BA%8F%E6%95%B0%E7%BB%84%E7%9A%84%E4%B8%AD%E4%BD%8D%E6%95%B0/" title="Hot 100 --- 寻找两个正序数组的中位数">Hot 100 --- 寻找两个正序数组的中位数</a><time datetime="2026-08-09T15:30:00.000Z" title="发表于 2026-08-09 23:30:00">2026-08-09</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/08/09/Hot%20100%20---%20%E5%AF%BB%E6%89%BE%E6%97%8B%E8%BD%AC%E6%8E%92%E5%BA%8F%E6%95%B0%E7%BB%84%E4%B8%AD%E7%9A%84%E6%9C%80%E5%B0%8F%E5%80%BC/" title="Hot 100 --- 寻找旋转排序数组中的最小值"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 寻找旋转排序数组中的最小值"/></a><div class="content"><a class="title" href="/2026/08/09/Hot%20100%20---%20%E5%AF%BB%E6%89%BE%E6%97%8B%E8%BD%AC%E6%8E%92%E5%BA%8F%E6%95%B0%E7%BB%84%E4%B8%AD%E7%9A%84%E6%9C%80%E5%B0%8F%E5%80%BC/" title="Hot 100 --- 寻找旋转排序数组中的最小值">Hot 100 --- 寻找旋转排序数组中的最小值</a><time datetime="2026-08-09T15:00:00.000Z" title="发表于 2026-08-09 23:00:00">2026-08-09</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/08/08/Hot%20100%20---%20%E6%90%9C%E7%B4%A2%E6%97%8B%E8%BD%AC%E6%8E%92%E5%BA%8F%E6%95%B0%E7%BB%84/" title="Hot 100 --- 搜索旋转排序数组"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 搜索旋转排序数组"/></a><div class="content"><a class="title" href="/2026/08/08/Hot%20100%20---%20%E6%90%9C%E7%B4%A2%E6%97%8B%E8%BD%AC%E6%8E%92%E5%BA%8F%E6%95%B0%E7%BB%84/" title="Hot 100 --- 搜索旋转排序数组">Hot 100 --- 搜索旋转排序数组</a><time datetime="2026-08-08T15:00:00.000Z" title="发表于 2026-08-08 23:00:00">2026-08-08</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By 青山木</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.5.4"></script><script src="/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script>
+(function() {
+  /* 仅在首页标题上方插入头像 */
+  if (window.location.pathname !== '/' && !window.location.pathname.endsWith('/index.html')) return;
+  var siteTitle = document.getElementById('site-title');
+  if (siteTitle) {
+    var avatar = document.createElement('img');
+    avatar.src = '/img/头像.jpg';
+    avatar.alt = 'avatar';
+    avatar.className = 'avatar-img';
+    siteTitle.parentNode.insertBefore(avatar, siteTitle);
+  }
+})();
+</script>
+<script>
+(function() {
+  function initMermaid() {
+    if (window.mermaid) return Promise.resolve();
+    return new Promise(function(resolve, reject) {
+      var script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/mermaid@11.12.2/dist/mermaid.min.js';
+      script.onload = function() {
+        mermaid.initialize({
+          startOnLoad: false,
+          // 图表主题固定，避免站点深浅色切换时重新解析整篇文章的所有 Mermaid 图。
+          theme: 'dark',
+          securityLevel: 'loose'
+        });
+        resolve();
+      };
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  }
+
+  // Mermaid 会异步改变文章高度；目录跳转必须等所有图表完成布局后再读取标题位置。
+  window.mermaidReady = Promise.resolve();
+  var renderSequence = 0;
+
+  function waitForStableLayout() {
+    return new Promise(function(resolve) {
+      requestAnimationFrame(function() {
+        requestAnimationFrame(function() {
+          // 让 SVG 内的 foreignObject 完成一次实际布局，再刷新 Butterfly 的标题位置缓存。
+          setTimeout(resolve, 50);
+        });
+      });
+    });
+  }
+
+  function showMermaidSource(pre) {
+    pre.hidden = false;
+    pre.style.display = 'block';
+    pre.style.color = '#d32f2f';
+    pre.style.whiteSpace = 'pre-wrap';
+    pre.style.fontSize = '13px';
+  }
+
+  function refreshTocPositions() {
+    // Butterfly 只在 resize 时重新缓存标题坐标。
+    window.dispatchEvent(new Event('resize'));
+    document.dispatchEvent(new CustomEvent('mermaid:rendered'));
+  }
+
+  function renderMermaidDiagrams() {
+    var wraps = document.querySelectorAll('#article-container .mermaid-wrap');
+    if (wraps.length === 0) {
+      window.mermaidReady = Promise.resolve();
+      return window.mermaidReady;
+    }
+
+    var renderTask = initMermaid().then(function() {
+      return Promise.all(Array.prototype.map.call(wraps, function(wrap, index) {
+        var pre = wrap.querySelector('pre.mermaid-src');
+        if (!pre || pre.dataset.rendered === 'true') return Promise.resolve();
+
+        var code = pre.textContent;
+        var id = 'mermaid-' + index + '-' + (++renderSequence);
+        return Promise.resolve().then(function() {
+          return mermaid.render(id, code);
+        }).then(function(result) {
+          pre.dataset.rendered = 'true';
+          pre.style.display = 'none';
+          var div = document.createElement('div');
+          div.innerHTML = result.svg;
+          wrap.insertBefore(div.firstChild, pre.nextSibling);
+        }).catch(function(err) {
+          console.error('[Mermaid] Block #' + index + ' render failed:', err);
+          showMermaidSource(pre);
+        });
+      }));
+    }).then(function() {
+      return waitForStableLayout();
+    }).then(function() {
+      refreshTocPositions();
+    }).catch(function(err) {
+      console.error('[Mermaid] Failed to load mermaid.js:', err);
+      wraps.forEach(function(wrap) {
+        var pre = wrap.querySelector('pre.mermaid-src');
+        if (pre) showMermaidSource(pre);
+      });
+    });
+
+    window.mermaidReady = renderTask;
+    return renderTask;
+  }
+
+  // 页面加载完成后渲染
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', renderMermaidDiagrams);
+  } else {
+    renderMermaidDiagrams();
+  }
+
+  // 拦截目录点击：若图表仍在渲染，等待布局稳定后按实时坐标滚动。
+  // 使用捕获阶段，避免 Butterfly 先按渲染前的坐标启动平滑滚动。
+  var tocNavigationSequence = 0;
+  document.addEventListener('click', function(e) {
+    var link = e.target.closest('#card-toc .toc-link');
+    if (!link) return;
+
+    var href = link.getAttribute('href') || '';
+    var hashIndex = href.indexOf('#');
+    if (hashIndex < 0) return;
+
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    var navigationSequence = ++tocNavigationSequence;
+    var headingId = decodeURI(href.slice(hashIndex + 1));
+
+    (window.mermaidReady || Promise.resolve()).then(function() {
+      return waitForStableLayout();
+    }).then(function() {
+      if (navigationSequence !== tocNavigationSequence) return;
+      var heading = document.getElementById(headingId);
+      if (!heading) return;
+
+      // 使用点击时的实际位置，避免异步 SVG 插入改变标题高度后跳错章节。
+      var top = heading.getBoundingClientRect().top + window.scrollY;
+      if (window.btf && window.btf.scrollToDest) {
+        window.btf.scrollToDest(top, 300);
+      } else {
+        window.scrollTo({ top: top, behavior: 'smooth' });
+      }
+    });
+  }, true);
+
+})();
+</script>
+<script id="canvas_nest" defer="defer" color="107,159,255" opacity="0.6" zIndex="-1" count="99" mobile="false" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/dist/canvas-nest.min.js"></script></div></body></html>
