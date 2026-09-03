@@ -1,0 +1,556 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="dark"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>Hot 100 --- 柱状图中最大的矩形 | 青山木</title><meta name="author" content="青山木"><meta name="copyright" content="青山木"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#0d1117"><meta name="description" content="本文讲解柱状图中最大的矩形的核心思路：用单调递增栈一次遍历找到每根柱子的左右边界，从 O(n²) 降到 O(n)">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Hot 100 --- 柱状图中最大的矩形">
+<meta property="og:url" content="https://li-s-h.github.io/2026/09/02/Hot%20100%20---%20%E6%9F%B1%E7%8A%B6%E5%9B%BE%E4%B8%AD%E6%9C%80%E5%A4%A7%E7%9A%84%E7%9F%A9%E5%BD%A2/index.html">
+<meta property="og:site_name" content="青山木">
+<meta property="og:description" content="本文讲解柱状图中最大的矩形的核心思路：用单调递增栈一次遍历找到每根柱子的左右边界，从 O(n²) 降到 O(n)">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://li-s-h.github.io/img/title-picture/%E5%8A%9B%E6%89%A3.jpg">
+<meta property="article:published_time" content="2026-09-02T15:59:00.000Z">
+<meta property="article:modified_time" content="2026-09-02T17:29:24.850Z">
+<meta property="article:author" content="青山木">
+<meta property="article:tag" content="\[单调栈, 栈, 数组, 算法, leetcode]">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://li-s-h.github.io/img/title-picture/%E5%8A%9B%E6%89%A3.jpg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Hot 100 --- 柱状图中最大的矩形",
+  "url": "https://li-s-h.github.io/2026/09/02/Hot%20100%20---%20%E6%9F%B1%E7%8A%B6%E5%9B%BE%E4%B8%AD%E6%9C%80%E5%A4%A7%E7%9A%84%E7%9F%A9%E5%BD%A2/",
+  "image": "https://li-s-h.github.io/img/title-picture/%E5%8A%9B%E6%89%A3.jpg",
+  "datePublished": "2026-09-02T15:59:00.000Z",
+  "dateModified": "2026-09-02T17:29:24.850Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "青山木",
+      "url": "https://LI-S-H.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/%E5%A4%B4%E5%83%8F.jpg"><link rel="canonical" href="https://li-s-h.github.io/2026/09/02/Hot%20100%20---%20%E6%9F%B1%E7%8A%B6%E5%9B%BE%E4%B8%AD%E6%9C%80%E5%A4%A7%E7%9A%84%E7%9F%A9%E5%BD%A2/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="stylesheet" href="/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d1117')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', 'ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: 'Hot 100 --- 柱状图中最大的矩形',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><style>
+  #site-title { font-size: 1.76em !important; }
+  #subtitle { font-size: 0.88em !important; }
+
+  /* 卡片悬停放大 + 辉光 */
+  #recent-posts .recent-post-item {
+    transition: transform .3s ease, box-shadow .3s ease, border-color .3s ease;
+  }
+  #recent-posts .recent-post-item:hover {
+    transform: scale(1.025) !important;
+    border-color: rgba(107,159,255,0.5) !important;
+    box-shadow: 0 0 0 1px rgba(107,159,255,0.15),
+                0 0 45px rgba(107,159,255,0.12),
+                0 8px 30px rgba(0,0,0,0.4) !important;
+  }
+
+  /* 首页标题上方头像 */
+  #site-info .avatar-img {
+    display: block;
+    width: 144px;
+    height: 144px;
+    border-radius: 50%;
+    margin: 0 auto 20px;
+    border: 3px solid rgba(107,159,255,0.6);
+    box-shadow: 0 0 30px rgba(107,159,255,0.35),
+                0 0 60px rgba(107,159,255,0.15),
+                0 4px 20px rgba(0,0,0,0.25);
+    object-fit: cover;
+    transition: box-shadow .4s ease, border-color .4s ease;
+  }
+  #site-info .avatar-img:hover {
+    border-color: rgba(107,159,255,0.9);
+    box-shadow: 0 0 40px rgba(107,159,255,0.5),
+                0 0 80px rgba(107,159,255,0.25),
+                0 4px 20px rgba(0,0,0,0.25);
+  }
+
+  /* Mermaid 图表容器样式 */
+  .mermaid-wrap {
+    position: relative;
+    /* 图表固定使用深色画布，主题切换无需销毁并重绘所有 SVG。 */
+    background: #1e1e1e !important;
+    padding: 12px !important;
+    border-radius: 8px !important;
+    border: 1px solid #444 !important;
+    text-align: center;
+    margin: 0 0 20px 0;
+    overflow-x: auto;
+  }
+  .mermaid-wrap > svg {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+  }
+  /* 深色图表画布在两种站点主题下保持一致，避免切换时重排。 */
+  [data-theme="dark"] .mermaid-wrap {
+    background: #1e1e1e !important;
+    border-color: #444 !important;
+  }
+</style>
+<meta name="generator" content="Hexo 7.3.0"></head><body><div class="bg-animation" id="web_bg" style="background-image: url(/img/%E8%83%8C%E6%99%AF%E5%9B%BE.webp);"></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(/img/title-picture/%E5%8A%9B%E6%89%A3.jpg);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">青山木</span></a><a class="nav-page-title" href="/"><span class="site-name">Hot 100 --- 柱状图中最大的矩形</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">Hot 100 --- 柱状图中最大的矩形</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-09-02T15:59:00.000Z" title="发表于 2026-09-02 23:59:00">2026-09-02</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-09-02T17:29:24.850Z" title="更新于 2026-09-03 01:29:24">2026-09-03</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/LeetCode-%E7%83%AD%E9%A2%98-HOT-100/">LeetCode 热题 HOT 100</a></span></div><div class="meta-secondline"></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><blockquote>
+<p><strong>本文概览</strong>：本文讲解柱状图中最大的矩形的核心思路：用单调递增栈一次遍历找到每根柱子的左右边界，从 O(n²) 降到 O(n)</p>
+</blockquote>
+<hr>
+<h3 id="一、题目"><a href="#一、题目" class="headerlink" title="一、题目"></a>一、题目</h3><p><img src="/img/hot%20100%20%E6%9F%B1%E7%8A%B6%E5%9B%BE%E4%B8%AD%E6%9C%80%E5%A4%A7%E7%9A%84%E7%9F%A9%E5%BD%A2/hot%20100%20%E6%9F%B1%E7%8A%B6%E5%9B%BE%E4%B8%AD%E6%9C%80%E5%A4%A7%E7%9A%84%E7%9F%A9%E5%BD%A2.png" alt="image-20250724013000001"></p>
+<hr>
+<h3 id="二、题目分析"><a href="#二、题目分析" class="headerlink" title="二、题目分析"></a>二、题目分析</h3><h4 id="1-题目要求"><a href="#1-题目要求" class="headerlink" title="1. 题目要求"></a>1. 题目要求</h4><p>给定一个非负整数数组 <code>heights</code>，每个元素表示柱状图中该位置柱子的高度，求能勾勒出的<strong>最大矩形面积</strong>。</p>
+<p><strong>例子</strong>：<code>heights = [2, 1, 5, 6, 2, 3]</code></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">柱状图示意（每列代表一根柱子，列高 = 高度值）：</span><br><span class="line"></span><br><span class="line">         6</span><br><span class="line">      5  6</span><br><span class="line">      5  6</span><br><span class="line">      5  6</span><br><span class="line">      5  6     3</span><br><span class="line">2     5  6  2  3</span><br><span class="line">2  1  5  6  2  3</span><br><span class="line">---------------------</span><br><span class="line">0  1  2  3  4  5      ← 索引</span><br></pre></td></tr></table></figure>
+
+<p>最大矩形是中间的 <code>[5, 6]</code>，高度 5、宽度 2，面积 &#x3D; 5 × 2 &#x3D; <strong>10</strong>。</p>
+<h4 id="2-怎么才算一个-矩形-？"><a href="#2-怎么才算一个-矩形-？" class="headerlink" title="2. 怎么才算一个&quot;矩形&quot;？"></a>2. 怎么才算一个&quot;矩形&quot;？</h4><p>随便挑一根柱子，比如挑索引 4（高度 2）的柱子来看：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">0  1  2  3  4  5        ← 索引</span><br><span class="line">2  1  5  6  2  3        ← 高度</span><br><span class="line">            ↑</span><br><span class="line">     当前柱子（索引4）</span><br></pre></td></tr></table></figure>
+
+<p><strong>以这根柱子的高度 2 作为矩形的高</strong>，那么这个矩形要往左右扩展，什么情况下这个高度不成立？</p>
+<blockquote>
+<p><strong>左边或右边出现了一根比它矮的柱子</strong>，这个高度就不成立了。</p>
+</blockquote>
+<p>因为矩形必须连续，碰到更矮的柱子就撑不过去。</p>
+<p><strong>找左右边界</strong>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">0  1  2  3  4  5        ← 索引</span><br><span class="line">2  1  5  6  2  3        ← 高度</span><br><span class="line">   ↑        ↑</span><br><span class="line"> 左边界    当前柱子</span><br><span class="line">(索引1)   (索引4)</span><br><span class="line"></span><br><span class="line">→ 左边界：高度 1 &lt; 2，矩形往左扩到这就停</span><br><span class="line">→ 右边界：右边没有比 2 更矮的，扩到最右边为止</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><p><strong>左边界</strong>：索引 1（高度 1，是第一根比 2 矮的柱子）</p>
+</li>
+<li><p><strong>右边界</strong>：没有比它更矮的，所以到最右边为止</p>
+</li>
+</ul>
+<h4 id="3-面积公式怎么算？"><a href="#3-面积公式怎么算？" class="headerlink" title="3. 面积公式怎么算？"></a>3. 面积公式怎么算？</h4><p>矩形能覆盖的柱子是 <code>[5, 6, 2, 3]</code>，宽度肉眼可见是 4。但代码里怎么算？</p>
+<p><strong>技巧</strong>：右边界没有时，自己在数组末尾补一根高度为 0 的&quot;虚拟柱子&quot;。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">0  1  2  3  4  5        ← 索引</span><br><span class="line">2  1  5  6  2  3        ← 原数组</span><br><span class="line">2  1  5  6  2  3  0     ← 末尾补一个 0</span><br><span class="line">                  ↑</span><br><span class="line">         虚拟柱子（索引6）</span><br></pre></td></tr></table></figure>
+
+<p>现在右边界就是索引 6，左边界是索引 1，宽度公式：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">width = right - left - 1</span><br><span class="line">      = 6 - 1 - 1</span><br><span class="line">      = 4</span><br><span class="line">area  = height * width</span><br><span class="line">      = 2 * 4</span><br><span class="line">      = 8</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p><strong>公式记忆</strong>：左右边界都是&quot;比当前柱子矮的柱子&quot;，所以宽度要把两根边界柱子都排除掉，即 <code>right - left - 1</code>。</p>
+</blockquote>
+<h4 id="4-暴力思路的问题"><a href="#4-暴力思路的问题" class="headerlink" title="4. 暴力思路的问题"></a>4. 暴力思路的问题</h4><p><strong>最直觉的做法</strong>：遍历每根柱子，每次都向左找第一根比它矮的，向右找第一根比它矮的。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">for</span> (<span class="type">int</span> <span class="variable">i</span> <span class="operator">=</span> <span class="number">0</span>; i &lt; n; i++) &#123;</span><br><span class="line">    <span class="comment">// 找左边界</span></span><br><span class="line">    <span class="type">int</span> <span class="variable">left</span> <span class="operator">=</span> -<span class="number">1</span>;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> <span class="variable">j</span> <span class="operator">=</span> i - <span class="number">1</span>; j &gt;= <span class="number">0</span>; j--) &#123;</span><br><span class="line">        <span class="keyword">if</span> (heights[j] &lt; heights[i]) &#123;</span><br><span class="line">            left = j;</span><br><span class="line">            <span class="keyword">break</span>;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 找右边界</span></span><br><span class="line">    <span class="type">int</span> <span class="variable">right</span> <span class="operator">=</span> n;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> <span class="variable">j</span> <span class="operator">=</span> i + <span class="number">1</span>; j &lt; n; j++) &#123;</span><br><span class="line">        <span class="keyword">if</span> (heights[j] &lt; heights[i]) &#123;</span><br><span class="line">            right = j;</span><br><span class="line">            <span class="keyword">break</span>;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 计算面积</span></span><br><span class="line">    maxArea = Math.max(maxArea, heights[i] * (right - left - <span class="number">1</span>));</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>时间复杂度</strong>：O(n²)，每根柱子都要重复扫已经扫过的元素。</p>
+<h4 id="5-核心观察：暴力遍历中的浪费"><a href="#5-核心观察：暴力遍历中的浪费" class="headerlink" title="5. 核心观察：暴力遍历中的浪费"></a>5. 核心观察：暴力遍历中的浪费</h4><p><strong>关键问题</strong>：暴力遍历里，找柱子 i 的左边界时，已经把 <code>[0, i-1]</code> 都扫了一遍；但找柱子 <code>i+1</code> 的左边界时，又要重新扫 <code>[0, i]</code>，这些信息完全重复了。</p>
+<p><strong>优化思路</strong>：能不能只遍历一次，就按顺序找到每根柱子的左右边界？</p>
+<p><strong>关键数据结构</strong>：单调递增栈。</p>
+<ul>
+<li><p>维护一个高度<strong>递增</strong>的栈（栈里存索引）</p>
+</li>
+<li><p>当一根新柱子比栈顶柱子<strong>矮</strong>时，栈顶柱子的<strong>右边界</strong>就找到了（就是这根新柱子）</p>
+</li>
+<li><p>栈顶柱子的<strong>左边界</strong>就是它在栈里的下一个元素（栈顶出栈后，新的栈顶就是左边界）</p>
+</li>
+</ul>
+<p><strong>和暴力最大的区别</strong>：不是实时算每根柱子的面积，而是<strong>延时</strong>计算——一直憋着算栈顶，到最后一样能算完所有柱子。</p>
+<hr>
+<h3 id="三、思路概览"><a href="#三、思路概览" class="headerlink" title="三、思路概览"></a>三、思路概览</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="type">int</span> <span class="title function_">largestRectangleArea</span><span class="params">(<span class="type">int</span>[] heights)</span> &#123;</span><br><span class="line">    <span class="keyword">if</span> (heights.length == <span class="number">0</span>) &#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="type">int</span> <span class="variable">maxArea</span> <span class="operator">=</span> <span class="number">0</span>;</span><br><span class="line">    <span class="type">int</span> <span class="variable">n</span> <span class="operator">=</span> heights.length;</span><br><span class="line">    <span class="comment">// 头尾各加一个 0 作为哨兵</span></span><br><span class="line">    <span class="type">int</span>[] newHeight = <span class="keyword">new</span> <span class="title class_">int</span>[n + <span class="number">2</span>];</span><br><span class="line">    System.arraycopy(heights, <span class="number">0</span>, newHeight, <span class="number">1</span>, n);</span><br><span class="line">    <span class="comment">// 单调递增栈（存索引）</span></span><br><span class="line">    Deque&lt;Integer&gt; stack = <span class="keyword">new</span> <span class="title class_">ArrayDeque</span>&lt;&gt;();</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> <span class="variable">i</span> <span class="operator">=</span> <span class="number">0</span>; i &lt; n + <span class="number">2</span>; i++) &#123;</span><br><span class="line">        <span class="comment">// 若栈不为空且当前元素小于栈顶元素，则弹出栈顶元素并计算面积</span></span><br><span class="line">        <span class="keyword">while</span> (!stack.isEmpty() &amp;&amp; newHeight[i] &lt; newHeight[stack.peekLast()]) &#123;</span><br><span class="line">            <span class="comment">// 当前值高度</span></span><br><span class="line">            <span class="type">int</span> <span class="variable">height</span> <span class="operator">=</span> newHeight[stack.pollLast()];</span><br><span class="line">            <span class="comment">// 左边界</span></span><br><span class="line">            <span class="type">int</span> <span class="variable">left</span> <span class="operator">=</span> stack.peekLast();</span><br><span class="line">            <span class="comment">// 右边界</span></span><br><span class="line">            <span class="type">int</span> <span class="variable">right</span> <span class="operator">=</span> i;</span><br><span class="line">            <span class="comment">// 宽度</span></span><br><span class="line">            <span class="type">int</span> <span class="variable">width</span> <span class="operator">=</span> right - left - <span class="number">1</span>;</span><br><span class="line">            <span class="comment">// 面积</span></span><br><span class="line">            maxArea = Math.max(maxArea, height * width);</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// 入栈</span></span><br><span class="line">        stack.addLast(i);</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> maxArea;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>思路简要说明：</p>
+<ol>
+<li><strong>哨兵数组</strong>：在原数组头尾各加一个 0，保证栈内元素最后全部能弹出</li>
+<li><strong>单调递增栈</strong>：栈内索引对应的高度从底到顶递增</li>
+<li><strong>左边界</strong>：栈顶出栈后，新的栈顶就是它的左边界</li>
+<li><strong>右边界</strong>：触发栈顶出栈的当前柱子就是右边界</li>
+<li><strong>面积公式</strong>：<code>height * (right - left - 1)</code></li>
+<li><strong>延时计算</strong>：不是实时算每根柱子，而是憋住算栈顶，最后一定能算完全部</li>
+</ol>
+<hr>
+<h3 id="四、思路详解"><a href="#四、思路详解" class="headerlink" title="四、思路详解"></a>四、思路详解</h3><h4 id="第一步：左右边界到底怎么确定？"><a href="#第一步：左右边界到底怎么确定？" class="headerlink" title="第一步：左右边界到底怎么确定？"></a>第一步：左右边界到底怎么确定？</h4><p>回到核心定义：<strong>以柱子 i 的高度为矩形的高时，矩形能向左右延伸到哪？</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">0  1  2  3  4  5        ← 索引</span><br><span class="line">2  1  5  6  2  3        ← 高度</span><br><span class="line">   ↑        ↑</span><br><span class="line"> 左边界    当前柱子 i</span><br><span class="line">（第一根更矮）</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><p><strong>左边界</strong>：从柱子 i 往左看，第一根<strong>比</strong> <strong><code>heights[i]</code></strong> <strong>矮</strong>的柱子</p>
+</li>
+<li><p><strong>右边界</strong>：从柱子 i 往右看，第一根<strong>比</strong> <strong><code>heights[i]</code></strong> <strong>矮</strong>的柱子</p>
+</li>
+</ul>
+<p>矩形的高是 <code>heights[i]</code>，宽度是中间这段（不含边界），所以：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">width = right - left - 1</span><br><span class="line">area  = heights[i] * (right - left - 1)</span><br></pre></td></tr></table></figure>
+
+<h4 id="第二步：为什么是单调递增栈？"><a href="#第二步：为什么是单调递增栈？" class="headerlink" title="第二步：为什么是单调递增栈？"></a>第二步：为什么是单调递增栈？</h4><p><strong>问题</strong>：怎么一次遍历就把每根柱子的左右边界都找出来？</p>
+<p><strong>思考</strong>：如果遍历过程中，已经处理过的柱子的高度是<strong>递增</strong>的，那么对于一根新柱子：</p>
+<ul>
+<li><p>如果新柱子比栈顶高 → 直接入栈，栈顶的右边界还没到</p>
+</li>
+<li><p>如果新柱子比栈顶矮 → <strong>栈顶柱子的右边界就是这根新柱子</strong>！</p>
+</li>
+</ul>
+<p><strong>那左边界呢？</strong></p>
+<p>栈顶柱子出栈后，<strong>新的栈顶</strong>就是它在栈里的下一个元素，这个元素的高度比它矮（因为递增），所以就是它的<strong>左边界</strong>。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">栈内（高度递增，左边是栈底，右边是栈顶）：</span><br><span class="line"></span><br><span class="line">[A]  [B]  [C]</span><br><span class="line">           ↑</span><br><span class="line">     C 是当前要算的柱子</span><br><span class="line"></span><br><span class="line">新柱子 D 比 C 矮：</span><br><span class="line">  C 出栈</span><br><span class="line">  C 的左边界 = B（新的栈顶）</span><br><span class="line">  C 的右边界 = D</span><br><span class="line">  area = heights[C] * (D - B - 1)</span><br></pre></td></tr></table></figure>
+
+<p><strong>单调递增栈的本质</strong>：栈内每根柱子的左边界，就是它在栈里的前一根柱子；右边界，由后面第一个比它矮的柱子触发。</p>
+<h4 id="第三步：为什么要-延时-计算？"><a href="#第三步：为什么要-延时-计算？" class="headerlink" title="第三步：为什么要&quot;延时&quot;计算？"></a>第三步：为什么要&quot;延时&quot;计算？</h4><p><strong>暴力思路</strong>：遍历到柱子 i 时，立刻算它的面积 → 需要重新扫左右边界 → O(n²)</p>
+<p><strong>单调栈思路</strong>：遍历到柱子 i 时，<strong>不一定是算柱子 i 的面积</strong>，而是算<strong>栈顶柱子</strong>的面积。</p>
+<p><strong>为什么这样也能算完所有柱子？</strong></p>
+<ul>
+<li><p>每根柱子入栈一次</p>
+</li>
+<li><p>每根柱子出栈一次（被某个更矮的柱子触发）</p>
+</li>
+<li><p>出栈的那一刻，它的左右边界都已确定，立即算面积</p>
+</li>
+</ul>
+<p>所以遍历结束时，所有柱子都必然被算过一次。</p>
+<h4 id="第四步：为什么要加哨兵？"><a href="#第四步：为什么要加哨兵？" class="headerlink" title="第四步：为什么要加哨兵？"></a>第四步：为什么要加哨兵？</h4><p><strong>问题</strong>：如果数组本身就是递增的，比如 <code>[1, 2, 3, 4, 5]</code>，遍历到最后一根时，栈里所有元素都没机会出栈（因为没有更矮的柱子触发它们）。</p>
+<p><strong>解决</strong>：在数组末尾加一个 0，0 比任何柱子都矮，必然能把栈里所有元素全部弹出。</p>
+<p><strong>开头也要加 0</strong>：保证第一根柱子也有左边界（栈底的 0 就是它的左边界），同时避免栈空判断。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">0  2  1  5  6  2  3  0        ← newHeight（头尾各补一个 0）</span><br><span class="line">↑                    ↑</span><br><span class="line">头哨兵              尾哨兵</span><br><span class="line">（索引0）         （索引7）</span><br></pre></td></tr></table></figure>
+
+<p><strong>哨兵的双重作用</strong>：</p>
+<ol>
+<li><strong>尾哨兵</strong>：保证遍历结束时栈内所有元素都能弹出，确保每根柱子都被算到</li>
+<li><strong>头哨兵</strong>：作为第一根柱子的左边界，避免 <code>stack.peekLast()</code> 在栈只有一个元素时出错</li>
+</ol>
+<h4 id="第五步：为什么是-O-n-？"><a href="#第五步：为什么是-O-n-？" class="headerlink" title="第五步：为什么是 O(n)？"></a>第五步：为什么是 O(n)？</h4><p><strong>看起来有 while 嵌套在 for 里，应该是 O(n²)？</strong></p>
+<p><strong>实际上</strong>：每个索引最多入栈一次，出栈一次。</p>
+<ul>
+<li><p>外层 for 循环：n + 2 次</p>
+</li>
+<li><p>内层 while 循环：所有索引总共出栈 n + 2 次</p>
+</li>
+</ul>
+<p>所以总操作次数是 2(n+2)，时间复杂度 **O(n)**。</p>
+<h4 id="完整执行过程"><a href="#完整执行过程" class="headerlink" title="完整执行过程"></a>完整执行过程</h4><p>以 <code>heights = [2, 1, 5, 6, 2, 3]</code> 为例，加哨兵后 <code>newHeight = [0, 2, 1, 5, 6, 2, 3, 0]</code>（长度 8）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br></pre></td><td class="code"><pre><span class="line">初始：stack = [], maxArea = 0</span><br><span class="line"></span><br><span class="line">i=0, height=0：</span><br><span class="line">  栈空，0 入栈</span><br><span class="line">  stack = [0]</span><br><span class="line"></span><br><span class="line">i=1, height=2：</span><br><span class="line">  2 &gt; 0（栈顶），2 入栈</span><br><span class="line">  stack = [0, 1]</span><br><span class="line"></span><br><span class="line">i=2, height=1：</span><br><span class="line">  1 &lt; 2（栈顶），弹出 1</span><br><span class="line">    height=2, left=0, right=2, width=2-0-1=1, area=2×1=2</span><br><span class="line">    maxArea = max(0, 2) = 2</span><br><span class="line">  1 &gt; 0（栈顶），1 入栈</span><br><span class="line">  stack = [0, 2]</span><br><span class="line"></span><br><span class="line">i=3, height=5：</span><br><span class="line">  5 &gt; 1（栈顶），5 入栈</span><br><span class="line">  stack = [0, 2, 3]</span><br><span class="line"></span><br><span class="line">i=4, height=6：</span><br><span class="line">  6 &gt; 5（栈顶），6 入栈</span><br><span class="line">  stack = [0, 2, 3, 4]</span><br><span class="line"></span><br><span class="line">i=5, height=2：</span><br><span class="line">  2 &lt; 6（栈顶），弹出 4</span><br><span class="line">    height=6, left=3, right=5, width=5-3-1=1, area=6×1=6</span><br><span class="line">    maxArea = max(2, 6) = 6</span><br><span class="line">  2 &lt; 5（栈顶），弹出 3</span><br><span class="line">    height=5, left=2, right=5, width=5-2-1=2, area=5×2=10</span><br><span class="line">    maxArea = max(6, 10) = 10</span><br><span class="line">  2 &gt; 1（栈顶），2 入栈</span><br><span class="line">  stack = [0, 2, 5]</span><br><span class="line"></span><br><span class="line">i=6, height=3：</span><br><span class="line">  3 &gt; 2（栈顶），3 入栈</span><br><span class="line">  stack = [0, 2, 5, 6]</span><br><span class="line"></span><br><span class="line">i=7, height=0（尾哨兵）：</span><br><span class="line">  0 &lt; 3（栈顶），弹出 6</span><br><span class="line">    height=3, left=5, right=7, width=7-5-1=1, area=3×1=3</span><br><span class="line">    maxArea = max(10, 3) = 10</span><br><span class="line">  0 &lt; 2（栈顶），弹出 5</span><br><span class="line">    height=2, left=2, right=7, width=7-2-1=4, area=2×4=8</span><br><span class="line">    maxArea = max(10, 8) = 10</span><br><span class="line">  0 &lt; 1（栈顶），弹出 2</span><br><span class="line">    height=1, left=0, right=7, width=7-0-1=6, area=1×6=6</span><br><span class="line">    maxArea = max(10, 6) = 10</span><br><span class="line">  0 = 0（栈顶），不满足 &lt; 条件，停止弹出</span><br><span class="line">  0 入栈</span><br><span class="line">  stack = [0, 7]</span><br><span class="line"></span><br><span class="line">遍历结束，maxArea = 10 ✓</span><br></pre></td></tr></table></figure>
+
+<p><strong>关键观察</strong>：</p>
+<ul>
+<li><p>最大面积 10 在 <code>i=5</code> 时算出，对应中间的柱子 <code>[5, 6]</code>（高度 5，宽度 2）</p>
+</li>
+<li><p>尾哨兵 0 在 <code>i=7</code> 时把栈内剩余柱子全部弹出，保证不漏算</p>
+</li>
+<li><p>最后栈里剩 <code>[0, 7]</code>（两个哨兵），不影响结果</p>
+</li>
+</ul>
+<h4 id="与-接雨水-的对比"><a href="#与-接雨水-的对比" class="headerlink" title="与&quot;接雨水&quot;的对比"></a>与&quot;接雨水&quot;的对比</h4><table>
+<thead>
+<tr>
+<th>维度</th>
+<th>接雨水</th>
+<th>柱状图中最大的矩形</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>关注点</td>
+<td>凹槽能存多少水</td>
+<td>单根柱子能撑多大矩形</td>
+</tr>
+<tr>
+<td>单调栈方向</td>
+<td>递减栈（找下一个更高）</td>
+<td>递增栈（找下一个更矮）</td>
+</tr>
+<tr>
+<td>触发条件</td>
+<td>新柱子比栈顶高</td>
+<td>新柱子比栈顶矮</td>
+</tr>
+<tr>
+<td>边界定义</td>
+<td>左右更高柱子围成凹槽</td>
+<td>左右更矮柱子围成矩形</td>
+</tr>
+</tbody></table>
+<hr>
+<h3 id="五、总结"><a href="#五、总结" class="headerlink" title="五、总结"></a>五、总结</h3><p>柱状图中最大的矩形的核心思路：</p>
+<ol>
+<li><strong>矩形定义</strong>：以柱子 i 的高度为高，左右边界是第一根比它矮的柱子</li>
+<li><strong>面积公式</strong>：<code>height * (right - left - 1)</code></li>
+<li><strong>单调递增栈</strong>：栈顶出栈后，新栈顶是左边界；触发出栈的柱子是右边界</li>
+<li><strong>延时计算</strong>：遍历到新柱子时算的是栈顶柱子的面积，不是新柱子的</li>
+<li><strong>哨兵技巧</strong>：头尾加 0，保证所有柱子都能出栈被算到</li>
+<li>**时间复杂度 O(n)**：每个索引最多入栈一次，出栈一次</li>
+<li>**空间复杂度 O(n)**：栈最多存储 n+2 个索引</li>
+</ol>
+<p><strong>单调栈的适用场景</strong>：</p>
+<ul>
+<li><p>找&quot;下一个更大&#x2F;更小的元素&quot;</p>
+</li>
+<li><p>需要维护一个单调序列</p>
+</li>
+<li><p>暴力遍历中有重复的边界查找</p>
+</li>
+</ul>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://LI-S-H.github.io">青山木</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://li-s-h.github.io/2026/09/02/Hot%20100%20---%20%E6%9F%B1%E7%8A%B6%E5%9B%BE%E4%B8%AD%E6%9C%80%E5%A4%A7%E7%9A%84%E7%9F%A9%E5%BD%A2/">https://li-s-h.github.io/2026/09/02/Hot%20100%20---%20%E6%9F%B1%E7%8A%B6%E5%9B%BE%E4%B8%AD%E6%9C%80%E5%A4%A7%E7%9A%84%E7%9F%A9%E5%BD%A2/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://LI-S-H.github.io" target="_blank">青山木</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E5%8D%95%E8%B0%83%E6%A0%88-%E6%A0%88-%E6%95%B0%E7%BB%84-%E7%AE%97%E6%B3%95-leetcode/">\[单调栈, 栈, 数组, 算法, leetcode]</a></div><div class="post-share"><div class="social-share" data-image="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/2026/08/11/Hot%20100%20---%20%E6%9C%80%E5%B0%8F%E6%A0%88/" title="Hot 100 --- 最小栈"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="onerror=null;src='/img/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">Hot 100 --- 最小栈</div></div><div class="info-2"><div class="info-item-1">本文讲解最小栈的核心思路：用辅助栈记录每个时刻的最小值，实现 O(1) 获取最小值</div></div></div></a></nav></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/%E5%A4%B4%E5%83%8F.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">青山木</div><div class="author-info-description">正在学习Java后端开发＋智能体开发，希望能与大家多多交流</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">79</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">157</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">4</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/LI-S-H"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/LI-S-H" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">欢迎来到我的博客，记录学习与成长的点滴。</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%80%E3%80%81%E9%A2%98%E7%9B%AE"><span class="toc-number">1.</span> <span class="toc-text">一、题目</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BA%8C%E3%80%81%E9%A2%98%E7%9B%AE%E5%88%86%E6%9E%90"><span class="toc-number">2.</span> <span class="toc-text">二、题目分析</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#1-%E9%A2%98%E7%9B%AE%E8%A6%81%E6%B1%82"><span class="toc-number">2.1.</span> <span class="toc-text">1. 题目要求</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#2-%E6%80%8E%E4%B9%88%E6%89%8D%E7%AE%97%E4%B8%80%E4%B8%AA-%E7%9F%A9%E5%BD%A2-%EF%BC%9F"><span class="toc-number">2.2.</span> <span class="toc-text">2. 怎么才算一个&quot;矩形&quot;？</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#3-%E9%9D%A2%E7%A7%AF%E5%85%AC%E5%BC%8F%E6%80%8E%E4%B9%88%E7%AE%97%EF%BC%9F"><span class="toc-number">2.3.</span> <span class="toc-text">3. 面积公式怎么算？</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#4-%E6%9A%B4%E5%8A%9B%E6%80%9D%E8%B7%AF%E7%9A%84%E9%97%AE%E9%A2%98"><span class="toc-number">2.4.</span> <span class="toc-text">4. 暴力思路的问题</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#5-%E6%A0%B8%E5%BF%83%E8%A7%82%E5%AF%9F%EF%BC%9A%E6%9A%B4%E5%8A%9B%E9%81%8D%E5%8E%86%E4%B8%AD%E7%9A%84%E6%B5%AA%E8%B4%B9"><span class="toc-number">2.5.</span> <span class="toc-text">5. 核心观察：暴力遍历中的浪费</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%89%E3%80%81%E6%80%9D%E8%B7%AF%E6%A6%82%E8%A7%88"><span class="toc-number">3.</span> <span class="toc-text">三、思路概览</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9B%9B%E3%80%81%E6%80%9D%E8%B7%AF%E8%AF%A6%E8%A7%A3"><span class="toc-number">4.</span> <span class="toc-text">四、思路详解</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%AC%AC%E4%B8%80%E6%AD%A5%EF%BC%9A%E5%B7%A6%E5%8F%B3%E8%BE%B9%E7%95%8C%E5%88%B0%E5%BA%95%E6%80%8E%E4%B9%88%E7%A1%AE%E5%AE%9A%EF%BC%9F"><span class="toc-number">4.1.</span> <span class="toc-text">第一步：左右边界到底怎么确定？</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%AC%AC%E4%BA%8C%E6%AD%A5%EF%BC%9A%E4%B8%BA%E4%BB%80%E4%B9%88%E6%98%AF%E5%8D%95%E8%B0%83%E9%80%92%E5%A2%9E%E6%A0%88%EF%BC%9F"><span class="toc-number">4.2.</span> <span class="toc-text">第二步：为什么是单调递增栈？</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%AC%AC%E4%B8%89%E6%AD%A5%EF%BC%9A%E4%B8%BA%E4%BB%80%E4%B9%88%E8%A6%81-%E5%BB%B6%E6%97%B6-%E8%AE%A1%E7%AE%97%EF%BC%9F"><span class="toc-number">4.3.</span> <span class="toc-text">第三步：为什么要&quot;延时&quot;计算？</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%AC%AC%E5%9B%9B%E6%AD%A5%EF%BC%9A%E4%B8%BA%E4%BB%80%E4%B9%88%E8%A6%81%E5%8A%A0%E5%93%A8%E5%85%B5%EF%BC%9F"><span class="toc-number">4.4.</span> <span class="toc-text">第四步：为什么要加哨兵？</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%AC%AC%E4%BA%94%E6%AD%A5%EF%BC%9A%E4%B8%BA%E4%BB%80%E4%B9%88%E6%98%AF-O-n-%EF%BC%9F"><span class="toc-number">4.5.</span> <span class="toc-text">第五步：为什么是 O(n)？</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%AE%8C%E6%95%B4%E6%89%A7%E8%A1%8C%E8%BF%87%E7%A8%8B"><span class="toc-number">4.6.</span> <span class="toc-text">完整执行过程</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E4%B8%8E-%E6%8E%A5%E9%9B%A8%E6%B0%B4-%E7%9A%84%E5%AF%B9%E6%AF%94"><span class="toc-number">4.7.</span> <span class="toc-text">与&quot;接雨水&quot;的对比</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BA%94%E3%80%81%E6%80%BB%E7%BB%93"><span class="toc-number">5.</span> <span class="toc-text">五、总结</span></a></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/2026/09/02/Hot%20100%20---%20%E6%9F%B1%E7%8A%B6%E5%9B%BE%E4%B8%AD%E6%9C%80%E5%A4%A7%E7%9A%84%E7%9F%A9%E5%BD%A2/" title="Hot 100 --- 柱状图中最大的矩形"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 柱状图中最大的矩形"/></a><div class="content"><a class="title" href="/2026/09/02/Hot%20100%20---%20%E6%9F%B1%E7%8A%B6%E5%9B%BE%E4%B8%AD%E6%9C%80%E5%A4%A7%E7%9A%84%E7%9F%A9%E5%BD%A2/" title="Hot 100 --- 柱状图中最大的矩形">Hot 100 --- 柱状图中最大的矩形</a><time datetime="2026-09-02T15:59:00.000Z" title="发表于 2026-09-02 23:59:00">2026-09-02</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/08/11/Hot%20100%20---%20%E6%9C%80%E5%B0%8F%E6%A0%88/" title="Hot 100 --- 最小栈"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 最小栈"/></a><div class="content"><a class="title" href="/2026/08/11/Hot%20100%20---%20%E6%9C%80%E5%B0%8F%E6%A0%88/" title="Hot 100 --- 最小栈">Hot 100 --- 最小栈</a><time datetime="2026-08-11T15:00:00.000Z" title="发表于 2026-08-11 23:00:00">2026-08-11</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/08/10/Hot%20100%20---%20%E6%9C%89%E6%95%88%E7%9A%84%E6%8B%AC%E5%8F%B7/" title="Hot 100 --- 有效的括号"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 有效的括号"/></a><div class="content"><a class="title" href="/2026/08/10/Hot%20100%20---%20%E6%9C%89%E6%95%88%E7%9A%84%E6%8B%AC%E5%8F%B7/" title="Hot 100 --- 有效的括号">Hot 100 --- 有效的括号</a><time datetime="2026-08-10T15:00:00.000Z" title="发表于 2026-08-10 23:00:00">2026-08-10</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/08/09/Hot%20100%20---%20%E5%AF%BB%E6%89%BE%E4%B8%A4%E4%B8%AA%E6%AD%A3%E5%BA%8F%E6%95%B0%E7%BB%84%E7%9A%84%E4%B8%AD%E4%BD%8D%E6%95%B0/" title="Hot 100 --- 寻找两个正序数组的中位数"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 寻找两个正序数组的中位数"/></a><div class="content"><a class="title" href="/2026/08/09/Hot%20100%20---%20%E5%AF%BB%E6%89%BE%E4%B8%A4%E4%B8%AA%E6%AD%A3%E5%BA%8F%E6%95%B0%E7%BB%84%E7%9A%84%E4%B8%AD%E4%BD%8D%E6%95%B0/" title="Hot 100 --- 寻找两个正序数组的中位数">Hot 100 --- 寻找两个正序数组的中位数</a><time datetime="2026-08-09T15:30:00.000Z" title="发表于 2026-08-09 23:30:00">2026-08-09</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/08/09/Hot%20100%20---%20%E5%AF%BB%E6%89%BE%E6%97%8B%E8%BD%AC%E6%8E%92%E5%BA%8F%E6%95%B0%E7%BB%84%E4%B8%AD%E7%9A%84%E6%9C%80%E5%B0%8F%E5%80%BC/" title="Hot 100 --- 寻找旋转排序数组中的最小值"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 寻找旋转排序数组中的最小值"/></a><div class="content"><a class="title" href="/2026/08/09/Hot%20100%20---%20%E5%AF%BB%E6%89%BE%E6%97%8B%E8%BD%AC%E6%8E%92%E5%BA%8F%E6%95%B0%E7%BB%84%E4%B8%AD%E7%9A%84%E6%9C%80%E5%B0%8F%E5%80%BC/" title="Hot 100 --- 寻找旋转排序数组中的最小值">Hot 100 --- 寻找旋转排序数组中的最小值</a><time datetime="2026-08-09T15:00:00.000Z" title="发表于 2026-08-09 23:00:00">2026-08-09</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By 青山木</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.5.4"></script><script src="/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script>
+(function() {
+  /* 仅在首页标题上方插入头像 */
+  if (window.location.pathname !== '/' && !window.location.pathname.endsWith('/index.html')) return;
+  var siteTitle = document.getElementById('site-title');
+  if (siteTitle) {
+    var avatar = document.createElement('img');
+    avatar.src = '/img/头像.jpg';
+    avatar.alt = 'avatar';
+    avatar.className = 'avatar-img';
+    siteTitle.parentNode.insertBefore(avatar, siteTitle);
+  }
+})();
+</script>
+<script>
+(function() {
+  function initMermaid() {
+    if (window.mermaid) return Promise.resolve();
+    return new Promise(function(resolve, reject) {
+      var script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/mermaid@11.12.2/dist/mermaid.min.js';
+      script.onload = function() {
+        mermaid.initialize({
+          startOnLoad: false,
+          // 图表主题固定，避免站点深浅色切换时重新解析整篇文章的所有 Mermaid 图。
+          theme: 'dark',
+          securityLevel: 'loose'
+        });
+        resolve();
+      };
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  }
+
+  // Mermaid 会异步改变文章高度；目录跳转必须等所有图表完成布局后再读取标题位置。
+  window.mermaidReady = Promise.resolve();
+  var renderSequence = 0;
+
+  function waitForStableLayout() {
+    return new Promise(function(resolve) {
+      requestAnimationFrame(function() {
+        requestAnimationFrame(function() {
+          // 让 SVG 内的 foreignObject 完成一次实际布局，再刷新 Butterfly 的标题位置缓存。
+          setTimeout(resolve, 50);
+        });
+      });
+    });
+  }
+
+  function showMermaidSource(pre) {
+    pre.hidden = false;
+    pre.style.display = 'block';
+    pre.style.color = '#d32f2f';
+    pre.style.whiteSpace = 'pre-wrap';
+    pre.style.fontSize = '13px';
+  }
+
+  function refreshTocPositions() {
+    // Butterfly 只在 resize 时重新缓存标题坐标。
+    window.dispatchEvent(new Event('resize'));
+    document.dispatchEvent(new CustomEvent('mermaid:rendered'));
+  }
+
+  function renderMermaidDiagrams() {
+    var wraps = document.querySelectorAll('#article-container .mermaid-wrap');
+    if (wraps.length === 0) {
+      window.mermaidReady = Promise.resolve();
+      return window.mermaidReady;
+    }
+
+    var renderTask = initMermaid().then(function() {
+      return Promise.all(Array.prototype.map.call(wraps, function(wrap, index) {
+        var pre = wrap.querySelector('pre.mermaid-src');
+        if (!pre || pre.dataset.rendered === 'true') return Promise.resolve();
+
+        var code = pre.textContent;
+        var id = 'mermaid-' + index + '-' + (++renderSequence);
+        return Promise.resolve().then(function() {
+          return mermaid.render(id, code);
+        }).then(function(result) {
+          pre.dataset.rendered = 'true';
+          pre.style.display = 'none';
+          var div = document.createElement('div');
+          div.innerHTML = result.svg;
+          wrap.insertBefore(div.firstChild, pre.nextSibling);
+        }).catch(function(err) {
+          console.error('[Mermaid] Block #' + index + ' render failed:', err);
+          showMermaidSource(pre);
+        });
+      }));
+    }).then(function() {
+      return waitForStableLayout();
+    }).then(function() {
+      refreshTocPositions();
+    }).catch(function(err) {
+      console.error('[Mermaid] Failed to load mermaid.js:', err);
+      wraps.forEach(function(wrap) {
+        var pre = wrap.querySelector('pre.mermaid-src');
+        if (pre) showMermaidSource(pre);
+      });
+    });
+
+    window.mermaidReady = renderTask;
+    return renderTask;
+  }
+
+  // 页面加载完成后渲染
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', renderMermaidDiagrams);
+  } else {
+    renderMermaidDiagrams();
+  }
+
+  // 拦截目录点击：若图表仍在渲染，等待布局稳定后按实时坐标滚动。
+  // 使用捕获阶段，避免 Butterfly 先按渲染前的坐标启动平滑滚动。
+  var tocNavigationSequence = 0;
+  document.addEventListener('click', function(e) {
+    var link = e.target.closest('#card-toc .toc-link');
+    if (!link) return;
+
+    var href = link.getAttribute('href') || '';
+    var hashIndex = href.indexOf('#');
+    if (hashIndex < 0) return;
+
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    var navigationSequence = ++tocNavigationSequence;
+    var headingId = decodeURI(href.slice(hashIndex + 1));
+
+    (window.mermaidReady || Promise.resolve()).then(function() {
+      return waitForStableLayout();
+    }).then(function() {
+      if (navigationSequence !== tocNavigationSequence) return;
+      var heading = document.getElementById(headingId);
+      if (!heading) return;
+
+      // 使用点击时的实际位置，避免异步 SVG 插入改变标题高度后跳错章节。
+      var top = heading.getBoundingClientRect().top + window.scrollY;
+      if (window.btf && window.btf.scrollToDest) {
+        window.btf.scrollToDest(top, 300);
+      } else {
+        window.scrollTo({ top: top, behavior: 'smooth' });
+      }
+    });
+  }, true);
+
+})();
+</script>
+<script id="canvas_nest" defer="defer" color="107,159,255" opacity="0.6" zIndex="-1" count="99" mobile="false" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/dist/canvas-nest.min.js"></script></div></body></html>
