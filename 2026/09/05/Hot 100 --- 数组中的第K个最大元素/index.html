@@ -1,0 +1,528 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="dark"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>Hot 100 --- 数组中的第K个最大元素 | 青山木</title><meta name="author" content="青山木"><meta name="copyright" content="青山木"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#0d1117"><meta name="description" content="本文讲解数组中的第K个最大元素的核心思路：维护大小为 k 的最小堆，动态保留前 k 大的元素，堆顶即答案，O(n log k)">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Hot 100 --- 数组中的第K个最大元素">
+<meta property="og:url" content="https://li-s-h.github.io/2026/09/05/Hot%20100%20---%20%E6%95%B0%E7%BB%84%E4%B8%AD%E7%9A%84%E7%AC%ACK%E4%B8%AA%E6%9C%80%E5%A4%A7%E5%85%83%E7%B4%A0/index.html">
+<meta property="og:site_name" content="青山木">
+<meta property="og:description" content="本文讲解数组中的第K个最大元素的核心思路：维护大小为 k 的最小堆，动态保留前 k 大的元素，堆顶即答案，O(n log k)">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://li-s-h.github.io/img/title-picture/%E5%8A%9B%E6%89%A3.jpg">
+<meta property="article:published_time" content="2026-09-04T16:30:00.000Z">
+<meta property="article:modified_time" content="2026-09-04T17:13:02.876Z">
+<meta property="article:author" content="青山木">
+<meta property="article:tag" content="\[堆, 最小堆, 优先队列, Top K, 数组, 算法, leetcode]">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://li-s-h.github.io/img/title-picture/%E5%8A%9B%E6%89%A3.jpg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Hot 100 --- 数组中的第K个最大元素",
+  "url": "https://li-s-h.github.io/2026/09/05/Hot%20100%20---%20%E6%95%B0%E7%BB%84%E4%B8%AD%E7%9A%84%E7%AC%ACK%E4%B8%AA%E6%9C%80%E5%A4%A7%E5%85%83%E7%B4%A0/",
+  "image": "https://li-s-h.github.io/img/title-picture/%E5%8A%9B%E6%89%A3.jpg",
+  "datePublished": "2026-09-04T16:30:00.000Z",
+  "dateModified": "2026-09-04T17:13:02.876Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "青山木",
+      "url": "https://LI-S-H.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/%E5%A4%B4%E5%83%8F.jpg"><link rel="canonical" href="https://li-s-h.github.io/2026/09/05/Hot%20100%20---%20%E6%95%B0%E7%BB%84%E4%B8%AD%E7%9A%84%E7%AC%ACK%E4%B8%AA%E6%9C%80%E5%A4%A7%E5%85%83%E7%B4%A0/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="stylesheet" href="/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d1117')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', 'ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: 'Hot 100 --- 数组中的第K个最大元素',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><style>
+  #site-title { font-size: 1.76em !important; }
+  #subtitle { font-size: 0.88em !important; }
+
+  /* 卡片悬停放大 + 辉光 */
+  #recent-posts .recent-post-item {
+    transition: transform .3s ease, box-shadow .3s ease, border-color .3s ease;
+  }
+  #recent-posts .recent-post-item:hover {
+    transform: scale(1.025) !important;
+    border-color: rgba(107,159,255,0.5) !important;
+    box-shadow: 0 0 0 1px rgba(107,159,255,0.15),
+                0 0 45px rgba(107,159,255,0.12),
+                0 8px 30px rgba(0,0,0,0.4) !important;
+  }
+
+  /* 首页标题上方头像 */
+  #site-info .avatar-img {
+    display: block;
+    width: 144px;
+    height: 144px;
+    border-radius: 50%;
+    margin: 0 auto 20px;
+    border: 3px solid rgba(107,159,255,0.6);
+    box-shadow: 0 0 30px rgba(107,159,255,0.35),
+                0 0 60px rgba(107,159,255,0.15),
+                0 4px 20px rgba(0,0,0,0.25);
+    object-fit: cover;
+    transition: box-shadow .4s ease, border-color .4s ease;
+  }
+  #site-info .avatar-img:hover {
+    border-color: rgba(107,159,255,0.9);
+    box-shadow: 0 0 40px rgba(107,159,255,0.5),
+                0 0 80px rgba(107,159,255,0.25),
+                0 4px 20px rgba(0,0,0,0.25);
+  }
+
+  /* Mermaid 图表容器样式 */
+  .mermaid-wrap {
+    position: relative;
+    /* 图表固定使用深色画布，主题切换无需销毁并重绘所有 SVG。 */
+    background: #1e1e1e !important;
+    padding: 12px !important;
+    border-radius: 8px !important;
+    border: 1px solid #444 !important;
+    text-align: center;
+    margin: 0 0 20px 0;
+    overflow-x: auto;
+  }
+  .mermaid-wrap > svg {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+  }
+  /* 深色图表画布在两种站点主题下保持一致，避免切换时重排。 */
+  [data-theme="dark"] .mermaid-wrap {
+    background: #1e1e1e !important;
+    border-color: #444 !important;
+  }
+</style>
+<meta name="generator" content="Hexo 7.3.0"></head><body><div class="bg-animation" id="web_bg" style="background-image: url(/img/%E8%83%8C%E6%99%AF%E5%9B%BE.webp);"></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(/img/title-picture/%E5%8A%9B%E6%89%A3.jpg);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">青山木</span></a><a class="nav-page-title" href="/"><span class="site-name">Hot 100 --- 数组中的第K个最大元素</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">Hot 100 --- 数组中的第K个最大元素</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-09-04T16:30:00.000Z" title="发表于 2026-09-05 00:30:00">2026-09-05</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-09-04T17:13:02.876Z" title="更新于 2026-09-05 01:13:02">2026-09-05</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/LeetCode-%E7%83%AD%E9%A2%98-HOT-100/">LeetCode 热题 HOT 100</a></span></div><div class="meta-secondline"></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><blockquote>
+<p><strong>本文概览</strong>：本文讲解数组中的第K个最大元素的核心思路：维护大小为 k 的最小堆，动态保留前 k 大的元素，堆顶即答案，时间复杂度 O(n log k)</p>
+</blockquote>
+<hr>
+<h3 id="一、题目"><a href="#一、题目" class="headerlink" title="一、题目"></a>一、题目</h3><p><img src="/img/hot%20100%20%E6%95%B0%E7%BB%84%E4%B8%AD%E7%9A%84%E7%AC%ACK%E4%B8%AA%E6%9C%80%E5%A4%A7%E5%85%83%E7%B4%A0/Hot%20100%20---%20%E6%95%B0%E7%BB%84%E4%B8%AD%E7%9A%84%E7%AC%ACK%E4%B8%AA%E6%9C%80%E5%A4%A7%E5%85%83%E7%B4%A0.png" alt="image-20260905003000001"></p>
+<hr>
+<h3 id="二、题目分析"><a href="#二、题目分析" class="headerlink" title="二、题目分析"></a>二、题目分析</h3><h4 id="1-题目要求"><a href="#1-题目要求" class="headerlink" title="1. 题目要求"></a>1. 题目要求</h4><p>给定一个整数数组 <code>nums</code> 和一个整数 <code>k</code>，返回数组中第 <code>k</code> 个最大的元素。</p>
+<p><strong>注意</strong>：这题和&quot;找最大值&quot;的区别在于，需要知道是<strong>第几个</strong>最大的，而且<strong>相同的值也算一个位置</strong>。</p>
+<p><strong>例子</strong>：<code>nums = [3, 2, 3, 1, 2, 4, 5, 5, 6]</code>，<code>k = 4</code></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">6  5  5  4  3  3  2  2  1        ← 降序排序后</span><br><span class="line">↑  ↑  ↑  ↑</span><br><span class="line">1  2  3  4                      ← 排名（两个 5 各占第 2、3 名）</span><br><span class="line">         ↑</span><br><span class="line">      k=4 → 第 4 大 = 4</span><br></pre></td></tr></table></figure>
+
+<p>注意两个 5 占了第 2、第 3 两个位置，相同的值各算一个位置，所以第 4 大是 4，不是 3。</p>
+<h4 id="2-暴力思路：排序"><a href="#2-暴力思路：排序" class="headerlink" title="2. 暴力思路：排序"></a>2. 暴力思路：排序</h4><p>找最大值一般是排序（归并排序、快速排序），让数组有序后直接取。这题也可以用一样的思路：整体排序后取第 k 个。</p>
+<p><strong>问题</strong>：两个排序书写都比较麻烦，而且整体排序是 O(n log n)，但我们只需要&quot;前 k 个最大的&quot;，排后面的部分完全浪费了。</p>
+<h4 id="3-更简单的思路：维护-k-大小的列表"><a href="#3-更简单的思路：维护-k-大小的列表" class="headerlink" title="3. 更简单的思路：维护 k 大小的列表"></a>3. 更简单的思路：维护 k 大小的列表</h4><p>我们要找第 k 大的元素，那换个角度想——如果手里始终留着&quot;最大的前 k 个元素&quot;，那这 k 个元素里<strong>最小的那个</strong>，不就是第 k 大吗？</p>
+<p>基于这个想法，维护一个大小为 k 的列表：</p>
+<ul>
+<li><p>按顺序遍历数组，前 k 个元素直接填进列表</p>
+</li>
+<li><p>列表满了之后，每来一个新元素，和列表里的<strong>最小值</strong>比较</p>
+<ul>
+<li><p>新元素 &gt; 最小值 → 说明当前列表并不是真正的&quot;前 k 大&quot;，<strong>替换掉最小值</strong></p>
+</li>
+<li><p>新元素 ≤ 最小值 → 直接丢弃</p>
+</li>
+</ul>
+</li>
+<li><p>遍历结束，列表的最小值就是第 k 大</p>
+</li>
+</ul>
+<h4 id="4-这个方案的问题"><a href="#4-这个方案的问题" class="headerlink" title="4. 这个方案的问题"></a>4. 这个方案的问题</h4><p>列表的值动态变换，每次都要<strong>找列表的最小值</strong>来比较；而且替换掉最小值之后，<strong>新的最小值是谁</strong>又得重新找。</p>
+<p>如果用普通列表，每次找最小值都要扫一遍 k 个元素，时间复杂度 O(n × k)。当 k 很大时，这比排序还慢。</p>
+<p><strong>优化方向</strong>：需要一种结构，能<strong>快速拿到最小值</strong>，且<strong>替换最小值之后还能快速维护新的最小值</strong>——这就是<strong>最小堆</strong>。</p>
+<hr>
+<h3 id="三、思路概览"><a href="#三、思路概览" class="headerlink" title="三、思路概览"></a>三、思路概览</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="type">int</span> <span class="title function_">findKthLargest</span><span class="params">(<span class="type">int</span>[] nums, <span class="type">int</span> k)</span> &#123;</span><br><span class="line">    <span class="comment">// 最小堆</span></span><br><span class="line">    PriorityQueue&lt;Integer&gt; minHeap = <span class="keyword">new</span> <span class="title class_">PriorityQueue</span>&lt;&gt;();</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> num : nums) &#123;</span><br><span class="line">        <span class="comment">// 堆还没填满 k 个，直接加入</span></span><br><span class="line">        <span class="keyword">if</span> (minHeap.size() &lt; k) &#123;</span><br><span class="line">            minHeap.offer(num);</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            <span class="comment">// 新元素比堆顶（当前最小值）大，替换</span></span><br><span class="line">            <span class="keyword">if</span> (num &gt; minHeap.peek()) &#123;</span><br><span class="line">                minHeap.poll();</span><br><span class="line">                minHeap.offer(num);</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 堆顶就是第 k 大</span></span><br><span class="line">    <span class="keyword">return</span> minHeap.peek();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>思路简要说明：</p>
+<ol>
+<li><strong>维护大小为 k 的最小堆</strong>：堆里始终是&quot;目前见过的前 k 大元素&quot;</li>
+<li><strong>堆顶是最小值</strong>：最小堆的堆顶永远是堆内最小，即前 k 大里的&quot;第 k 大&quot;</li>
+<li><strong>填满之前</strong>：直接 offer 入堆，不比较</li>
+<li><strong>填满之后</strong>：新元素 &gt; 堆顶才替换（poll 弹出堆顶 + offer 加入新元素），否则丢弃</li>
+<li><strong>堆内自动维护</strong>：offer 和 poll 内部通过上浮&#x2F;下沉操作维持最小堆形态，不需要手动管理</li>
+<li>**时间复杂度 O(n log k)**：每个元素最多一次入堆&#x2F;出堆，单次代价 O(log k)</li>
+</ol>
+<hr>
+<h3 id="四、思路详解"><a href="#四、思路详解" class="headerlink" title="四、思路详解"></a>四、思路详解</h3><h4 id="第一步：为什么维护-k-大小的列表就能找到第-k-大？"><a href="#第一步：为什么维护-k-大小的列表就能找到第-k-大？" class="headerlink" title="第一步：为什么维护 k 大小的列表就能找到第 k 大？"></a>第一步：为什么维护 k 大小的列表就能找到第 k 大？</h4><p>第 k 大的定义是什么？是&quot;把所有元素从大到小排，排在第 k 位的那个&quot;。换句话说，全数组里只有 k - 1 个元素比它大。</p>
+<p>那如果我们手里始终保留着<strong>遍历至今最大的 k 个元素</strong>：</p>
+<ul>
+<li><p>这 k 个元素内部排个序，最小的那个，前面正好有 k - 1 个比它大的（都在堆里）</p>
+</li>
+<li><p>它就是第 k 大</p>
+</li>
+</ul>
+<p>用 <code>nums = [3, 2, 3, 1, 2, 4, 5, 5, 6]</code>，<code>k = 4</code> 完整走一遍：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">遍历元素      列表内容（k=4）      最小值    操作</span><br><span class="line">   3          [3]                 -        未满，直接加入</span><br><span class="line">   2          [3,2]               -        未满，直接加入</span><br><span class="line">   3          [3,2,3]             -        未满，直接加入</span><br><span class="line">   1          [3,2,3,1]           1        未满，直接加入（满了）</span><br><span class="line">   2          [3,2,3,2]           2        2 &gt; 1，替换 1</span><br><span class="line">   4          [3,4,3,2]           2        4 &gt; 2，替换 2</span><br><span class="line">   5          [3,4,3,5]           3        5 &gt; 2，替换 2</span><br><span class="line">   5          [4,3,5,5]           3        5 &gt; 3，替换 3</span><br><span class="line">   6          [4,5,5,6]           4        6 &gt; 3，替换 3</span><br><span class="line"></span><br><span class="line">遍历结束 → 列表 [4,5,5,6]，最小值 4 → 第 4 大 = 4 ✓</span><br></pre></td></tr></table></figure>
+
+<p>思路成立。但注意上面每一步的&quot;最小值&quot;这一列——<strong>每次替换后最小值都可能变化</strong>，普通列表每次都要重新扫一遍才能知道最小值是谁。</p>
+<h4 id="第二步：朴素列表的问题"><a href="#第二步：朴素列表的问题" class="headerlink" title="第二步：朴素列表的问题"></a>第二步：朴素列表的问题</h4><p><strong>问题拆开看</strong>：</p>
+<ol>
+<li>每来一个新元素，都要<strong>找列表的最小值</strong>来比较 → 扫 k 个元素，O(k)</li>
+<li>替换掉最小值后，<strong>新的最小值是谁</strong>？ → 又要扫一遍，O(k)</li>
+</ol>
+<p>n 个元素就是 O(n × k)。当 k 接近 n 时，接近 O(n²)，比直接排序还慢。</p>
+<p><strong>我们需要的数据结构</strong>：</p>
+<ul>
+<li><p>能 O(1) 拿到最小值（比较用）</p>
+</li>
+<li><p>替换最小值后，能快速（O(log k) 以内）维护出新的最小值</p>
+</li>
+</ul>
+<p>这正好就是<strong>最小堆</strong>的两个核心能力。</p>
+<h4 id="第三步：最小堆——物理是数组，逻辑是完全二叉树"><a href="#第三步：最小堆——物理是数组，逻辑是完全二叉树" class="headerlink" title="第三步：最小堆——物理是数组，逻辑是完全二叉树"></a>第三步：最小堆——物理是数组，逻辑是完全二叉树</h4><p>最小堆的物理存储就是一个普通的连续数组：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">A  B  C  D  E  F  G  H  I        ← 数组元素</span><br><span class="line">0  1  2  3  4  5  6  7  8        ← 下标</span><br></pre></td></tr></table></figure>
+
+<p>但它们之间的逻辑关系是一棵<strong>完全二叉树</strong>：按一层一层的顺序排列（其实就是 BFS 的顺序），第 0 层是 A，第 1 层是 B、C，第 2 层依次类推。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">           A(0)</span><br><span class="line">         /      \</span><br><span class="line">     B(1)        C(2)</span><br><span class="line">     /   \      /    \</span><br><span class="line">  D(3)  E(4)  F(5)  G(6)</span><br><span class="line">  /  \</span><br><span class="line">H(7)  I(8)</span><br></pre></td></tr></table></figure>
+
+<p>再维护一条核心性质：<strong>父节点的值 ≤ 子节点的值</strong>（父比两个孩子都小）。</p>
+<p>这条性质一层层往上推，就能保证<strong>堆顶（锥顶）就是最小值</strong>——这就是我们要的 O(1) 拿最小值。</p>
+<p><strong>为什么要组织成完全二叉树？</strong> 就是为了减小比较和维护最小值的时间复杂度：后面的下沉、上浮操作，每一层最多只和 1~2 个元素比较，一趟最多走树高，也就是 O(log k)；如果用普通列表，每次找最小值都要扫全部 k 个元素，是 O(k)。</p>
+<h4 id="第四步：索引公式怎么来的？"><a href="#第四步：索引公式怎么来的？" class="headerlink" title="第四步：索引公式怎么来的？"></a>第四步：索引公式怎么来的？</h4><p>对于数组中下标为 <code>i</code> 的节点：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">左孩子 = 2i + 1</span><br><span class="line">右孩子 = 2i + 2</span><br><span class="line">父节点 = (i - 1) / 2</span><br></pre></td></tr></table></figure>
+
+<p><strong>推导</strong>：完全二叉树按层排列，下标 <code>0</code> 到 <code>i-1</code> 一共 i 个节点，每个节点都有两个孩子，所以前面这些节点的孩子一共 2i 个，它们按顺序占据下标 <code>1</code> 到 <code>2i</code>。轮到节点 <code>i</code> 的孩子，自然从 <code>2i + 1</code> 开始。</p>
+<p><strong>验证</strong>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">i    左孩子(2i+1)    右孩子(2i+2)    父节点((i-1)/2)</span><br><span class="line">0        1                2               -</span><br><span class="line">1        3                4               0</span><br><span class="line">2        5                6               0</span><br><span class="line">3        7                8               1</span><br><span class="line">4        9               10               1</span><br></pre></td></tr></table></figure>
+
+<p>对照上面的树形图：B(1) 的孩子是 D(3)、E(4) ✓，C(2) 的孩子是 F(5)、G(6) ✓。</p>
+<p>有了公式，数组就能当树用，不需要任何指针。</p>
+<h4 id="第五步：下沉——弹出堆顶后恢复最小堆"><a href="#第五步：下沉——弹出堆顶后恢复最小堆" class="headerlink" title="第五步：下沉——弹出堆顶后恢复最小堆"></a>第五步：下沉——弹出堆顶后恢复最小堆</h4><p>替换最小值的第一个动作是<strong>弹出堆顶</strong>。但堆顶空出来之后，怎么补？</p>
+<p><strong>做法</strong>：把数组<strong>末尾元素提到堆顶</strong>，然后执行<strong>下沉</strong>操作。</p>
+<p>为什么末尾元素提上来之后堆顶可能不再是最小值？因为它原本在叶子位置，大小 arbitrary，提到堆顶后可能比孩子大，违反&quot;父 ≤ 子&quot;的性质。</p>
+<p><strong>下沉的具体步骤</strong>：</p>
+<ol>
+<li>看当前节点的左右孩子（用公式 2i+1、2i+2），先找出两个孩子中的<strong>较小值</strong></li>
+<li>如果当前节点 &gt; 较小孩子 → 交换，然后继续对交换后的位置下沉</li>
+<li>直到没有孩子，或者比两个孩子都小 → 停止</li>
+</ol>
+<p><strong>演示</strong>：最小堆 <code>[1, 4, 3, 5, 6]</code> 弹出堆顶 1</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">弹出前：                 末尾 6 提到堆顶：</span><br><span class="line">        1                        6</span><br><span class="line">      /   \                    /   \</span><br><span class="line">     4     3                  4     3</span><br><span class="line">    / \                      /</span><br><span class="line">   5   6                    5</span><br><span class="line"></span><br><span class="line">数组：[1, 4, 3, 5, 6]        数组：[6, 4, 3, 5]</span><br></pre></td></tr></table></figure>
+
+<p>下沉过程：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">第 1 轮：6 的孩子是 4 和 3，较小值 3，6 &gt; 3 → 交换</span><br><span class="line"></span><br><span class="line">        3</span><br><span class="line">      /   \</span><br><span class="line">     4     6</span><br><span class="line">    /</span><br><span class="line">   5</span><br><span class="line"></span><br><span class="line">数组：[3, 4, 6, 5]</span><br><span class="line"></span><br><span class="line">第 2 轮：6（下标2）的孩子在下标 5 和 6，</span><br><span class="line">数组长度只有 4，孩子不存在 → 停止</span><br></pre></td></tr></table></figure>
+
+<p>最终堆 <code>[3, 4, 6, 5]</code>：3 ≤ 4、6，4 ≤ 5，最小堆性质保持，堆顶 3 就是新的最小值。</p>
+<p>每轮最多和两个孩子比较，一路沉到叶子，最多走树高步 &#x3D; O(log k)。</p>
+<h4 id="第六步：上浮——加入新元素后恢复最小堆"><a href="#第六步：上浮——加入新元素后恢复最小堆" class="headerlink" title="第六步：上浮——加入新元素后恢复最小堆"></a>第六步：上浮——加入新元素后恢复最小堆</h4><p>弹出堆顶之后，第二个动作是<strong>加入新元素</strong>。我们并不知道新元素是不是新的最小值，所以要再比较、重新维护。</p>
+<p><strong>做法</strong>：把新元素放到<strong>数组末尾</strong>，然后执行<strong>上浮</strong>操作。</p>
+<p>新元素在末尾，必然是某个节点的左孩子或右孩子，用公式 <code>(i-1)/2</code> 直接定位它的父节点。</p>
+<p><strong>上浮的具体步骤</strong>：</p>
+<ol>
+<li>找到父节点 <code>(i-1)/2</code></li>
+<li>如果当前节点 &lt; 父节点 → 交换，继续对交换后的位置上浮</li>
+<li>直到比父节点大，或者到达堆顶 → 停止</li>
+</ol>
+<p><strong>为什么只和父节点比，不和兄弟节点比？</strong></p>
+<p>因为&quot;父 ≤ 两个孩子&quot;是既有性质，如果新元素比父节点还小，那必然也比兄弟小（父本来就是两个孩子里较小的参照）。和兄弟比没有意义，比父节点就够了。</p>
+<p><strong>演示</strong>：往 <code>[3, 4, 5, 6]</code> 加入新元素 2</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line">加入末尾：                上浮第 1 轮：</span><br><span class="line">        3                        3</span><br><span class="line">      /   \                    /   \</span><br><span class="line">     4     5                  2     5</span><br><span class="line">    / \                      / \</span><br><span class="line">   6   2                    6   4</span><br><span class="line">                             ↑</span><br><span class="line">                        2 &lt; 4，交换</span><br><span class="line"></span><br><span class="line">数组：[3, 4, 5, 6, 2]        数组：[3, 2, 5, 6, 4]</span><br><span class="line"></span><br><span class="line">上浮第 2 轮：</span><br><span class="line">        2</span><br><span class="line">      /   \</span><br><span class="line">     3     5</span><br><span class="line">    / \</span><br><span class="line">   6   4</span><br><span class="line">   ↑</span><br><span class="line">2 &lt; 3（堆顶），交换</span><br><span class="line"></span><br><span class="line">数组：[2, 3, 5, 6, 4]</span><br><span class="line"></span><br><span class="line">第 3 轮：2 已到堆顶，没有父节点 → 停止</span><br></pre></td></tr></table></figure>
+
+<p>上浮同样最多走树高步 &#x3D; O(log k)。</p>
+<h4 id="完整执行过程"><a href="#完整执行过程" class="headerlink" title="完整执行过程"></a>完整执行过程</h4><p>以 <code>nums = [3, 2, 3, 1, 2, 4, 5, 5, 6]</code>，<code>k = 4</code> 为例：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br></pre></td><td class="code"><pre><span class="line">初始：minHeap = []</span><br><span class="line"></span><br><span class="line">num=3：size(0) &lt; 4，直接入堆</span><br><span class="line">  minHeap = [3]</span><br><span class="line"></span><br><span class="line">        3</span><br><span class="line"></span><br><span class="line">num=2：size(1) &lt; 4，直接入堆</span><br><span class="line">  加到末尾 [3, 2]，2 是 3 的左孩子，2 &lt; 3 上浮交换</span><br><span class="line">  minHeap = [2, 3]</span><br><span class="line"></span><br><span class="line">        2</span><br><span class="line">       /</span><br><span class="line">      3</span><br><span class="line"></span><br><span class="line">num=3：size(2) &lt; 4，直接入堆</span><br><span class="line">  加到末尾 [2, 3, 3]，3 的父节点是 2，3 &gt; 2 不动</span><br><span class="line">  minHeap = [2, 3, 3]</span><br><span class="line"></span><br><span class="line">        2</span><br><span class="line">      /   \</span><br><span class="line">     3     3</span><br><span class="line"></span><br><span class="line">num=1：size(3) &lt; 4，直接入堆</span><br><span class="line">  加到末尾 [2, 3, 3, 1]，1 的父节点是 3，交换 → [2, 1, 3, 3]</span><br><span class="line">  1 的父节点是 2，交换 → [1, 2, 3, 3]（堆满）</span><br><span class="line">  minHeap = [1, 2, 3, 3]</span><br><span class="line"></span><br><span class="line">        1</span><br><span class="line">      /   \</span><br><span class="line">     2     3</span><br><span class="line">    /</span><br><span class="line">   3</span><br><span class="line"></span><br><span class="line">num=2：2 &gt; 堆顶 1 → 弹出 1，加入 2</span><br><span class="line">  弹出：末尾 3 提顶 [3, 2, 3] → 下沉与 2 交换 → [2, 3, 3]</span><br><span class="line">  加入：加到末尾 [2, 3, 3, 2] → 2 与父节点 3 交换 → [2, 2, 3, 3]</span><br><span class="line">  minHeap = [2, 2, 3, 3]</span><br><span class="line"></span><br><span class="line">        2</span><br><span class="line">      /   \</span><br><span class="line">     2     3</span><br><span class="line">    /</span><br><span class="line">   3</span><br><span class="line"></span><br><span class="line">num=4：4 &gt; 堆顶 2 → 弹出 2，加入 4</span><br><span class="line">  弹出：末尾 3 提顶 [3, 2, 3] → 下沉与 2 交换 → [2, 3, 3]</span><br><span class="line">  加入：加到末尾 [2, 3, 3, 4] → 4 &gt; 父节点 3 不动</span><br><span class="line">  minHeap = [2, 3, 3, 4]</span><br><span class="line"></span><br><span class="line">        2</span><br><span class="line">      /   \</span><br><span class="line">     3     3</span><br><span class="line">    /</span><br><span class="line">   4</span><br><span class="line"></span><br><span class="line">num=5：5 &gt; 堆顶 2 → 弹出 2，加入 5</span><br><span class="line">  弹出：末尾 4 提顶 [4, 3, 3] → 下沉与 3 交换 → [3, 4, 3]</span><br><span class="line">  加入：加到末尾 [3, 4, 3, 5] → 5 &gt; 父节点 4 不动</span><br><span class="line">  minHeap = [3, 4, 3, 5]</span><br><span class="line"></span><br><span class="line">        3</span><br><span class="line">      /   \</span><br><span class="line">     4     3</span><br><span class="line">    /</span><br><span class="line">   5</span><br><span class="line"></span><br><span class="line">num=5：5 &gt; 堆顶 3 → 弹出 3，加入 5</span><br><span class="line">  弹出：末尾 5 提顶 [5, 4, 3] → 下沉与 3 交换 → [3, 4, 5]</span><br><span class="line">  加入：加到末尾 [3, 4, 5, 5] → 5 &gt; 父节点 4 不动</span><br><span class="line">  minHeap = [3, 4, 5, 5]</span><br><span class="line"></span><br><span class="line">        3</span><br><span class="line">      /   \</span><br><span class="line">     4     5</span><br><span class="line">    /</span><br><span class="line">   5</span><br><span class="line"></span><br><span class="line">num=6：6 &gt; 堆顶 3 → 弹出 3，加入 6</span><br><span class="line">  弹出：末尾 5 提顶 [5, 4, 5] → 下沉与 4 交换 → [4, 5, 5]</span><br><span class="line">  加入：加到末尾 [4, 5, 5, 6] → 6 &gt; 父节点 5 不动</span><br><span class="line">  minHeap = [4, 5, 5, 6]</span><br><span class="line"></span><br><span class="line">        4</span><br><span class="line">      /   \</span><br><span class="line">     5     5</span><br><span class="line">    /</span><br><span class="line">   6</span><br><span class="line"></span><br><span class="line">遍历结束，堆顶 = 4 → 第 4 大 = 4 ✓</span><br></pre></td></tr></table></figure>
+
+<h4 id="复杂度分析"><a href="#复杂度分析" class="headerlink" title="复杂度分析"></a>复杂度分析</h4><p>**时间复杂度 O(n log k)**：</p>
+<ul>
+<li><p>每个元素最多一次入堆 + 一次出堆</p>
+</li>
+<li><p>入堆和出堆的代价都是树高，即 O(log k)</p>
+</li>
+<li><p>n 个元素，总共 O(n log k)</p>
+</li>
+</ul>
+<p>当 k 远小于 n 时（比如 k &#x3D; 100，n &#x3D; 100 万），log k 远小于 log n，比整体排序的 O(n log n) 快得多。</p>
+<p>**空间复杂度 O(k)**：堆内最多 k 个元素。</p>
+<p>对比排序方案：时间 O(n log n)、空间 O(log n)（快排递归栈）。堆方案在 k 小的时候全面占优，而且代码极短。</p>
+<hr>
+<h3 id="五、总结"><a href="#五、总结" class="headerlink" title="五、总结"></a>五、总结</h3><p>数组中的第K个最大元素的核心思路：</p>
+<ol>
+<li><strong>转换视角</strong>：第 k 大 &#x3D; &quot;前 k 大元素中的最小值&quot;，维护一个大小为 k 的容器即可</li>
+<li><strong>相同值占位</strong>：[6,5,5,4...] 中两个 5 各占一个位置，第 4 大是 4</li>
+<li><strong>最小堆</strong>：物理是数组，逻辑是完全二叉树，父 ≤ 子，堆顶即最小值</li>
+<li><strong>索引公式</strong>：左孩子 2i+1，右孩子 2i+2，父节点 (i-1)&#x2F;2</li>
+<li><strong>下沉</strong>：弹出堆顶后，末尾元素提到堆顶，和较小孩子一路换下去</li>
+<li><strong>上浮</strong>：新元素放末尾，只和父节点比（比父小必然比兄弟小），一路换上来</li>
+<li><strong>Java 封装</strong>：<code>PriorityQueue</code> 就是最小堆，offer&#x2F;poll 自动上浮&#x2F;下沉</li>
+</ol>
+<p><strong>Top K 问题的通用套路</strong>：</p>
+<ul>
+<li><p>找<strong>第 k 大</strong> &#x2F; 前 k 大 → 大小为 k 的<strong>最小堆</strong>（堆顶是门槛）</p>
+</li>
+<li><p>找<strong>第 k 小</strong> &#x2F; 前 k 小 → 大小为 k 的<strong>最大堆</strong></p>
+</li>
+</ul>
+<p>记住&quot;堆顶是门槛&quot;：想留大的，门槛就得是最小值（最小堆）；想留小的，门槛就得是最大值（最大堆）。</p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://LI-S-H.github.io">青山木</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://li-s-h.github.io/2026/09/05/Hot%20100%20---%20%E6%95%B0%E7%BB%84%E4%B8%AD%E7%9A%84%E7%AC%ACK%E4%B8%AA%E6%9C%80%E5%A4%A7%E5%85%83%E7%B4%A0/">https://li-s-h.github.io/2026/09/05/Hot%20100%20---%20%E6%95%B0%E7%BB%84%E4%B8%AD%E7%9A%84%E7%AC%ACK%E4%B8%AA%E6%9C%80%E5%A4%A7%E5%85%83%E7%B4%A0/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://LI-S-H.github.io" target="_blank">青山木</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E5%A0%86-%E6%9C%80%E5%B0%8F%E5%A0%86-%E4%BC%98%E5%85%88%E9%98%9F%E5%88%97-Top-K-%E6%95%B0%E7%BB%84-%E7%AE%97%E6%B3%95-leetcode/">\[堆, 最小堆, 优先队列, Top K, 数组, 算法, leetcode]</a></div><div class="post-share"><div class="social-share" data-image="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/2026/09/02/Hot%20100%20---%20%E6%9F%B1%E7%8A%B6%E5%9B%BE%E4%B8%AD%E6%9C%80%E5%A4%A7%E7%9A%84%E7%9F%A9%E5%BD%A2/" title="Hot 100 --- 柱状图中最大的矩形"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="onerror=null;src='/img/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">Hot 100 --- 柱状图中最大的矩形</div></div><div class="info-2"><div class="info-item-1">本文讲解柱状图中最大的矩形的核心思路：用单调递增栈一次遍历找到每根柱子的左右边界，从 O(n²) 降到 O(n)</div></div></div></a></nav></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/%E5%A4%B4%E5%83%8F.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">青山木</div><div class="author-info-description">正在学习Java后端开发＋智能体开发，希望能与大家多多交流</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">80</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">158</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">4</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/LI-S-H"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/LI-S-H" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">欢迎来到我的博客，记录学习与成长的点滴。</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%80%E3%80%81%E9%A2%98%E7%9B%AE"><span class="toc-number">1.</span> <span class="toc-text">一、题目</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BA%8C%E3%80%81%E9%A2%98%E7%9B%AE%E5%88%86%E6%9E%90"><span class="toc-number">2.</span> <span class="toc-text">二、题目分析</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#1-%E9%A2%98%E7%9B%AE%E8%A6%81%E6%B1%82"><span class="toc-number">2.1.</span> <span class="toc-text">1. 题目要求</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#2-%E6%9A%B4%E5%8A%9B%E6%80%9D%E8%B7%AF%EF%BC%9A%E6%8E%92%E5%BA%8F"><span class="toc-number">2.2.</span> <span class="toc-text">2. 暴力思路：排序</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#3-%E6%9B%B4%E7%AE%80%E5%8D%95%E7%9A%84%E6%80%9D%E8%B7%AF%EF%BC%9A%E7%BB%B4%E6%8A%A4-k-%E5%A4%A7%E5%B0%8F%E7%9A%84%E5%88%97%E8%A1%A8"><span class="toc-number">2.3.</span> <span class="toc-text">3. 更简单的思路：维护 k 大小的列表</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#4-%E8%BF%99%E4%B8%AA%E6%96%B9%E6%A1%88%E7%9A%84%E9%97%AE%E9%A2%98"><span class="toc-number">2.4.</span> <span class="toc-text">4. 这个方案的问题</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%89%E3%80%81%E6%80%9D%E8%B7%AF%E6%A6%82%E8%A7%88"><span class="toc-number">3.</span> <span class="toc-text">三、思路概览</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9B%9B%E3%80%81%E6%80%9D%E8%B7%AF%E8%AF%A6%E8%A7%A3"><span class="toc-number">4.</span> <span class="toc-text">四、思路详解</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%AC%AC%E4%B8%80%E6%AD%A5%EF%BC%9A%E4%B8%BA%E4%BB%80%E4%B9%88%E7%BB%B4%E6%8A%A4-k-%E5%A4%A7%E5%B0%8F%E7%9A%84%E5%88%97%E8%A1%A8%E5%B0%B1%E8%83%BD%E6%89%BE%E5%88%B0%E7%AC%AC-k-%E5%A4%A7%EF%BC%9F"><span class="toc-number">4.1.</span> <span class="toc-text">第一步：为什么维护 k 大小的列表就能找到第 k 大？</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%AC%AC%E4%BA%8C%E6%AD%A5%EF%BC%9A%E6%9C%B4%E7%B4%A0%E5%88%97%E8%A1%A8%E7%9A%84%E9%97%AE%E9%A2%98"><span class="toc-number">4.2.</span> <span class="toc-text">第二步：朴素列表的问题</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%AC%AC%E4%B8%89%E6%AD%A5%EF%BC%9A%E6%9C%80%E5%B0%8F%E5%A0%86%E2%80%94%E2%80%94%E7%89%A9%E7%90%86%E6%98%AF%E6%95%B0%E7%BB%84%EF%BC%8C%E9%80%BB%E8%BE%91%E6%98%AF%E5%AE%8C%E5%85%A8%E4%BA%8C%E5%8F%89%E6%A0%91"><span class="toc-number">4.3.</span> <span class="toc-text">第三步：最小堆——物理是数组，逻辑是完全二叉树</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%AC%AC%E5%9B%9B%E6%AD%A5%EF%BC%9A%E7%B4%A2%E5%BC%95%E5%85%AC%E5%BC%8F%E6%80%8E%E4%B9%88%E6%9D%A5%E7%9A%84%EF%BC%9F"><span class="toc-number">4.4.</span> <span class="toc-text">第四步：索引公式怎么来的？</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%AC%AC%E4%BA%94%E6%AD%A5%EF%BC%9A%E4%B8%8B%E6%B2%89%E2%80%94%E2%80%94%E5%BC%B9%E5%87%BA%E5%A0%86%E9%A1%B6%E5%90%8E%E6%81%A2%E5%A4%8D%E6%9C%80%E5%B0%8F%E5%A0%86"><span class="toc-number">4.5.</span> <span class="toc-text">第五步：下沉——弹出堆顶后恢复最小堆</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%AC%AC%E5%85%AD%E6%AD%A5%EF%BC%9A%E4%B8%8A%E6%B5%AE%E2%80%94%E2%80%94%E5%8A%A0%E5%85%A5%E6%96%B0%E5%85%83%E7%B4%A0%E5%90%8E%E6%81%A2%E5%A4%8D%E6%9C%80%E5%B0%8F%E5%A0%86"><span class="toc-number">4.6.</span> <span class="toc-text">第六步：上浮——加入新元素后恢复最小堆</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%AE%8C%E6%95%B4%E6%89%A7%E8%A1%8C%E8%BF%87%E7%A8%8B"><span class="toc-number">4.7.</span> <span class="toc-text">完整执行过程</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%A4%8D%E6%9D%82%E5%BA%A6%E5%88%86%E6%9E%90"><span class="toc-number">4.8.</span> <span class="toc-text">复杂度分析</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BA%94%E3%80%81%E6%80%BB%E7%BB%93"><span class="toc-number">5.</span> <span class="toc-text">五、总结</span></a></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/2026/09/05/Hot%20100%20---%20%E6%95%B0%E7%BB%84%E4%B8%AD%E7%9A%84%E7%AC%ACK%E4%B8%AA%E6%9C%80%E5%A4%A7%E5%85%83%E7%B4%A0/" title="Hot 100 --- 数组中的第K个最大元素"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 数组中的第K个最大元素"/></a><div class="content"><a class="title" href="/2026/09/05/Hot%20100%20---%20%E6%95%B0%E7%BB%84%E4%B8%AD%E7%9A%84%E7%AC%ACK%E4%B8%AA%E6%9C%80%E5%A4%A7%E5%85%83%E7%B4%A0/" title="Hot 100 --- 数组中的第K个最大元素">Hot 100 --- 数组中的第K个最大元素</a><time datetime="2026-09-04T16:30:00.000Z" title="发表于 2026-09-05 00:30:00">2026-09-05</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/09/02/Hot%20100%20---%20%E6%9F%B1%E7%8A%B6%E5%9B%BE%E4%B8%AD%E6%9C%80%E5%A4%A7%E7%9A%84%E7%9F%A9%E5%BD%A2/" title="Hot 100 --- 柱状图中最大的矩形"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 柱状图中最大的矩形"/></a><div class="content"><a class="title" href="/2026/09/02/Hot%20100%20---%20%E6%9F%B1%E7%8A%B6%E5%9B%BE%E4%B8%AD%E6%9C%80%E5%A4%A7%E7%9A%84%E7%9F%A9%E5%BD%A2/" title="Hot 100 --- 柱状图中最大的矩形">Hot 100 --- 柱状图中最大的矩形</a><time datetime="2026-09-02T15:59:00.000Z" title="发表于 2026-09-02 23:59:00">2026-09-02</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/08/11/Hot%20100%20---%20%E6%9C%80%E5%B0%8F%E6%A0%88/" title="Hot 100 --- 最小栈"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 最小栈"/></a><div class="content"><a class="title" href="/2026/08/11/Hot%20100%20---%20%E6%9C%80%E5%B0%8F%E6%A0%88/" title="Hot 100 --- 最小栈">Hot 100 --- 最小栈</a><time datetime="2026-08-11T15:00:00.000Z" title="发表于 2026-08-11 23:00:00">2026-08-11</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/08/10/Hot%20100%20---%20%E6%9C%89%E6%95%88%E7%9A%84%E6%8B%AC%E5%8F%B7/" title="Hot 100 --- 有效的括号"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 有效的括号"/></a><div class="content"><a class="title" href="/2026/08/10/Hot%20100%20---%20%E6%9C%89%E6%95%88%E7%9A%84%E6%8B%AC%E5%8F%B7/" title="Hot 100 --- 有效的括号">Hot 100 --- 有效的括号</a><time datetime="2026-08-10T15:00:00.000Z" title="发表于 2026-08-10 23:00:00">2026-08-10</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/08/09/Hot%20100%20---%20%E5%AF%BB%E6%89%BE%E4%B8%A4%E4%B8%AA%E6%AD%A3%E5%BA%8F%E6%95%B0%E7%BB%84%E7%9A%84%E4%B8%AD%E4%BD%8D%E6%95%B0/" title="Hot 100 --- 寻找两个正序数组的中位数"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 寻找两个正序数组的中位数"/></a><div class="content"><a class="title" href="/2026/08/09/Hot%20100%20---%20%E5%AF%BB%E6%89%BE%E4%B8%A4%E4%B8%AA%E6%AD%A3%E5%BA%8F%E6%95%B0%E7%BB%84%E7%9A%84%E4%B8%AD%E4%BD%8D%E6%95%B0/" title="Hot 100 --- 寻找两个正序数组的中位数">Hot 100 --- 寻找两个正序数组的中位数</a><time datetime="2026-08-09T15:30:00.000Z" title="发表于 2026-08-09 23:30:00">2026-08-09</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By 青山木</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.5.4"></script><script src="/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script>
+(function() {
+  /* 仅在首页标题上方插入头像 */
+  if (window.location.pathname !== '/' && !window.location.pathname.endsWith('/index.html')) return;
+  var siteTitle = document.getElementById('site-title');
+  if (siteTitle) {
+    var avatar = document.createElement('img');
+    avatar.src = '/img/头像.jpg';
+    avatar.alt = 'avatar';
+    avatar.className = 'avatar-img';
+    siteTitle.parentNode.insertBefore(avatar, siteTitle);
+  }
+})();
+</script>
+<script>
+(function() {
+  function initMermaid() {
+    if (window.mermaid) return Promise.resolve();
+    return new Promise(function(resolve, reject) {
+      var script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/mermaid@11.12.2/dist/mermaid.min.js';
+      script.onload = function() {
+        mermaid.initialize({
+          startOnLoad: false,
+          // 图表主题固定，避免站点深浅色切换时重新解析整篇文章的所有 Mermaid 图。
+          theme: 'dark',
+          securityLevel: 'loose'
+        });
+        resolve();
+      };
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  }
+
+  // Mermaid 会异步改变文章高度；目录跳转必须等所有图表完成布局后再读取标题位置。
+  window.mermaidReady = Promise.resolve();
+  var renderSequence = 0;
+
+  function waitForStableLayout() {
+    return new Promise(function(resolve) {
+      requestAnimationFrame(function() {
+        requestAnimationFrame(function() {
+          // 让 SVG 内的 foreignObject 完成一次实际布局，再刷新 Butterfly 的标题位置缓存。
+          setTimeout(resolve, 50);
+        });
+      });
+    });
+  }
+
+  function showMermaidSource(pre) {
+    pre.hidden = false;
+    pre.style.display = 'block';
+    pre.style.color = '#d32f2f';
+    pre.style.whiteSpace = 'pre-wrap';
+    pre.style.fontSize = '13px';
+  }
+
+  function refreshTocPositions() {
+    // Butterfly 只在 resize 时重新缓存标题坐标。
+    window.dispatchEvent(new Event('resize'));
+    document.dispatchEvent(new CustomEvent('mermaid:rendered'));
+  }
+
+  function renderMermaidDiagrams() {
+    var wraps = document.querySelectorAll('#article-container .mermaid-wrap');
+    if (wraps.length === 0) {
+      window.mermaidReady = Promise.resolve();
+      return window.mermaidReady;
+    }
+
+    var renderTask = initMermaid().then(function() {
+      return Promise.all(Array.prototype.map.call(wraps, function(wrap, index) {
+        var pre = wrap.querySelector('pre.mermaid-src');
+        if (!pre || pre.dataset.rendered === 'true') return Promise.resolve();
+
+        var code = pre.textContent;
+        var id = 'mermaid-' + index + '-' + (++renderSequence);
+        return Promise.resolve().then(function() {
+          return mermaid.render(id, code);
+        }).then(function(result) {
+          pre.dataset.rendered = 'true';
+          pre.style.display = 'none';
+          var div = document.createElement('div');
+          div.innerHTML = result.svg;
+          wrap.insertBefore(div.firstChild, pre.nextSibling);
+        }).catch(function(err) {
+          console.error('[Mermaid] Block #' + index + ' render failed:', err);
+          showMermaidSource(pre);
+        });
+      }));
+    }).then(function() {
+      return waitForStableLayout();
+    }).then(function() {
+      refreshTocPositions();
+    }).catch(function(err) {
+      console.error('[Mermaid] Failed to load mermaid.js:', err);
+      wraps.forEach(function(wrap) {
+        var pre = wrap.querySelector('pre.mermaid-src');
+        if (pre) showMermaidSource(pre);
+      });
+    });
+
+    window.mermaidReady = renderTask;
+    return renderTask;
+  }
+
+  // 页面加载完成后渲染
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', renderMermaidDiagrams);
+  } else {
+    renderMermaidDiagrams();
+  }
+
+  // 拦截目录点击：若图表仍在渲染，等待布局稳定后按实时坐标滚动。
+  // 使用捕获阶段，避免 Butterfly 先按渲染前的坐标启动平滑滚动。
+  var tocNavigationSequence = 0;
+  document.addEventListener('click', function(e) {
+    var link = e.target.closest('#card-toc .toc-link');
+    if (!link) return;
+
+    var href = link.getAttribute('href') || '';
+    var hashIndex = href.indexOf('#');
+    if (hashIndex < 0) return;
+
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    var navigationSequence = ++tocNavigationSequence;
+    var headingId = decodeURI(href.slice(hashIndex + 1));
+
+    (window.mermaidReady || Promise.resolve()).then(function() {
+      return waitForStableLayout();
+    }).then(function() {
+      if (navigationSequence !== tocNavigationSequence) return;
+      var heading = document.getElementById(headingId);
+      if (!heading) return;
+
+      // 使用点击时的实际位置，避免异步 SVG 插入改变标题高度后跳错章节。
+      var top = heading.getBoundingClientRect().top + window.scrollY;
+      if (window.btf && window.btf.scrollToDest) {
+        window.btf.scrollToDest(top, 300);
+      } else {
+        window.scrollTo({ top: top, behavior: 'smooth' });
+      }
+    });
+  }, true);
+
+})();
+</script>
+<script id="canvas_nest" defer="defer" color="107,159,255" opacity="0.6" zIndex="-1" count="99" mobile="false" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/dist/canvas-nest.min.js"></script></div></body></html>
