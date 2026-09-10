@@ -1,0 +1,607 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="dark"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>AI Coding 工程化实践：从想法到落地的完整方法论 | 青山木</title><meta name="author" content="青山木"><meta name="copyright" content="青山木"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#0d1117"><meta name="description" content="AI 还没有强大到&quot;一句提示词出成品&quot;的程度。基于多家 Coding Plan 的真实付费使用经验，总结一套从想法到落地的完整 AI Coding 工程化方法论：文档先行、方案先行、多重审阅、上下文隔离、Skill 沉淀，帮你把浪费的 Token 变成省下的钱。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="AI Coding 工程化实践：从想法到落地的完整方法论">
+<meta property="og:url" content="https://li-s-h.github.io/2026/09/10/AI%20Coding%20%E5%B7%A5%E7%A8%8B%E5%8C%96%E5%AE%9E%E8%B7%B5%EF%BC%9A%E4%BB%8E%E6%83%B3%E6%B3%95%E5%88%B0%E8%90%BD%E5%9C%B0%E7%9A%84%E5%AE%8C%E6%95%B4%E6%96%B9%E6%B3%95%E8%AE%BA/index.html">
+<meta property="og:site_name" content="青山木">
+<meta property="og:description" content="AI 还没有强大到&quot;一句提示词出成品&quot;的程度。基于多家 Coding Plan 的真实付费使用经验，总结一套从想法到落地的完整 AI Coding 工程化方法论：文档先行、方案先行、多重审阅、上下文隔离、Skill 沉淀，帮你把浪费的 Token 变成省下的钱。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://li-s-h.github.io/img/title-picture/AI%20Coding%20%E5%B7%A5%E7%A8%8B%E5%8C%96%E5%AE%9E%E8%B7%B5%EF%BC%9A%E4%BB%8E%E6%83%B3%E6%B3%95%E5%88%B0%E8%90%BD%E5%9C%B0%E7%9A%84%E5%AE%8C%E6%95%B4%E6%96%B9%E6%B3%95%E8%AE%BA.jpg">
+<meta property="article:published_time" content="2026-09-10T12:00:00.000Z">
+<meta property="article:modified_time" content="2026-09-10T06:01:03.034Z">
+<meta property="article:author" content="青山木">
+<meta property="article:tag" content="AI Coding">
+<meta property="article:tag" content="Claude Code">
+<meta property="article:tag" content="工程化">
+<meta property="article:tag" content="Skill">
+<meta property="article:tag" content="工作流">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://li-s-h.github.io/img/title-picture/AI%20Coding%20%E5%B7%A5%E7%A8%8B%E5%8C%96%E5%AE%9E%E8%B7%B5%EF%BC%9A%E4%BB%8E%E6%83%B3%E6%B3%95%E5%88%B0%E8%90%BD%E5%9C%B0%E7%9A%84%E5%AE%8C%E6%95%B4%E6%96%B9%E6%B3%95%E8%AE%BA.jpg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "AI Coding 工程化实践：从想法到落地的完整方法论",
+  "url": "https://li-s-h.github.io/2026/09/10/AI%20Coding%20%E5%B7%A5%E7%A8%8B%E5%8C%96%E5%AE%9E%E8%B7%B5%EF%BC%9A%E4%BB%8E%E6%83%B3%E6%B3%95%E5%88%B0%E8%90%BD%E5%9C%B0%E7%9A%84%E5%AE%8C%E6%95%B4%E6%96%B9%E6%B3%95%E8%AE%BA/",
+  "image": "https://li-s-h.github.io/img/title-picture/AI%20Coding%20%E5%B7%A5%E7%A8%8B%E5%8C%96%E5%AE%9E%E8%B7%B5%EF%BC%9A%E4%BB%8E%E6%83%B3%E6%B3%95%E5%88%B0%E8%90%BD%E5%9C%B0%E7%9A%84%E5%AE%8C%E6%95%B4%E6%96%B9%E6%B3%95%E8%AE%BA.jpg",
+  "datePublished": "2026-09-10T12:00:00.000Z",
+  "dateModified": "2026-09-10T06:01:03.034Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "青山木",
+      "url": "https://LI-S-H.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/%E5%A4%B4%E5%83%8F.jpg"><link rel="canonical" href="https://li-s-h.github.io/2026/09/10/AI%20Coding%20%E5%B7%A5%E7%A8%8B%E5%8C%96%E5%AE%9E%E8%B7%B5%EF%BC%9A%E4%BB%8E%E6%83%B3%E6%B3%95%E5%88%B0%E8%90%BD%E5%9C%B0%E7%9A%84%E5%AE%8C%E6%95%B4%E6%96%B9%E6%B3%95%E8%AE%BA/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="stylesheet" href="/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d1117')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', 'ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: 'AI Coding 工程化实践：从想法到落地的完整方法论',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><style>
+  #site-title { font-size: 1.76em !important; }
+  #subtitle { font-size: 0.88em !important; }
+
+  /* 卡片悬停放大 + 辉光 */
+  #recent-posts .recent-post-item {
+    transition: transform .3s ease, box-shadow .3s ease, border-color .3s ease;
+  }
+  #recent-posts .recent-post-item:hover {
+    transform: scale(1.025) !important;
+    border-color: rgba(107,159,255,0.5) !important;
+    box-shadow: 0 0 0 1px rgba(107,159,255,0.15),
+                0 0 45px rgba(107,159,255,0.12),
+                0 8px 30px rgba(0,0,0,0.4) !important;
+  }
+
+  /* 首页标题上方头像 */
+  #site-info .avatar-img {
+    display: block;
+    width: 144px;
+    height: 144px;
+    border-radius: 50%;
+    margin: 0 auto 20px;
+    border: 3px solid rgba(107,159,255,0.6);
+    box-shadow: 0 0 30px rgba(107,159,255,0.35),
+                0 0 60px rgba(107,159,255,0.15),
+                0 4px 20px rgba(0,0,0,0.25);
+    object-fit: cover;
+    transition: box-shadow .4s ease, border-color .4s ease;
+  }
+  #site-info .avatar-img:hover {
+    border-color: rgba(107,159,255,0.9);
+    box-shadow: 0 0 40px rgba(107,159,255,0.5),
+                0 0 80px rgba(107,159,255,0.25),
+                0 4px 20px rgba(0,0,0,0.25);
+  }
+
+  /* Mermaid 图表容器样式 */
+  .mermaid-wrap {
+    position: relative;
+    /* 图表固定使用深色画布，主题切换无需销毁并重绘所有 SVG。 */
+    background: #1e1e1e !important;
+    padding: 12px !important;
+    border-radius: 8px !important;
+    border: 1px solid #444 !important;
+    text-align: center;
+    margin: 0 0 20px 0;
+    overflow-x: auto;
+  }
+  .mermaid-wrap > svg {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+  }
+  /* 深色图表画布在两种站点主题下保持一致，避免切换时重排。 */
+  [data-theme="dark"] .mermaid-wrap {
+    background: #1e1e1e !important;
+    border-color: #444 !important;
+  }
+</style>
+<meta name="generator" content="Hexo 7.3.0"></head><body><div class="bg-animation" id="web_bg" style="background-image: url(/img/%E8%83%8C%E6%99%AF%E5%9B%BE2.png);"></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(/img/title-picture/AI%20Coding%20%E5%B7%A5%E7%A8%8B%E5%8C%96%E5%AE%9E%E8%B7%B5%EF%BC%9A%E4%BB%8E%E6%83%B3%E6%B3%95%E5%88%B0%E8%90%BD%E5%9C%B0%E7%9A%84%E5%AE%8C%E6%95%B4%E6%96%B9%E6%B3%95%E8%AE%BA.jpg);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">青山木</span></a><a class="nav-page-title" href="/"><span class="site-name">AI Coding 工程化实践：从想法到落地的完整方法论</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">AI Coding 工程化实践：从想法到落地的完整方法论</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-09-10T12:00:00.000Z" title="发表于 2026-09-10 20:00:00">2026-09-10</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-09-10T06:01:03.034Z" title="更新于 2026-09-10 14:01:03">2026-09-10</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/agent/">agent</a></span></div><div class="meta-secondline"></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><blockquote>
+<p><strong>用好 AI 的关键，在于你的工程化和规范化做到什么程度。</strong>本文基于我个人付费多家 Coding Plan 的真实使用经验，按照项目的三个阶段展开：想法还不清晰时怎么把想法变成项目，需求明确之后前后端怎么开发与测试，以及怎么把重复劳动沉淀成 Skill 工作流。每一条建议背后基本都是我真实踩过的坑，希望能帮你少浪费一些 Token，毕竟浪费 Token 就是浪费钱。</p>
+</blockquote>
+<h2 id="一、工程化与规范化是用好-AI-的关键"><a href="#一、工程化与规范化是用好-AI-的关键" class="headerlink" title="一、工程化与规范化是用好 AI 的关键"></a>一、工程化与规范化是用好 AI 的关键</h2><p>在过去很长一段时间里，我付费了多家的 Coding Plan 和 Token Plan，包括 MiniMax、火山、MIMO、ChatGPT 等等。体验下来一个很直接的结论，<strong>现在的 AI 并没有网上宣传的那么强大</strong>。</p>
+<p>对于稍微复杂一点的项目来说，根源在上下文：项目过大、文件过多，AI 无法全部阅读。表现出来就是不复用公共工具类或者模块内的工具类，代码编写不规范，不考虑并发等等。想一句话生成一个项目，是不太可能的。具体到开发过程中，很容易遇到三类问题：</p>
+<ul>
+<li><strong>幻觉</strong>：编造不存在的 API、凭空捏造字段和配置；</li>
+<li><strong>偏移中心</strong>：写着写着忘了目标，生成的代码越来越偏离核心需求；</li>
+<li><strong>理解错误</strong>：你说的和它理解的对不上，代码看起来能跑，但逻辑根本不是你想要的。</li>
+</ul>
+<p>拿我自己项目里的实际表现举例。偏移最明显的就是不用工具类：我项目里搞了 Redis 的工具类、数字转换工具类等等，但到后面开发的时候能很明显感觉到 AI 乱搞，明明有公共工具类它不用，非要自己写一个，某些类里已经抽出来的公共方法它也不复用。还有 SQL 的 N+1 问题，循环里一条条查，数据量一上来接口就慢得没法看。更难受的是前后风格不一致：我前面用 MyBatis-Plus 的 Lambda 写查询语句，它改用 MyBatis 写 XML 文件，同一个项目里两套写法并存，后面维护起来非常痛苦。</p>
+<p>但反过来说，如果是比较简单的项目，比如只做一个宣传网站，里面不涉及并发、不涉及大量数据存储，那完全没必要上后面这套复杂流程，这种活 AI 是可以直接完成的。<strong>流程的重量要和项目的复杂度匹配</strong>，这是我踩了很多坑之后的第一条经验。</p>
+<p>所以这篇文章讲的所有内容，都是针对&quot;稍微复杂点的项目&quot;：怎么通过工程化和规范化的编写与推进，让 AI 稳定地朝你想要的方向走。这背后有一个贯穿全文的角色认知：<strong>你必须扮演领导，AI 是强大的执行者</strong>。混乱的记忆会使它偏移，模糊的描述会使它弄错方向，你要做的就是统领它，让它发挥强大的作用。</p>
+<p>下面按项目的三个阶段展开。</p>
+<h2 id="二、从想法到项目：把想法沉淀成文档"><a href="#二、从想法到项目：把想法沉淀成文档" class="headerlink" title="二、从想法到项目：把想法沉淀成文档"></a>二、从想法到项目：把想法沉淀成文档</h2><p>这个阶段针对的是：项目还没开发起来，只是有个想法，或者需求还不明确、还不完善。这个阶段的核心任务只有一个，<strong>完善项目认知，并把它们沉淀成文档，提供给后面开发时的 AI 查阅</strong>。</p>
+<h3 id="2-1-为什么文档先行：一次昂贵的踩坑"><a href="#2-1-为什么文档先行：一次昂贵的踩坑" class="headerlink" title="2.1 为什么文档先行：一次昂贵的踩坑"></a>2.1 为什么文档先行：一次昂贵的踩坑</h3><p>我之前踩过一个大坑：项目做到中途，整体我还记得，但具体需求和功能要求的细节已经忘了，只凭当时的记忆让 AI 继续写。拿出入库单举例，当时设计的是出入库成功之后要回填对应的采购单，同时一张采购单可以对应多张入库单，因为货可能分批到。这几个要求我全忘了，AI 更不可能知道。结果到测试阶段才发现数据错乱，排查了很久才定位到问题：代码量实在太大，而且锁很多，业务缠得很深，后面补得非常痛苦。返工烧掉大量 Token，<strong>这部分钱花得很冤</strong>。</p>
+<p>这类坑的根源在于 AI 没有跨会话的记忆，人的记忆又会衰减、走样。你脑子里的&quot;大概记得&quot;，传到 AI 那里就是模糊描述，模糊描述必然导致理解错误和偏移。解法只有一个，<strong>把需求沉淀成文档，文档就是 AI 的外部记忆</strong>，每次开发都让 AI 先读文档，别再依赖你我的记忆。</p>
+<h3 id="2-2-用-反问-把想法聊清楚"><a href="#2-2-用-反问-把想法聊清楚" class="headerlink" title="2.2 用&quot;反问&quot;把想法聊清楚"></a>2.2 用&quot;反问&quot;把想法聊清楚</h3><p>如果你现在只是有点想法，项目具体怎么做还没有详细计划，先别急着让 AI 写任何东西。第一步是<strong>明确你的需求</strong>，而且这一步有个特别实用的技巧，就是<strong>让 AI 反问你</strong>。</p>
+<p>大多数人的用法是&quot;我问 AI&quot;，但在这个阶段更好的用法是让 AI 给你思路、追问你。你可以先给它一个基本描述，比如：</p>
+<blockquote>
+<p>我现在准备做一个有 xxx 功能、给 xxx 人员使用的 xxx 系统，解决 xxx 人员的 xxx 需求。</p>
+</blockquote>
+<p>就这一句话里，有无数可以让 AI 反问你的点：<strong>人员有哪些？</strong> 它可以帮你补充。而需求是跟着人员走的，人员确定了，需求根据人员的确定就会更加具体和明确，自然而然后面的功能和系统也就更加明确了。</p>
+<p>也就是说，通过不断与 AI 交流，被它一遍遍追问，你可以一点点把项目聊清晰：需求是什么，功能有哪些，为谁服务，要解决什么问题。当你觉得已经足够明确的时候，再进入下一步，让 AI 生成对应的 PRD（需求文档）。</p>
+<h3 id="2-3-生成-PRD：多轮对话的记忆陷阱"><a href="#2-3-生成-PRD：多轮对话的记忆陷阱" class="headerlink" title="2.3 生成 PRD：多轮对话的记忆陷阱"></a>2.3 生成 PRD：多轮对话的记忆陷阱</h3><p>让 AI 生成 PRD 这一步，有一个非常坑的地方：<strong>多轮对话之后的上下文遗忘</strong>。</p>
+<p>前面你已经和 AI 聊了很多轮，上下文可能已经比较大了，此时让 AI 总结输出 PRD，它发生部分需求遗忘或功能遗忘的概率非常大，它会把前面聊过的某些功能直接漏掉，或者记住的是走样的版本。</p>
+<p>我非常建议你在让它生成 PRD 之后，<strong>先让它自我审阅一遍</strong>，明确要求它&quot;找可以完善的点、遗漏的需求&quot;，往往能抓回一部分丢失的内容。但自我审阅不是万能的，因为它和初稿共享同一份上下文，它忘掉的东西，自我审阅时大概率也想不起来。</p>
+<h3 id="2-4-跨工具交叉审阅：让没有上下文的-AI-当-新人评审"><a href="#2-4-跨工具交叉审阅：让没有上下文的-AI-当-新人评审" class="headerlink" title="2.4 跨工具交叉审阅：让没有上下文的 AI 当&quot;新人评审&quot;"></a>2.4 跨工具交叉审阅：让没有上下文的 AI 当&quot;新人评审&quot;</h3><p>想把方案再完善一层、多找出一些漏洞，最好的办法是<strong>换一个完全没有上下文的 AI 来审阅</strong>。</p>
+<p>我的做法是：用 Codex 生成 PRD 初稿并审阅修改一遍之后，再交给 Claude Code 审阅。这里有个关键细节，<strong>Claude Code 是完全没有上下文的</strong>，所以你需要大概讲解一点你的想法给它，然后让它以对应<strong>业务人员的视角</strong>来审阅这份 PRD，并且让它<strong>参考网上其他现有的、完善的大项目</strong>，为你这个项目做补充。</p>
+<p>为什么要强调业务人员视角？因为同一份文档，开发视角看的是&quot;能不能实现&quot;，业务视角看的是&quot;全不全、对不对&quot;。需求完整性恰恰是业务视角才能审出来的。</p>
+<p>为什么强调参考成熟大项目？AI 并不是不知道同类系统一般该有什么，只是没有参照的时候，它的补充会不够明确；参考现有的完善方案之后，内容相对来说就基本完善了，输出也会更加集中。</p>
+<p>这相当于团队里来了个新同事做交叉评审，他不知道之前开会的来龙去脉，反而不会被带着跑，能一眼看出文档本身的漏洞。</p>
+<h3 id="2-5-审阅的正确节奏：先交流，再方案，后动笔"><a href="#2-5-审阅的正确节奏：先交流，再方案，后动笔" class="headerlink" title="2.5 审阅的正确节奏：先交流，再方案，后动笔"></a>2.5 审阅的正确节奏：先交流，再方案，后动笔</h3><p>跨工具审阅这里还有一个踩坑点，节奏非常重要：<strong>不要第一轮就直接让它修改 PRD</strong>。</p>
+<ol>
+<li><strong>先交流</strong>：把背景讲给它，聊清楚你的想法，让它理解这个项目是干什么的；</li>
+<li><strong>让它自我审阅</strong>：以业务人员视角 + 参考成熟项目，输出它发现的问题和可以补充的点；</li>
+<li><strong>你来审阅它的回答</strong>：看看它说的有没有道理、有没有真正遗漏的点，把你的判断和补充一起反馈给它；</li>
+<li><strong>让它出修改方案</strong>：基于双方确认的内容，先出一份修改方案（改什么、怎么改、为什么改），而不是直接改文档；</li>
+<li><strong>敲定修改方案</strong>：你确认这份方案没问题之后，明确要求它<strong>务必遵循这份修改方案</strong>去修改 PRD。</li>
+</ol>
+<p>先出方案再动笔，能大大减少它自由发挥带来的偏移。这个&quot;先方案、审方案、再执行&quot;的节奏，不只是用在 PRD 上，后面开发阶段的每一步都是这个套路，是全文反复出现的核心方法。</p>
+<h3 id="2-6-PRD-是活文档"><a href="#2-6-PRD-是活文档" class="headerlink" title="2.6 PRD 是活文档"></a>2.6 PRD 是活文档</h3><p>要说明的是，到这里完成的只是<strong>初版 PRD</strong>。随着开发的进行，这个 PRD 后续还会被修改：发现新的需求、砍掉不合理的功能、补充遗漏的流程，都要回头更新它。我们能做到的，是在每个阶段尽可能完善它，让它在任何时候都是&quot;这个项目唯一权威的需求来源&quot;。</p>
+<h3 id="2-7-技术选型：让-AI-给方案，自己拍板"><a href="#2-7-技术选型：让-AI-给方案，自己拍板" class="headerlink" title="2.7 技术选型：让 AI 给方案，自己拍板"></a>2.7 技术选型：让 AI 给方案，自己拍板</h3><p>需求明确之后，下一步是架构选型。这部分如果你自身不是很懂，可以让 AI 分析 PRD，根据 PRD 给你几种方案选择，同时讲明每个方案的优劣，并给出这几个方案里的<strong>推荐方案和对应的理由</strong>。</p>
+<p>当然，如果你自己懂一些是最好的。选型里面其实有很多细节，前端框架选哪个，后端语言和框架怎么定，数据库用什么，消息队列要不要上、上哪种，还有其他很多中间件，甚至如果是分布式架构，会涉及更多大量的中间件。如果没有系统学习过开发，这部分会比较难以处理，我也没有什么好办法，只能靠积累。</p>
+<p>但有一条建议我可以给得很坚决：<strong>选你熟悉的</strong>。这样会为后续开发减少很多困难。拿我自己举例：后端语言里我 Java 使用最多且熟练，而且 Java 生态很好，中间件我基本都熟悉，所以我选 Java。你对 Go 熟悉或者对 Python 熟悉，也可以选对应的，这跟你的项目情况有关。前端同理，一般就是在 Vue 和 React 里选一个，如果是客户端开发则选择其他对应技术栈。</p>
+<p>选型完毕之后，强烈建议<strong>沉淀为文档，并且标明对应的选型理由</strong>。这有两个用处：一是方便你后续回看&quot;当时为什么这么选&quot;；二是后续开发新模块的时候，可以让 AI 看看这个模块需要引入哪些中间件，有选型文档在，它给出的建议才是贴合项目现状的。</p>
+<h3 id="2-8-页面原型：图片先行，模块分清"><a href="#2-8-页面原型：图片先行，模块分清" class="headerlink" title="2.8 页面原型：图片先行，模块分清"></a>2.8 页面原型：图片先行，模块分清</h3><p>接下来是页面大概的样子和形式。这一步的核心产出是<strong>图片和模块划分</strong>。</p>
+<p>如果你会使用 Figma 这类设计工具，会好很多：Codex 里面能连接 Figma，Trae、Qoder 这些工具也都支持，并且可以根据 Figma 的设计稿生成前端页面，整个链路非常顺。</p>
+<p>如果你不会 Figma 也没关系，方法和前面一样，你对页面有点想法，就和 AI 沟通交流，把想法聊清楚。这里我建议，如果你的用量够的话，去 Codex 让它生成对应的前端页面图片给你看，它是支持你选择对应的元素进行修改的，这一步体验非常友好。而且根据 Codex 生成的网页图片，你让它根据图片生成或者修改对应的前端页面，<strong>相似度在 85% 左右</strong>，作为原型迭代来说完全够用了。</p>
+<p>这个阶段不用追求定稿，做到下面几点就够了：</p>
+<ul>
+<li>确定整个页面的大概样子，各个部分有什么；</li>
+<li>把对应的图片保存好，放到项目对应的某个文件夹里面；</li>
+<li><strong>最好让 AI 帮你把模块分清楚</strong>，明确这个系统对应有哪几个模块，这个信息对后面开发非常有用。</li>
+</ul>
+<p>最后，把页面原型图 + 模块划分 + 技术选型放在一起，形成一个<strong>项目大概介绍的文档</strong>。</p>
+<h3 id="2-9-模块划分与开发顺序：先独立，后耦合，MVP-先行"><a href="#2-9-模块划分与开发顺序：先独立，后耦合，MVP-先行" class="headerlink" title="2.9 模块划分与开发顺序：先独立，后耦合，MVP 先行"></a>2.9 模块划分与开发顺序：先独立，后耦合，MVP 先行</h3><p>在正式动工之前，还有一步规划工作：<strong>确定模块的开发顺序</strong>。这一步可以让 AI 来分析，根据 PRD 和模块划分给出开发顺序建议，一般来说这部分它出错很少。</p>
+<p>通常合理的顺序是：<strong>从与其他模块联系不深的独立模块开始开发，然后慢慢过渡到复杂的、多个模块交互的核心模块，把 MVP 的核心闭环先跑通</strong>。拿 ERP 举例，先做产品模块这种相对独立的，再进采购、销售、退货、库存这些必然绑定、深度交互的核心模块。</p>
+<p>核心模块之间是高频交互的，代码编写上非常容易漏掉一些跨模块的逻辑：你改了某个产品的产品名，很可能要同时改多个模块的内容；某个产品因为代言人出问题、或者工厂生产出了问题要禁用，销售和采购模块就必须立刻停掉对它的销售与采购。</p>
+<p>类似的跨模块联动逻辑会有很多，开发时是不可能一次全想到的。所以我的推荐做法是：<strong>让 AI 先帮你分析这类跨模块逻辑，尽可能帮你写成 TODO，后面相关模块完成之后回来补全</strong>。这样既不会打断当前的模块开发节奏，也不会把这些关键逻辑漏掉。</p>
+<h2 id="三、需求明确后的开发：以模块为单位推进"><a href="#三、需求明确后的开发：以模块为单位推进" class="headerlink" title="三、需求明确后的开发：以模块为单位推进"></a>三、需求明确后的开发：以模块为单位推进</h2><p>这个阶段的前提是：项目具体需求和页面样式已经明确了。核心原则先摆出来，后面所有内容都围绕它们展开：</p>
+<ul>
+<li><strong>先方案，后代码</strong>：任何一步都不让 AI 直接动笔；</li>
+<li><strong>每步沉淀文档</strong>：PRD、选型、表设计、接口文档，全部落成文件；</li>
+<li><strong>上下文隔离</strong>：不同的事开不同的窗口，互不污染；</li>
+<li><strong>多重审阅</strong>：AI 自审 + 跨 AI 交叉审阅 + 人工审阅。</li>
+</ul>
+<h3 id="3-1-开工前的两件事"><a href="#3-1-开工前的两件事" class="headerlink" title="3.1 开工前的两件事"></a>3.1 开工前的两件事</h3><p>在逐模块开发之前，有两件事要先做：</p>
+<p><strong>第一件：搭建项目骨架。</strong> 先让 AI 根据前面设计的模块文档，搭建出前后端对应的文件骨架（目录结构、模块划分、基础配置），然后<strong>连接 GitHub 并上传骨架</strong>。之后的所有开发都在这个骨架上、一个模块一个模块地推进。骨架先行的好处是：后续每个模块的开发都有明确的&quot;落脚点&quot;，AI 不会每次都自己发明一套目录结构。</p>
+<p><strong>第二件：把本地环境信息写进 AGENTS.md &#x2F; CLAUDE.md。</strong> AI 是可以访问你本地的数据库这些资源的，但它<strong>不会记住</strong>这些信息。所以你最好在 agent.md（Codex 用）或者 CLAUDE.md（Claude Code 用）文件里面写好：</p>
+<ul>
+<li>本地数据库是哪个端口、什么账号；</li>
+<li>Redis 是哪个端口；</li>
+<li>MQ 是哪个端口；</li>
+<li>对应的编译工具在本机的哪个位置。</li>
+</ul>
+<p>不写这些的下场是：AI 每次需要连接数据库都要重新调用工具查找位置，来回浪费大量时间和 Token。环境信息前置，一次写好，全程受益。</p>
+<h3 id="3-2-上下文隔离：一类文档一个窗口，一个模块一个窗口"><a href="#3-2-上下文隔离：一类文档一个窗口，一个模块一个窗口" class="headerlink" title="3.2 上下文隔离：一类文档一个窗口，一个模块一个窗口"></a>3.2 上下文隔离：一类文档一个窗口，一个模块一个窗口</h3><p>这是一个非常重要、但很容易被忽略的习惯，生成 PRD、做技术选型、设计数据库，这几件事我都是建议各开一个独立的窗口来做。</p>
+<p>原因有两点：</p>
+<ol>
+<li><strong>避免上下文污染</strong>。前面窗口里聊过的内容，会一直留在上下文里，其中过时的、错误的讨论会干扰 AI 当前的判断。开新窗口，AI 反而可以更加明确地看出错误；</li>
+<li><strong>精华都沉淀在对应的文档里面了</strong>，实在不是很需要之前的记忆。文档就是记忆，何必让 AI 靠着上下文里一堆聊天残渣干活呢？</li>
+</ol>
+<p>这个原则延伸到开发阶段就是：<strong>一个模块，一个窗口</strong>。模块 A 的窗口只聊模块 A，模块 B 另开窗口，互不掺和。</p>
+<h3 id="3-3-单模块开发闭环：完整流程拆解"><a href="#3-3-单模块开发闭环：完整流程拆解" class="headerlink" title="3.3 单模块开发闭环：完整流程拆解"></a>3.3 单模块开发闭环：完整流程拆解</h3><p>下面是这篇文章最核心的内容，一个模块从设计到完成的完整流程。前面已经明确了前端页面大概的样子，现在需要一个个模块完善。</p>
+<h4 id="Step-1：页面完善——变动最多、耗时最长的部分"><a href="#Step-1：页面完善——变动最多、耗时最长的部分" class="headerlink" title="Step 1：页面完善——变动最多、耗时最长的部分"></a>Step 1：页面完善——变动最多、耗时最长的部分</h4><p>每个页面要呈现什么内容，这部分是整个项目<strong>变动最多且最高频</strong>的部分，需要花费大量时间。</p>
+<p>做法和之前一样：让 AI <strong>以对应的目标需求人员的视角</strong>审阅和说明该页面应该呈现什么、有哪些操作比较好、动画怎么样等等，仍旧以图片修改为主，让它生成页面图给你看，你挑毛病、选元素改，迭代到满意为止。如果用 Figma 就更简单了，直接改设计稿就行。</p>
+<p>注意节奏：<strong>以一个模块为单位完成</strong>。不要东一榔头西一棒子，把一个模块的所有页面都确定下来，再进入下一步。</p>
+<h4 id="Step-2：数据库表设计——AI-初版大概率不合理"><a href="#Step-2：数据库表设计——AI-初版大概率不合理" class="headerlink" title="Step 2：数据库表设计——AI 初版大概率不合理"></a>Step 2：数据库表设计——AI 初版大概率不合理</h4><p>模块页面确定之后，开始设计这个模块的数据库表结构和对应字段。<strong>这部分比较重要</strong>，因为 AI 第一遍生成的数据库表很可能是不合理的。</p>
+<p>这个环节需要你有判断能力，拿着表结构回头看看和页面对不对得上：页面要展示的字段表里有没有？页面要做的操作表结构撑不撑得起？这需要一定的项目经验。</p>
+<p>如果你没有这个经验，我的建议就是前面说过的：<strong>两个 AI 交互审阅</strong>。Codex 出的初稿丢给 Claude Code（附上页面说明和业务背景），Claude Code 的问题再拿回 Codex 确认。这是减少错误最好的方法，而且十分有效。</p>
+<p>表设计确认后，<strong>沉淀成文档</strong>，和 PRD、选型文档放在一起。</p>
+<h4 id="Step-3：接口文档——Postman-Apifox-里过一遍"><a href="#Step-3：接口文档——Postman-Apifox-里过一遍" class="headerlink" title="Step 3：接口文档——Postman &#x2F; Apifox 里过一遍"></a>Step 3：接口文档——Postman &#x2F; Apifox 里过一遍</h4><p>表设计完成之后，我非常建议接着生成对应的<strong>接口文档</strong>（API 文档），并且把它导入到你自己的 Postman 或者 Apifox 之类的工具里面看看有没有问题。</p>
+<p>这一步是让你<strong>以调用方的身份</strong>检查契约：字段名对不对、返回结构合不合理、缺不缺接口。你自己如果察觉不到什么问题，就可以进入开发了。</p>
+<h4 id="Step-4：编码前的最后一道审阅"><a href="#Step-4：编码前的最后一道审阅" class="headerlink" title="Step 4：编码前的最后一道审阅"></a>Step 4：编码前的最后一道审阅</h4><p>在正式编写代码前，我建议在提示词里加上一句话：</p>
+<blockquote>
+<p>请审阅接口文档是否出现问题，如果无问题，再开始动笔。</p>
+</blockquote>
+<p>就这么简单一句话，成本几乎为零，却能挡掉不少&quot;拿着错误契约写了一整套代码&quot;的返工。</p>
+<h4 id="Step-5：方案先行——不让-AI-直接写代码"><a href="#Step-5：方案先行——不让-AI-直接写代码" class="headerlink" title="Step 5：方案先行——不让 AI 直接写代码"></a>Step 5：方案先行——不让 AI 直接写代码</h4><p>这一步是我整个开发流程里的重中之重，<strong>我不建议让 AI 直接开始编写代码</strong>。</p>
+<p>原因很实际：直接动笔，大概率生成的代码会有很多漏洞，而且问题很大，SQL 效率低下、锁该加的没加、该复用的工具类重新造了一个，这些坑事后返工的成本远比先出方案高。</p>
+<p>正确的做法是先让它把<strong>编程方案</strong>给你：</p>
+<ol>
+<li>AI 输出编程方案；</li>
+<li><strong>你先审阅方案</strong>，看看有没有问题；</li>
+<li>同时让 AI <strong>自我审阅</strong>，自己提出这套方案的问题和解决思路；</li>
+<li>大概两轮之后，这套方案就比较完善了，再开始动笔写代码。</li>
+</ol>
+<p>这里注意，你自己也必须审阅方案，不能当甩手掌柜。另外，<strong>最好对 AI 的输出格式做点限制</strong>，这个看你个人喜好，我说说我喜欢的格式，供参考：</p>
+<ul>
+<li><strong>具体的流程图</strong>：一个请求从前端到后端经历了哪些流程，对应的各个流程大概干什么，注意是流程，<strong>而不是具体代码</strong>；</li>
+<li>说明<strong>新增的文件在哪里</strong>、改动涉及哪些文件；</li>
+<li>分析有没有<strong>并发或者锁的问题</strong>，如果有，给出对应的解决方案。</li>
+</ul>
+<p>这种&quot;流程图 + 文件清单 + 风险点&quot;的方案格式，你审阅起来快，AI 落地时也稳定。具体喜欢哪种输出，需要你自己慢慢摸索，找到最适合自己的那一种，这也会成为后面沉淀 Skill 的素材（第四部分会讲）。</p>
+<h4 id="Step-6：编码与-AI-测试"><a href="#Step-6：编码与-AI-测试" class="headerlink" title="Step 6：编码与 AI 测试"></a>Step 6：编码与 AI 测试</h4><p>方案敲定后进入编码。AI 写完代码不是终点，它还要<strong>自己把测试做掉</strong>。这里的测试方案需要在编程方案里就重点说明，我要求的测试体系是：</p>
+<p><strong>前端测试：</strong></p>
+<ul>
+<li>断言测试：关键交互逻辑的自动化断言；</li>
+<li>视觉测试：页面渲染是否正常、样式有没有跑偏；</li>
+<li>浏览器自动操作测试：模拟真实用户点击、输入、跳转，把交互流程走一遍。</li>
+</ul>
+<p><strong>后端测试：</strong></p>
+<ul>
+<li>单元测试：核心业务逻辑的正确性；</li>
+<li>并发测试：并发场景下的行为是否符合预期；</li>
+<li>锁测试：分布式锁、事务锁有没有真的锁住。</li>
+</ul>
+<p><strong>联调测试：</strong></p>
+<ul>
+<li>前后端接口打通后的端到端验证。</li>
+</ul>
+<p>窗口的使用上，我建议：<strong>前端一个窗口编写，后端一个窗口编写，联调的时候选择前端的那个聊天窗口进行联调测试</strong>（前端窗口天然带着页面上下文，联调问题定位更直接）。这些测试 AI 都是可以做到的，关键是你要在方案里明确要求，否则它写完代码就停了。</p>
+<h4 id="Step-7：人工把关——AI-的测试不一定准确"><a href="#Step-7：人工把关——AI-的测试不一定准确" class="headerlink" title="Step 7：人工把关——AI 的测试不一定准确"></a>Step 7：人工把关——AI 的测试不一定准确</h4><p>AI 测试完了之后，<strong>你不能直接就不管了</strong>。三个必须做的动作：</p>
+<ol>
+<li><strong>审阅代码</strong>。它的测试不一定准确，有可能测试本身写得就是错的，跑通过不代表逻辑对；</li>
+<li><strong>在 Postman 或者 Apifox 里面手动测一下接口</strong>，确保返回格式没问题、字段和接口文档一致；</li>
+<li><strong>自己到页面上点击看看</strong>。前端跑一遍真实操作，交互对不对、显示正不正常，自己点过才算数。</li>
+</ol>
+<p>到这里，一个模块的开发闭环才算真正完成：<strong>页面设计 → 表设计 → 接口文档 → 方案审阅 → 编码 → AI 测试 → 人工把关</strong>，然后带着这份沉淀，开下一个模块的窗口。</p>
+<h3 id="3-4-全流程一图流"><a href="#3-4-全流程一图流" class="headerlink" title="3.4 全流程一图流"></a>3.4 全流程一图流</h3><p>把第三部分的内容串起来，整个开发阶段的流程是这样的：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line">┌─────────────────────────────────────────────────┐</span><br><span class="line">│ 开工准备                                         │</span><br><span class="line">│   搭建前后端骨架 → 上传 GitHub                   │</span><br><span class="line">│   AGENTS.md / CLAUDE.md 写好本地环境信息          │</span><br><span class="line">└───────────────────┬─────────────────────────────┘</span><br><span class="line">                    ▼</span><br><span class="line">┌─────────────────────────────────────────────────┐</span><br><span class="line">│ 单模块闭环（一个模块一个窗口）                    │</span><br><span class="line">│   1. 页面完善（需求人员视角审阅 + 图片迭代）       │</span><br><span class="line">│   2. 数据库表设计（双 AI 交叉审阅）→ 沉淀文档      │</span><br><span class="line">│   3. 接口文档生成 → 导入 Postman/Apifox 检查      │</span><br><span class="line">│   4. &quot;请审阅接口文档是否出现问题&quot;                 │</span><br><span class="line">│   5. 编程方案先行（流程图+文件清单+并发锁分析）    │</span><br><span class="line">│      → 人工审阅 + AI 自审，约两轮 → 动笔          │</span><br><span class="line">│   6. AI 编码 + AI 测试                           │</span><br><span class="line">│      前端：断言/视觉/浏览器操作测试               │</span><br><span class="line">│      后端：单元/并发/锁测试                      │</span><br><span class="line">│      联调：在前端窗口进行                        │</span><br><span class="line">│   7. 人工审阅代码 + Postman/Apifox 实测接口       │</span><br><span class="line">└───────────────────┬─────────────────────────────┘</span><br><span class="line">                    ▼</span><br><span class="line">   每完成一个模块：重构审计（抽取工具类/公共方法）</span><br><span class="line">                    ▼</span><br><span class="line">   Bug 修复：定位根因 → 复现 → 修复方案</span><br><span class="line">            → 修复后再次复现 → 最小影响面</span><br><span class="line">                    ▼</span><br><span class="line">        下一个模块（新窗口） / 回补跨模块 TODO</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-5-代码量到了一定规模，务必及时重构"><a href="#3-5-代码量到了一定规模，务必及时重构" class="headerlink" title="3.5 代码量到了一定规模，务必及时重构"></a>3.5 代码量到了一定规模，务必及时重构</h3><p>还有一点很重要，要单独拿出来说：当项目代码量到达一定量的时候，务必及时重构。</p>
+<p>AI 写的代码有个很典型的毛病，它尤其喜欢抽取大量短的私有方法，一个逻辑被拆得七零八落，每个方法就几行。单看每个方法都没问题，连起来读就很困难，代码越堆越复杂。等你看不懂自己项目里的代码了，AI 后续的修改只会更偏，它面对的也是同一堆难读的代码。</p>
+<p>所以我的做法是，<strong>每完成一个模块就停下来</strong>，让 AI 审一遍代码结构，看看有没有可以抽取的工具类、公共方法，有没有可以优化的地方，其实挺多地方可以优化的。把过度拆分的方法合并回去，该复用的工具类统一，该删的删掉。</p>
+<p>这里必须审阅它怎么抽，最好还是先出方案再动手，不然它会发癫：一行代码而且只被一个方法调用的，它都能给你抽成一个私有方法。这种&quot;为抽而抽&quot;的方案直接打回去，别让它落地。重构这件事拖得越晚，成本越高，后面 AI 的产出质量也会跟着往下掉。</p>
+<h3 id="3-6-Bug-修复：先定位根因，再做最小影响面的修复"><a href="#3-6-Bug-修复：先定位根因，再做最小影响面的修复" class="headerlink" title="3.6 Bug 修复：先定位根因，再做最小影响面的修复"></a>3.6 Bug 修复：先定位根因，再做最小影响面的修复</h3><p>开发过程中 bug 是躲不掉的，这里也有一套我总结的流程，核心思路是<strong>先定位、再修复、必复现、控影响面</strong>。</p>
+<p><strong>第一步，定位 bug 根因。</strong> 别一上来就让 AI 改，先让它把根因找出来。可以直接把日志、请求响应、复现步骤丢给它分析。根因没找准就动手，改出来的往往是&quot;治标不治本&quot;，甚至引入新问题。</p>
+<p><strong>第二步，复现 bug。</strong> 修复之前必须先能稳定复现。复现不了就没法验证修复效果，修复完了你也不知道它是真的好了，还是恰好这次没触发。</p>
+<p><strong>第三步，设计对应的修复方案。</strong> 还是老规矩，先出方案再动笔，方案里说清楚改哪里、为什么这么改。</p>
+<p><strong>第四步，修复之后再次复现。</strong> 用同样的步骤验证 bug 是否还会出现，不出现才算修完。</p>
+<p>其中有一条要特别强调：<strong>最小影响的修复，尽量不影响其他模块</strong>。能让 AI 把改动控制在最小范围内的，就别让它顺手重构。如果改动比较大、影响多个模块，建议把受影响的模块一起测试一下，且顺便看看还有没有其他 bug，一起修复最好，省得来回返工。</p>
+<p>这套流程是要自己不断去总结的，每次踩坑都是完善它的机会，我自己的 bug 修复流程就是抽成了 Skill 一直迭代的（第四部分会讲）。</p>
+<h2 id="四、从重复到复用：用-Skill-搭建专属工作流"><a href="#四、从重复到复用：用-Skill-搭建专属工作流" class="headerlink" title="四、从重复到复用：用 Skill 搭建专属工作流"></a>四、从重复到复用：用 Skill 搭建专属工作流</h2><p>前面两个部分，我说了很多&quot;文档沉淀到项目内&quot;的做法。但你实际跑起来会发现一个麻烦：后续每次开发，你都得跟 AI 说一遍&quot;xxx 文档在 xxx 位置&quot;。这种高度重复的东西，就是我第四部分要讲的内容：<strong>把重复抽取成 Skill</strong>。</p>
+<h3 id="4-1-痛点：重复的-文件在哪-和重复的提示词"><a href="#4-1-痛点：重复的-文件在哪-和重复的提示词" class="headerlink" title="4.1 痛点：重复的&quot;文件在哪&quot;和重复的提示词"></a>4.1 痛点：重复的&quot;文件在哪&quot;和重复的提示词</h3><p>重复主要有两类：</p>
+<p><strong>第一类：文档位置的重复告知。</strong> 每次开新窗口开发，都要交代一遍 PRD 在哪、选型文档在哪、表设计文档又在哪。</p>
+<p><strong>第二类：提示词的重复编写。</strong> 回想一下前面流程里反复出现的操作，比如&quot;以 xxx 人员的视角审阅&quot;，比如&quot;生成 PRD&quot;，再比如&quot;数据库表设计并审阅&quot;，这些基本都是大量重复的提示词和操作。</p>
+<h3 id="4-2-什么值得抽成-Skill"><a href="#4-2-什么值得抽成-Skill" class="headerlink" title="4.2 什么值得抽成 Skill"></a>4.2 什么值得抽成 Skill</h3><p>针对第一类重复，你可以抽一个&quot;项目理解&quot;之类的 Skill（名字看你命名），它提供给 Agent 的信息就是：这个项目有哪些文档、各在什么位置。当然，这有一个前提：<strong>你的文档存储必须是规范化的</strong>。文档位置天天变，Skill 就废了；文档有固定的相对路径（比如统一放在项目文件夹的 <code>~/docs</code> 下面），Skill 才能稳定工作。</p>
+<p>针对第二类重复，把你觉得<strong>效果好</strong>的提示词抽出来沉淀成 Skill，比如：</p>
+<ul>
+<li>PRD 生成与审阅的完整流程（反问澄清 → 生成 → 自审 → 交叉审阅 → 方案化修改）；</li>
+<li>数据库表设计初版（阅读 PRD → 以业务人员视角设计 → 参考网上完善方案）；</li>
+<li>接口文档设计初版（和表设计高度同构：读 PRD → 定契约 → 对照成熟方案检查）；</li>
+<li>Bug 修复闭环（定位根因 → 复现 → 修复方案 → 再次复现 → 最小影响面控制）；</li>
+<li><strong>输出格式</strong>也可以抽成 Skill，比如前面说的方案设计格式（流程图 + 文件清单 + 并发锁分析），如果你用下来觉得某种方案描述方式对你的开发很有帮助，就把它沉淀下来，以后每次出方案都自动是这个格式。</li>
+</ul>
+<p>除了省事，抽 Skill 还有一层更重要的意义：<strong>提高质量</strong>。编码质量、审阅质量、输出质量，都能靠 Skill 抬上去。拿后端编码来说，方案先行的 Skill 里可以固化这些检查项：SQL 效率高不高、缓存方案选哪种、锁方案选哪种、有没有并发问题、工具类有没有用上、公共模块有没有可以复用的。前端同理。质量上去了，你需要修改修复的地方就少了，效率自然也就快了。</p>
+<p>这些抽取出来的 Skill，因为都指向固定的相对路径、遵循固定的流程，互相之间就实现了<strong>联动</strong>：PRD Skill 的产出是表设计 Skill 的输入，表设计 Skill 的产出是接口文档 Skill 的输入，一条链就串起来了。</p>
+<h3 id="4-3-这是生成质量跃升的点"><a href="#4-3-这是生成质量跃升的点" class="headerlink" title="4.3 这是生成质量跃升的点"></a>4.3 这是生成质量跃升的点</h3><p>我的体会是，不断提取 Skill 并实现联动，<strong>是生成质量跃升的点，非常重要</strong>。原因很简单，效果好的提示词被固化下来了，不再依赖你每次的临场发挥和状态；每次都是验证过的最佳流程，生成质量的下限被抬高了；效率上的节省更不用说，一句话触发一整套流程。</p>
+<p>按自己的开发习惯，不断把好用的东西抽出来，慢慢就能搭建一套非常不错的、<strong>完全定制于你</strong>的开发工作流。当然，这需要一定时间的积累，不是一次就能抽完的，每踩一个坑、每发现一个好用的表述，都是一次沉淀机会。Skill 也不是抽完就完了，它会随你的经验一直优化，改到贴合你的习惯为止。</p>
+<h3 id="4-4-我的部分-Skill-与开源仓库"><a href="#4-4-我的部分-Skill-与开源仓库" class="headerlink" title="4.4 我的部分 Skill 与开源仓库"></a>4.4 我的部分 Skill 与开源仓库</h3><p>我把抽取出来的一部分工作流开源在了 GitHub 上，有兴趣的可以看看：<a target="_blank" rel="noopener" href="https://github.com/LI-S-H/my-skills">LI-S-H&#x2F;my-skills</a>，包含三个部分：</p>
+<table>
+<thead>
+<tr>
+<th>分组</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>前端开发包</td>
+<td>覆盖前端项目从需求澄清、PRD、开发规范、契约同步、代码审核、浏览器 QA、产品验收到修复沉淀的完整闭环</td>
+</tr>
+<tr>
+<td>博客写作包</td>
+<td>技术博客写作 + Hexo front matter 生成</td>
+</tr>
+<tr>
+<td>通用工作流工具</td>
+<td>需求澄清、复杂任务审查、Bug 修复闭环</td>
+</tr>
+</tbody></table>
+<p>其中前端开发包最能体现&quot;Skill 联动&quot;的思路，它的调用顺序是一条完整的流水线：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">需求门禁 → PRD 生成 → 开发规范 → 契约同步</span><br><span class="line">                                ↓</span><br><span class="line">                        代码审核（显示/代码/业务逻辑三类问题）</span><br><span class="line">                                ↓</span><br><span class="line">              浏览器 QA（截图取证 + 自动化断言） → 产品验收 → 修复闭环</span><br></pre></td></tr></table></figure>
+
+<p>另外从我本地 Codex 和 Claude Code 的 Skill 目录里，挑几个有代表性的给大家参考，都是上面方法论的落地：</p>
+<ul>
+<li><strong>before-implementing-dev-task</strong>：接到任何开发任务，自动按&quot;核对契约 → 出方案 → 等审阅 → 实施 → 同步 → 提交&quot;的标准流程走，这就是第三部分&quot;方案先行&quot;的 Skill 化；</li>
+<li><strong>erp-backend-module-crud</strong>：后端模块 CRUD 接口的标准化流程，先给文字版方案（流程图 + 文件清单 + 关键点），等用户确认后开工，这就是&quot;输出格式约束&quot;的落地；</li>
+<li><strong>code-audit-and-refactor</strong>：存量代码审计重构，多维度扫出问题清单 → 用户挑 → 出三段式方案再实施；</li>
+<li><strong>requirement-clarifier &#x2F; task-review-executor</strong>：需求澄清和复杂任务审查，对应第二部分的&quot;反问澄清&quot;和&quot;多重审阅&quot;；</li>
+<li><strong>figma &#x2F; figma-implement-design &#x2F; playwright</strong>：设计稿转页面、浏览器自动化测试，对应页面原型和前端测试环节。</li>
+</ul>
+<p>我没有全部上传，仓库里只是部分，思路比 Skill 本身更重要：<strong>照着你自己的开发习惯去抽</strong>，你的工作流才是你的。</p>
+<h2 id="五、写在最后"><a href="#五、写在最后" class="headerlink" title="五、写在最后"></a>五、写在最后</h2><p>把三个阶段的心法收在一张表里：</p>
+<table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>核心动作</th>
+<th>给 AI 什么</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>想法 → 项目</td>
+<td>反问澄清、交叉审阅、沉淀文档</td>
+<td>明确的需求和边界</td>
+</tr>
+<tr>
+<td>需求明确 → 开发</td>
+<td>方案先行、多重审阅、模块推进、及时重构、最小影响面修 bug</td>
+<td>完整的契约和规范</td>
+</tr>
+<tr>
+<td>重复 → 复用</td>
+<td>抽取提示词、Skill 联动</td>
+<td>固化的最佳流程</td>
+</tr>
+</tbody></table>
+<p>回过头看，AI Coding 这件事没有魔法：它放大的是你已有的工程能力，替你拥有是做不到的。你懂需求，它帮你把需求落成文档；方案你来定，它帮你把方案落成代码；测试的标准你说了算，它把测试跑完。而你什么都不给、只要结果的时候，它返还给你的就是幻觉、偏移和白白烧掉的 Token。</p>
+<p>希望这套方法论，能帮你把 Token 花在刀刃上。</p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://LI-S-H.github.io">青山木</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://li-s-h.github.io/2026/09/10/AI%20Coding%20%E5%B7%A5%E7%A8%8B%E5%8C%96%E5%AE%9E%E8%B7%B5%EF%BC%9A%E4%BB%8E%E6%83%B3%E6%B3%95%E5%88%B0%E8%90%BD%E5%9C%B0%E7%9A%84%E5%AE%8C%E6%95%B4%E6%96%B9%E6%B3%95%E8%AE%BA/">https://li-s-h.github.io/2026/09/10/AI%20Coding%20%E5%B7%A5%E7%A8%8B%E5%8C%96%E5%AE%9E%E8%B7%B5%EF%BC%9A%E4%BB%8E%E6%83%B3%E6%B3%95%E5%88%B0%E8%90%BD%E5%9C%B0%E7%9A%84%E5%AE%8C%E6%95%B4%E6%96%B9%E6%B3%95%E8%AE%BA/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://LI-S-H.github.io" target="_blank">青山木</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/AI-Coding/">AI Coding</a><a class="post-meta__tags" href="/tags/Claude-Code/">Claude Code</a><a class="post-meta__tags" href="/tags/%E5%B7%A5%E7%A8%8B%E5%8C%96/">工程化</a><a class="post-meta__tags" href="/tags/Skill/">Skill</a><a class="post-meta__tags" href="/tags/%E5%B7%A5%E4%BD%9C%E6%B5%81/">工作流</a></div><div class="post-share"><div class="social-share" data-image="/img/title-picture/AI%20Coding%20%E5%B7%A5%E7%A8%8B%E5%8C%96%E5%AE%9E%E8%B7%B5%EF%BC%9A%E4%BB%8E%E6%83%B3%E6%B3%95%E5%88%B0%E8%90%BD%E5%9C%B0%E7%9A%84%E5%AE%8C%E6%95%B4%E6%96%B9%E6%B3%95%E8%AE%BA.jpg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/2026/09/09/Hot%20100%20---%20%E5%88%92%E5%88%86%E5%AD%97%E6%AF%8D%E5%8C%BA%E9%97%B4/" title="Hot 100 --- 划分字母区间"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="onerror=null;src='/img/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">Hot 100 --- 划分字母区间</div></div><div class="info-2"><div class="info-item-1">本文讲解划分字母区间的核心思路：先记录每个字符最后出现位置，再用"最远边界"贪心切割，i == curMaxEnd 时切一刀，O(n) 完成</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/2026/06/26/%E4%BD%A0%E7%9A%84%20AI%20%E7%BC%96%E7%A8%8B%E5%8A%A9%E6%89%8B%EF%BC%8C%E4%B8%BA%E4%BB%80%E4%B9%88%E6%80%BB%E6%98%AF%E4%B8%80%E6%9D%A1%E9%B1%BC/" title="你的 AI 编程助手，为什么总是&quot;一条鱼&quot;？"><img class="cover" src="/img/title-picture/%E4%BD%A0%E7%9A%84%20AI%20%E7%BC%96%E7%A8%8B%E5%8A%A9%E6%89%8B%EF%BC%8C%E4%B8%BA%E4%BB%80%E4%B9%88%E6%80%BB%E6%98%AF%E4%B8%80%E6%9D%A1%E9%B1%BC.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-06-26</div><div class="info-item-2">你的 AI 编程助手，为什么总是&quot;一条鱼&quot;？</div></div><div class="info-2"><div class="info-item-1">9 个前端 Agent Skill 组成从需求到验收的完整闭环，支持三类问题分类路由和自进化规则沉淀，越用越懂你。</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/%E5%A4%B4%E5%83%8F.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">青山木</div><div class="author-info-description">正在学习Java后端开发＋智能体开发，希望能与大家多多交流</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">87</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">169</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">4</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/LI-S-H"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/LI-S-H" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">欢迎来到我的博客，记录学习与成长的点滴。</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%80%E3%80%81%E5%B7%A5%E7%A8%8B%E5%8C%96%E4%B8%8E%E8%A7%84%E8%8C%83%E5%8C%96%E6%98%AF%E7%94%A8%E5%A5%BD-AI-%E7%9A%84%E5%85%B3%E9%94%AE"><span class="toc-number">1.</span> <span class="toc-text">一、工程化与规范化是用好 AI 的关键</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%8C%E3%80%81%E4%BB%8E%E6%83%B3%E6%B3%95%E5%88%B0%E9%A1%B9%E7%9B%AE%EF%BC%9A%E6%8A%8A%E6%83%B3%E6%B3%95%E6%B2%89%E6%B7%80%E6%88%90%E6%96%87%E6%A1%A3"><span class="toc-number">2.</span> <span class="toc-text">二、从想法到项目：把想法沉淀成文档</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#2-1-%E4%B8%BA%E4%BB%80%E4%B9%88%E6%96%87%E6%A1%A3%E5%85%88%E8%A1%8C%EF%BC%9A%E4%B8%80%E6%AC%A1%E6%98%82%E8%B4%B5%E7%9A%84%E8%B8%A9%E5%9D%91"><span class="toc-number">2.1.</span> <span class="toc-text">2.1 为什么文档先行：一次昂贵的踩坑</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-2-%E7%94%A8-%E5%8F%8D%E9%97%AE-%E6%8A%8A%E6%83%B3%E6%B3%95%E8%81%8A%E6%B8%85%E6%A5%9A"><span class="toc-number">2.2.</span> <span class="toc-text">2.2 用&quot;反问&quot;把想法聊清楚</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-3-%E7%94%9F%E6%88%90-PRD%EF%BC%9A%E5%A4%9A%E8%BD%AE%E5%AF%B9%E8%AF%9D%E7%9A%84%E8%AE%B0%E5%BF%86%E9%99%B7%E9%98%B1"><span class="toc-number">2.3.</span> <span class="toc-text">2.3 生成 PRD：多轮对话的记忆陷阱</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-4-%E8%B7%A8%E5%B7%A5%E5%85%B7%E4%BA%A4%E5%8F%89%E5%AE%A1%E9%98%85%EF%BC%9A%E8%AE%A9%E6%B2%A1%E6%9C%89%E4%B8%8A%E4%B8%8B%E6%96%87%E7%9A%84-AI-%E5%BD%93-%E6%96%B0%E4%BA%BA%E8%AF%84%E5%AE%A1"><span class="toc-number">2.4.</span> <span class="toc-text">2.4 跨工具交叉审阅：让没有上下文的 AI 当&quot;新人评审&quot;</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-5-%E5%AE%A1%E9%98%85%E7%9A%84%E6%AD%A3%E7%A1%AE%E8%8A%82%E5%A5%8F%EF%BC%9A%E5%85%88%E4%BA%A4%E6%B5%81%EF%BC%8C%E5%86%8D%E6%96%B9%E6%A1%88%EF%BC%8C%E5%90%8E%E5%8A%A8%E7%AC%94"><span class="toc-number">2.5.</span> <span class="toc-text">2.5 审阅的正确节奏：先交流，再方案，后动笔</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-6-PRD-%E6%98%AF%E6%B4%BB%E6%96%87%E6%A1%A3"><span class="toc-number">2.6.</span> <span class="toc-text">2.6 PRD 是活文档</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-7-%E6%8A%80%E6%9C%AF%E9%80%89%E5%9E%8B%EF%BC%9A%E8%AE%A9-AI-%E7%BB%99%E6%96%B9%E6%A1%88%EF%BC%8C%E8%87%AA%E5%B7%B1%E6%8B%8D%E6%9D%BF"><span class="toc-number">2.7.</span> <span class="toc-text">2.7 技术选型：让 AI 给方案，自己拍板</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-8-%E9%A1%B5%E9%9D%A2%E5%8E%9F%E5%9E%8B%EF%BC%9A%E5%9B%BE%E7%89%87%E5%85%88%E8%A1%8C%EF%BC%8C%E6%A8%A1%E5%9D%97%E5%88%86%E6%B8%85"><span class="toc-number">2.8.</span> <span class="toc-text">2.8 页面原型：图片先行，模块分清</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-9-%E6%A8%A1%E5%9D%97%E5%88%92%E5%88%86%E4%B8%8E%E5%BC%80%E5%8F%91%E9%A1%BA%E5%BA%8F%EF%BC%9A%E5%85%88%E7%8B%AC%E7%AB%8B%EF%BC%8C%E5%90%8E%E8%80%A6%E5%90%88%EF%BC%8CMVP-%E5%85%88%E8%A1%8C"><span class="toc-number">2.9.</span> <span class="toc-text">2.9 模块划分与开发顺序：先独立，后耦合，MVP 先行</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%89%E3%80%81%E9%9C%80%E6%B1%82%E6%98%8E%E7%A1%AE%E5%90%8E%E7%9A%84%E5%BC%80%E5%8F%91%EF%BC%9A%E4%BB%A5%E6%A8%A1%E5%9D%97%E4%B8%BA%E5%8D%95%E4%BD%8D%E6%8E%A8%E8%BF%9B"><span class="toc-number">3.</span> <span class="toc-text">三、需求明确后的开发：以模块为单位推进</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#3-1-%E5%BC%80%E5%B7%A5%E5%89%8D%E7%9A%84%E4%B8%A4%E4%BB%B6%E4%BA%8B"><span class="toc-number">3.1.</span> <span class="toc-text">3.1 开工前的两件事</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-2-%E4%B8%8A%E4%B8%8B%E6%96%87%E9%9A%94%E7%A6%BB%EF%BC%9A%E4%B8%80%E7%B1%BB%E6%96%87%E6%A1%A3%E4%B8%80%E4%B8%AA%E7%AA%97%E5%8F%A3%EF%BC%8C%E4%B8%80%E4%B8%AA%E6%A8%A1%E5%9D%97%E4%B8%80%E4%B8%AA%E7%AA%97%E5%8F%A3"><span class="toc-number">3.2.</span> <span class="toc-text">3.2 上下文隔离：一类文档一个窗口，一个模块一个窗口</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-3-%E5%8D%95%E6%A8%A1%E5%9D%97%E5%BC%80%E5%8F%91%E9%97%AD%E7%8E%AF%EF%BC%9A%E5%AE%8C%E6%95%B4%E6%B5%81%E7%A8%8B%E6%8B%86%E8%A7%A3"><span class="toc-number">3.3.</span> <span class="toc-text">3.3 单模块开发闭环：完整流程拆解</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#Step-1%EF%BC%9A%E9%A1%B5%E9%9D%A2%E5%AE%8C%E5%96%84%E2%80%94%E2%80%94%E5%8F%98%E5%8A%A8%E6%9C%80%E5%A4%9A%E3%80%81%E8%80%97%E6%97%B6%E6%9C%80%E9%95%BF%E7%9A%84%E9%83%A8%E5%88%86"><span class="toc-number">3.3.1.</span> <span class="toc-text">Step 1：页面完善——变动最多、耗时最长的部分</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#Step-2%EF%BC%9A%E6%95%B0%E6%8D%AE%E5%BA%93%E8%A1%A8%E8%AE%BE%E8%AE%A1%E2%80%94%E2%80%94AI-%E5%88%9D%E7%89%88%E5%A4%A7%E6%A6%82%E7%8E%87%E4%B8%8D%E5%90%88%E7%90%86"><span class="toc-number">3.3.2.</span> <span class="toc-text">Step 2：数据库表设计——AI 初版大概率不合理</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#Step-3%EF%BC%9A%E6%8E%A5%E5%8F%A3%E6%96%87%E6%A1%A3%E2%80%94%E2%80%94Postman-Apifox-%E9%87%8C%E8%BF%87%E4%B8%80%E9%81%8D"><span class="toc-number">3.3.3.</span> <span class="toc-text">Step 3：接口文档——Postman &#x2F; Apifox 里过一遍</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#Step-4%EF%BC%9A%E7%BC%96%E7%A0%81%E5%89%8D%E7%9A%84%E6%9C%80%E5%90%8E%E4%B8%80%E9%81%93%E5%AE%A1%E9%98%85"><span class="toc-number">3.3.4.</span> <span class="toc-text">Step 4：编码前的最后一道审阅</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#Step-5%EF%BC%9A%E6%96%B9%E6%A1%88%E5%85%88%E8%A1%8C%E2%80%94%E2%80%94%E4%B8%8D%E8%AE%A9-AI-%E7%9B%B4%E6%8E%A5%E5%86%99%E4%BB%A3%E7%A0%81"><span class="toc-number">3.3.5.</span> <span class="toc-text">Step 5：方案先行——不让 AI 直接写代码</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#Step-6%EF%BC%9A%E7%BC%96%E7%A0%81%E4%B8%8E-AI-%E6%B5%8B%E8%AF%95"><span class="toc-number">3.3.6.</span> <span class="toc-text">Step 6：编码与 AI 测试</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#Step-7%EF%BC%9A%E4%BA%BA%E5%B7%A5%E6%8A%8A%E5%85%B3%E2%80%94%E2%80%94AI-%E7%9A%84%E6%B5%8B%E8%AF%95%E4%B8%8D%E4%B8%80%E5%AE%9A%E5%87%86%E7%A1%AE"><span class="toc-number">3.3.7.</span> <span class="toc-text">Step 7：人工把关——AI 的测试不一定准确</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-4-%E5%85%A8%E6%B5%81%E7%A8%8B%E4%B8%80%E5%9B%BE%E6%B5%81"><span class="toc-number">3.4.</span> <span class="toc-text">3.4 全流程一图流</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-5-%E4%BB%A3%E7%A0%81%E9%87%8F%E5%88%B0%E4%BA%86%E4%B8%80%E5%AE%9A%E8%A7%84%E6%A8%A1%EF%BC%8C%E5%8A%A1%E5%BF%85%E5%8F%8A%E6%97%B6%E9%87%8D%E6%9E%84"><span class="toc-number">3.5.</span> <span class="toc-text">3.5 代码量到了一定规模，务必及时重构</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-6-Bug-%E4%BF%AE%E5%A4%8D%EF%BC%9A%E5%85%88%E5%AE%9A%E4%BD%8D%E6%A0%B9%E5%9B%A0%EF%BC%8C%E5%86%8D%E5%81%9A%E6%9C%80%E5%B0%8F%E5%BD%B1%E5%93%8D%E9%9D%A2%E7%9A%84%E4%BF%AE%E5%A4%8D"><span class="toc-number">3.6.</span> <span class="toc-text">3.6 Bug 修复：先定位根因，再做最小影响面的修复</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%9B%9B%E3%80%81%E4%BB%8E%E9%87%8D%E5%A4%8D%E5%88%B0%E5%A4%8D%E7%94%A8%EF%BC%9A%E7%94%A8-Skill-%E6%90%AD%E5%BB%BA%E4%B8%93%E5%B1%9E%E5%B7%A5%E4%BD%9C%E6%B5%81"><span class="toc-number">4.</span> <span class="toc-text">四、从重复到复用：用 Skill 搭建专属工作流</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#4-1-%E7%97%9B%E7%82%B9%EF%BC%9A%E9%87%8D%E5%A4%8D%E7%9A%84-%E6%96%87%E4%BB%B6%E5%9C%A8%E5%93%AA-%E5%92%8C%E9%87%8D%E5%A4%8D%E7%9A%84%E6%8F%90%E7%A4%BA%E8%AF%8D"><span class="toc-number">4.1.</span> <span class="toc-text">4.1 痛点：重复的&quot;文件在哪&quot;和重复的提示词</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-2-%E4%BB%80%E4%B9%88%E5%80%BC%E5%BE%97%E6%8A%BD%E6%88%90-Skill"><span class="toc-number">4.2.</span> <span class="toc-text">4.2 什么值得抽成 Skill</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-3-%E8%BF%99%E6%98%AF%E7%94%9F%E6%88%90%E8%B4%A8%E9%87%8F%E8%B7%83%E5%8D%87%E7%9A%84%E7%82%B9"><span class="toc-number">4.3.</span> <span class="toc-text">4.3 这是生成质量跃升的点</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-4-%E6%88%91%E7%9A%84%E9%83%A8%E5%88%86-Skill-%E4%B8%8E%E5%BC%80%E6%BA%90%E4%BB%93%E5%BA%93"><span class="toc-number">4.4.</span> <span class="toc-text">4.4 我的部分 Skill 与开源仓库</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%94%E3%80%81%E5%86%99%E5%9C%A8%E6%9C%80%E5%90%8E"><span class="toc-number">5.</span> <span class="toc-text">五、写在最后</span></a></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/2026/09/10/AI%20Coding%20%E5%B7%A5%E7%A8%8B%E5%8C%96%E5%AE%9E%E8%B7%B5%EF%BC%9A%E4%BB%8E%E6%83%B3%E6%B3%95%E5%88%B0%E8%90%BD%E5%9C%B0%E7%9A%84%E5%AE%8C%E6%95%B4%E6%96%B9%E6%B3%95%E8%AE%BA/" title="AI Coding 工程化实践：从想法到落地的完整方法论"><img src="/img/title-picture/AI%20Coding%20%E5%B7%A5%E7%A8%8B%E5%8C%96%E5%AE%9E%E8%B7%B5%EF%BC%9A%E4%BB%8E%E6%83%B3%E6%B3%95%E5%88%B0%E8%90%BD%E5%9C%B0%E7%9A%84%E5%AE%8C%E6%95%B4%E6%96%B9%E6%B3%95%E8%AE%BA.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="AI Coding 工程化实践：从想法到落地的完整方法论"/></a><div class="content"><a class="title" href="/2026/09/10/AI%20Coding%20%E5%B7%A5%E7%A8%8B%E5%8C%96%E5%AE%9E%E8%B7%B5%EF%BC%9A%E4%BB%8E%E6%83%B3%E6%B3%95%E5%88%B0%E8%90%BD%E5%9C%B0%E7%9A%84%E5%AE%8C%E6%95%B4%E6%96%B9%E6%B3%95%E8%AE%BA/" title="AI Coding 工程化实践：从想法到落地的完整方法论">AI Coding 工程化实践：从想法到落地的完整方法论</a><time datetime="2026-09-10T12:00:00.000Z" title="发表于 2026-09-10 20:00:00">2026-09-10</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/09/09/Hot%20100%20---%20%E5%88%92%E5%88%86%E5%AD%97%E6%AF%8D%E5%8C%BA%E9%97%B4/" title="Hot 100 --- 划分字母区间"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 划分字母区间"/></a><div class="content"><a class="title" href="/2026/09/09/Hot%20100%20---%20%E5%88%92%E5%88%86%E5%AD%97%E6%AF%8D%E5%8C%BA%E9%97%B4/" title="Hot 100 --- 划分字母区间">Hot 100 --- 划分字母区间</a><time datetime="2026-09-08T16:30:00.000Z" title="发表于 2026-09-09 00:30:00">2026-09-09</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/09/08/Hot%20100%20---%20%E8%B7%B3%E8%B7%83%E6%B8%B8%E6%88%8F%20II/" title="Hot 100 --- 跳跃游戏 II"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 跳跃游戏 II"/></a><div class="content"><a class="title" href="/2026/09/08/Hot%20100%20---%20%E8%B7%B3%E8%B7%83%E6%B8%B8%E6%88%8F%20II/" title="Hot 100 --- 跳跃游戏 II">Hot 100 --- 跳跃游戏 II</a><time datetime="2026-09-07T17:30:00.000Z" title="发表于 2026-09-08 01:30:00">2026-09-08</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/09/08/Hot%20100%20---%20%E8%B7%B3%E8%B7%83%E6%B8%B8%E6%88%8F/" title="Hot 100 --- 跳跃游戏"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 跳跃游戏"/></a><div class="content"><a class="title" href="/2026/09/08/Hot%20100%20---%20%E8%B7%B3%E8%B7%83%E6%B8%B8%E6%88%8F/" title="Hot 100 --- 跳跃游戏">Hot 100 --- 跳跃游戏</a><time datetime="2026-09-07T16:30:00.000Z" title="发表于 2026-09-08 00:30:00">2026-09-08</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/09/07/Hot%20100%20---%20%E4%B9%B0%E5%8D%96%E8%82%A1%E7%A5%A8%E7%9A%84%E6%9C%80%E4%BD%B3%E6%97%B6%E6%9C%BA/" title="Hot 100 --- 买卖股票的最佳时机"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 买卖股票的最佳时机"/></a><div class="content"><a class="title" href="/2026/09/07/Hot%20100%20---%20%E4%B9%B0%E5%8D%96%E8%82%A1%E7%A5%A8%E7%9A%84%E6%9C%80%E4%BD%B3%E6%97%B6%E6%9C%BA/" title="Hot 100 --- 买卖股票的最佳时机">Hot 100 --- 买卖股票的最佳时机</a><time datetime="2026-09-06T16:30:00.000Z" title="发表于 2026-09-07 00:30:00">2026-09-07</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By 青山木</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.5.4"></script><script src="/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script>
+(function() {
+  /* 仅在首页标题上方插入头像 */
+  if (window.location.pathname !== '/' && !window.location.pathname.endsWith('/index.html')) return;
+  var siteTitle = document.getElementById('site-title');
+  if (siteTitle) {
+    var avatar = document.createElement('img');
+    avatar.src = '/img/头像.jpg';
+    avatar.alt = 'avatar';
+    avatar.className = 'avatar-img';
+    siteTitle.parentNode.insertBefore(avatar, siteTitle);
+  }
+})();
+</script>
+<script>
+(function() {
+  function initMermaid() {
+    if (window.mermaid) return Promise.resolve();
+    return new Promise(function(resolve, reject) {
+      var script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/mermaid@11.12.2/dist/mermaid.min.js';
+      script.onload = function() {
+        mermaid.initialize({
+          startOnLoad: false,
+          // 图表主题固定，避免站点深浅色切换时重新解析整篇文章的所有 Mermaid 图。
+          theme: 'dark',
+          securityLevel: 'loose'
+        });
+        resolve();
+      };
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  }
+
+  // Mermaid 会异步改变文章高度；目录跳转必须等所有图表完成布局后再读取标题位置。
+  window.mermaidReady = Promise.resolve();
+  var renderSequence = 0;
+
+  function waitForStableLayout() {
+    return new Promise(function(resolve) {
+      requestAnimationFrame(function() {
+        requestAnimationFrame(function() {
+          // 让 SVG 内的 foreignObject 完成一次实际布局，再刷新 Butterfly 的标题位置缓存。
+          setTimeout(resolve, 50);
+        });
+      });
+    });
+  }
+
+  function showMermaidSource(pre) {
+    pre.hidden = false;
+    pre.style.display = 'block';
+    pre.style.color = '#d32f2f';
+    pre.style.whiteSpace = 'pre-wrap';
+    pre.style.fontSize = '13px';
+  }
+
+  function refreshTocPositions() {
+    // Butterfly 只在 resize 时重新缓存标题坐标。
+    window.dispatchEvent(new Event('resize'));
+    document.dispatchEvent(new CustomEvent('mermaid:rendered'));
+  }
+
+  function renderMermaidDiagrams() {
+    var wraps = document.querySelectorAll('#article-container .mermaid-wrap');
+    if (wraps.length === 0) {
+      window.mermaidReady = Promise.resolve();
+      return window.mermaidReady;
+    }
+
+    var renderTask = initMermaid().then(function() {
+      return Promise.all(Array.prototype.map.call(wraps, function(wrap, index) {
+        var pre = wrap.querySelector('pre.mermaid-src');
+        if (!pre || pre.dataset.rendered === 'true') return Promise.resolve();
+
+        var code = pre.textContent;
+        var id = 'mermaid-' + index + '-' + (++renderSequence);
+        return Promise.resolve().then(function() {
+          return mermaid.render(id, code);
+        }).then(function(result) {
+          pre.dataset.rendered = 'true';
+          pre.style.display = 'none';
+          var div = document.createElement('div');
+          div.innerHTML = result.svg;
+          wrap.insertBefore(div.firstChild, pre.nextSibling);
+        }).catch(function(err) {
+          console.error('[Mermaid] Block #' + index + ' render failed:', err);
+          showMermaidSource(pre);
+        });
+      }));
+    }).then(function() {
+      return waitForStableLayout();
+    }).then(function() {
+      refreshTocPositions();
+    }).catch(function(err) {
+      console.error('[Mermaid] Failed to load mermaid.js:', err);
+      wraps.forEach(function(wrap) {
+        var pre = wrap.querySelector('pre.mermaid-src');
+        if (pre) showMermaidSource(pre);
+      });
+    });
+
+    window.mermaidReady = renderTask;
+    return renderTask;
+  }
+
+  // 页面加载完成后渲染
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', renderMermaidDiagrams);
+  } else {
+    renderMermaidDiagrams();
+  }
+
+  // 拦截目录点击：若图表仍在渲染，等待布局稳定后按实时坐标滚动。
+  // 使用捕获阶段，避免 Butterfly 先按渲染前的坐标启动平滑滚动。
+  var tocNavigationSequence = 0;
+  document.addEventListener('click', function(e) {
+    var link = e.target.closest('#card-toc .toc-link');
+    if (!link) return;
+
+    var href = link.getAttribute('href') || '';
+    var hashIndex = href.indexOf('#');
+    if (hashIndex < 0) return;
+
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    var navigationSequence = ++tocNavigationSequence;
+    var headingId = decodeURI(href.slice(hashIndex + 1));
+
+    (window.mermaidReady || Promise.resolve()).then(function() {
+      return waitForStableLayout();
+    }).then(function() {
+      if (navigationSequence !== tocNavigationSequence) return;
+      var heading = document.getElementById(headingId);
+      if (!heading) return;
+
+      // 使用点击时的实际位置，避免异步 SVG 插入改变标题高度后跳错章节。
+      var top = heading.getBoundingClientRect().top + window.scrollY;
+      if (window.btf && window.btf.scrollToDest) {
+        window.btf.scrollToDest(top, 300);
+      } else {
+        window.scrollTo({ top: top, behavior: 'smooth' });
+      }
+    });
+  }, true);
+
+})();
+</script>
+<script id="canvas_nest" defer="defer" color="107,159,255" opacity="0.6" zIndex="-1" count="99" mobile="false" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/dist/canvas-nest.min.js"></script></div></body></html>
