@@ -1,0 +1,517 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="dark"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>Hot 100 --- 最长递增子序列 | 青山木</title><meta name="author" content="青山木"><meta name="copyright" content="青山木"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#0d1117"><meta name="description" content="本文讲解最长递增子序列的核心思路：方法一是 O(n²) 的 DP 枚举（以每个元素结尾的 dp[i]），方法二是 O(n log n) 的二分优化（维护各长度子序列的最小末尾值），从重复组合的浪费中提炼出&quot;保留最小末尾&quot;的剪枝">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Hot 100 --- 最长递增子序列">
+<meta property="og:url" content="https://li-s-h.github.io/2026/09/14/Hot%20100%20---%20%E6%9C%80%E9%95%BF%E9%80%92%E5%A2%9E%E5%AD%90%E5%BA%8F%E5%88%97/index.html">
+<meta property="og:site_name" content="青山木">
+<meta property="og:description" content="本文讲解最长递增子序列的核心思路：方法一是 O(n²) 的 DP 枚举（以每个元素结尾的 dp[i]），方法二是 O(n log n) 的二分优化（维护各长度子序列的最小末尾值），从重复组合的浪费中提炼出&quot;保留最小末尾&quot;的剪枝">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://li-s-h.github.io/img/title-picture/%E5%8A%9B%E6%89%A3.jpg">
+<meta property="article:published_time" content="2026-09-13T17:30:00.000Z">
+<meta property="article:modified_time" content="2026-09-14T17:22:57.973Z">
+<meta property="article:author" content="青山木">
+<meta property="article:tag" content="算法">
+<meta property="article:tag" content="leetcode">
+<meta property="article:tag" content="贪心">
+<meta property="article:tag" content="数组">
+<meta property="article:tag" content="动态规划">
+<meta property="article:tag" content="DP">
+<meta property="article:tag" content="二分">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://li-s-h.github.io/img/title-picture/%E5%8A%9B%E6%89%A3.jpg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Hot 100 --- 最长递增子序列",
+  "url": "https://li-s-h.github.io/2026/09/14/Hot%20100%20---%20%E6%9C%80%E9%95%BF%E9%80%92%E5%A2%9E%E5%AD%90%E5%BA%8F%E5%88%97/",
+  "image": "https://li-s-h.github.io/img/title-picture/%E5%8A%9B%E6%89%A3.jpg",
+  "datePublished": "2026-09-13T17:30:00.000Z",
+  "dateModified": "2026-09-14T17:22:57.973Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "青山木",
+      "url": "https://LI-S-H.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/%E5%A4%B4%E5%83%8F.jpg"><link rel="canonical" href="https://li-s-h.github.io/2026/09/14/Hot%20100%20---%20%E6%9C%80%E9%95%BF%E9%80%92%E5%A2%9E%E5%AD%90%E5%BA%8F%E5%88%97/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="stylesheet" href="/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d1117')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', 'ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: 'Hot 100 --- 最长递增子序列',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><style>
+  #site-title { font-size: 1.76em !important; }
+  #subtitle { font-size: 0.88em !important; }
+
+  /* 卡片悬停放大 + 辉光 */
+  #recent-posts .recent-post-item {
+    transition: transform .3s ease, box-shadow .3s ease, border-color .3s ease;
+  }
+  #recent-posts .recent-post-item:hover {
+    transform: scale(1.025) !important;
+    border-color: rgba(107,159,255,0.5) !important;
+    box-shadow: 0 0 0 1px rgba(107,159,255,0.15),
+                0 0 45px rgba(107,159,255,0.12),
+                0 8px 30px rgba(0,0,0,0.4) !important;
+  }
+
+  /* 首页标题上方头像 */
+  #site-info .avatar-img {
+    display: block;
+    width: 144px;
+    height: 144px;
+    border-radius: 50%;
+    margin: 0 auto 20px;
+    border: 3px solid rgba(107,159,255,0.6);
+    box-shadow: 0 0 30px rgba(107,159,255,0.35),
+                0 0 60px rgba(107,159,255,0.15),
+                0 4px 20px rgba(0,0,0,0.25);
+    object-fit: cover;
+    transition: box-shadow .4s ease, border-color .4s ease;
+  }
+  #site-info .avatar-img:hover {
+    border-color: rgba(107,159,255,0.9);
+    box-shadow: 0 0 40px rgba(107,159,255,0.5),
+                0 0 80px rgba(107,159,255,0.25),
+                0 4px 20px rgba(0,0,0,0.25);
+  }
+
+  /* Mermaid 图表容器样式 */
+  .mermaid-wrap {
+    position: relative;
+    /* 图表固定使用深色画布，主题切换无需销毁并重绘所有 SVG。 */
+    background: #1e1e1e !important;
+    padding: 12px !important;
+    border-radius: 8px !important;
+    border: 1px solid #444 !important;
+    text-align: center;
+    margin: 0 0 20px 0;
+    overflow-x: auto;
+  }
+  .mermaid-wrap > svg {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+  }
+  /* 深色图表画布在两种站点主题下保持一致，避免切换时重排。 */
+  [data-theme="dark"] .mermaid-wrap {
+    background: #1e1e1e !important;
+    border-color: #444 !important;
+  }
+</style>
+<meta name="generator" content="Hexo 7.3.0"></head><body><div class="bg-animation" id="web_bg" style="background-image: url(/img/%E8%83%8C%E6%99%AF%E5%9B%BE2.webp);"></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(/img/title-picture/%E5%8A%9B%E6%89%A3.jpg);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">青山木</span></a><a class="nav-page-title" href="/"><span class="site-name">Hot 100 --- 最长递增子序列</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">Hot 100 --- 最长递增子序列</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-09-13T17:30:00.000Z" title="发表于 2026-09-14 01:30:00">2026-09-14</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-09-14T17:22:57.973Z" title="更新于 2026-09-15 01:22:57">2026-09-15</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/LeetCode-%E7%83%AD%E9%A2%98-HOT-100/">LeetCode 热题 HOT 100</a></span></div><div class="meta-secondline"></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><blockquote>
+<p><strong>本文概览</strong>：本文讲解最长递增子序列的核心思路：方法一是 O(n²) 的 DP 枚举（以每个元素结尾的 dp[i]），方法二是 O(n log n) 的二分优化（维护各长度子序列的最小末尾值），从重复组合的浪费中提炼出&quot;保留最小末尾&quot;的剪枝</p>
+</blockquote>
+<hr>
+<h3 id="一、题目"><a href="#一、题目" class="headerlink" title="一、题目"></a>一、题目</h3><p><img src="/img/hot%20100%20%E6%9C%80%E9%95%BF%E9%80%92%E5%A2%9E%E5%AD%90%E5%BA%8F%E5%88%97/%E6%9C%80%E9%95%BF%E9%80%92%E5%A2%9E%E5%AD%90%E5%BA%8F%E5%88%97.png" alt="最长递增子序列 题目图片"></p>
+<hr>
+<h3 id="二、题目分析"><a href="#二、题目分析" class="headerlink" title="二、题目分析"></a>二、题目分析</h3><h4 id="1-题目要求"><a href="#1-题目要求" class="headerlink" title="1. 题目要求"></a>1. 题目要求</h4><p>给你一个整数数组 <code>nums</code>，找到其中<strong>最长严格递增子序列</strong>的长度。</p>
+<p><strong>子序列</strong>是由数组派生而来的序列，删除（或不删除）数组中的元素而不改变其余元素的顺序。例如 <code>[3,6,2,7]</code> 是 <code>[0,3,1,6,2,2,7]</code> 的子序列。</p>
+<p><strong>示例 1</strong>：<code>nums = [10, 9, 2, 5, 3, 7, 101, 18]</code> → 4（<code>[2,3,7,101]</code>）</p>
+<p><strong>示例 2</strong>：<code>nums = [0, 1, 0, 3, 2, 3]</code> → 4（<code>[0,1,2,3]</code>）</p>
+<h4 id="2-怎么想这题？"><a href="#2-怎么想这题？" class="headerlink" title="2. 怎么想这题？"></a>2. 怎么想这题？</h4><p><strong>第一步：暴力枚举行不行？</strong></p>
+<p>面对&quot;最长递增子序列&quot;，第一反应是枚举所有子序列看哪个最长。但动手前先想一想：每个元素只有&quot;选&quot;或&quot;不选&quot;两种状态，n 个元素就是 2ⁿ 种组合——<strong>指数级，肯定不行</strong>。</p>
+<p>那能不能不枚举全部，只挑一些看起来有希望的子序列去试？比如&quot;以 2 开头的递增子序列&quot;：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">2, 5, 7, 101, ...</span><br><span class="line">2, 5, 7, 18, ...</span><br><span class="line">2, 5, 3, ...</span><br><span class="line">2, 3, 7, 101, ...</span><br><span class="line">2, 3, 7, 18, ...</span><br><span class="line">...</span><br></pre></td></tr></table></figure>
+
+<p>还没走几步，分支就爆炸了——<strong>每到一个新元素都要决定要不要接，但当时看不出接下去能不能走到更长的路</strong>。除非把&quot;每条路径未来能走多长&quot;全部算清楚，否则没法剪枝；而这又回到了枚举。</p>
+<p><strong>这条路走不通，怎么办？</strong></p>
+<p><strong>第二步：能不能只关心长度，不关心子序列本身？</strong></p>
+<p>既然完整构造一个子序列做不到，那就<strong>只关心长度，不关心具体长什么样</strong>。如果有一种方法能算出&quot;以 nums[i] 为结尾能拼出多长&quot;，那全数组扫一遍取最大值就是答案——这正是动态规划擅长的路子。</p>
+<p><strong>第三步：什么时候可以 DP？</strong> 检查三个特征：</p>
+<ul>
+<li><strong>大问题可拆成子问题</strong>：以 nums[i] 结尾的最长长度，看起来和&quot;以前面某个 nums[j] 结尾的最长长度&quot;有关</li>
+<li><strong>无后效性</strong>：只看 nums[i] 的结尾长度，之后怎么算与之无关</li>
+<li><strong>求最优值</strong>：要的是最长长度</li>
+</ul>
+<p>三个特征都满足，是 DP。</p>
+<h4 id="3-需要解决哪几个问题？"><a href="#3-需要解决哪几个问题？" class="headerlink" title="3. 需要解决哪几个问题？"></a>3. 需要解决哪几个问题？</h4><p><strong>问题一</strong>：状态怎么定义？以谁为结尾的最长长度？</p>
+<p><strong>问题二</strong>：转移方程怎么写？已知前面某个结尾的最长长度，怎么推出当前值结尾的最长长度？</p>
+<p><strong>问题三（进阶）</strong>：O(n²) 的 DP 有没有优化空间？哪里组合了&quot;没必要的子序列&quot;？</p>
+<hr>
+<h3 id="三、方法一：DP-枚举，O-n²"><a href="#三、方法一：DP-枚举，O-n²" class="headerlink" title="三、方法一：DP 枚举，O(n²)"></a>三、方法一：DP 枚举，O(n²)</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="type">int</span> <span class="title function_">lengthOfLIS</span><span class="params">(<span class="type">int</span>[] nums)</span> &#123;</span><br><span class="line">    <span class="type">int</span>[] dp = <span class="keyword">new</span> <span class="title class_">int</span>[nums.length];</span><br><span class="line">    Arrays.fill(dp, <span class="number">1</span>);</span><br><span class="line">    <span class="type">int</span> <span class="variable">res</span> <span class="operator">=</span> <span class="number">0</span>;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> <span class="variable">i</span> <span class="operator">=</span> <span class="number">0</span>; i &lt; nums.length; i++) &#123;</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> <span class="variable">j</span> <span class="operator">=</span> <span class="number">0</span>; j &lt; i; j++) &#123;</span><br><span class="line">            <span class="keyword">if</span> (nums[j] &lt; nums[i]) &#123;</span><br><span class="line">                dp[i] = Math.max(dp[i], dp[j] + <span class="number">1</span>);</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        res = Math.max(res, dp[i]);</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> res;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>思路简要说明：</p>
+<ol>
+<li><strong>状态定义</strong>：<code>dp[i]</code> 表示以 <code>nums[i]</code> 为结尾的<strong>最长递增子序列长度</strong></li>
+<li><strong>转移方程</strong>：枚举前面所有比 <code>nums[i]</code> 小的结尾 <code>nums[j]</code>，<code>dp[i] = max(dp[i], dp[j] + 1)</code></li>
+<li><strong>初始条件</strong>：<code>dp[i] = 1</code>（最差就是只包含它自己）</li>
+<li><strong>答案</strong>：<code>res</code>，是所有 dp[i] 的最大值（最长子序列不一定在最后一个位置结束）</li>
+<li>**时间复杂度 O(n²)**，空间 O(n)</li>
+</ol>
+<h4 id="第一步：解决状态定义——以谁为结尾？"><a href="#第一步：解决状态定义——以谁为结尾？" class="headerlink" title="第一步：解决状态定义——以谁为结尾？"></a>第一步：解决状态定义——以谁为结尾？</h4><p>子序列难枚举，是因为一个子序列既要看头也要看尾，还要看中间。但我们只关心<strong>最长长度</strong>，不关心子序列本身。所以可以这样想：</p>
+<p>**枚举每个位置，单独问&quot;以这个位置的元素结尾，能拼出多长的递增子序列&quot;**——把它当成递增子序列的最后一个元素，从前面找一个能拼上来的接上去。</p>
+<p><code>dp[i]</code> 就定义为<strong>以 nums[i] 为结尾的最长递增子序列长度</strong>。</p>
+<p>为什么可以这么定义？因为任何递增子序列都<strong>有且仅有一个结尾</strong>，把它和那个结尾绑在一起，整个子序列就唯一对应到了一个 dp 值，状态空间被完美切分。</p>
+<h4 id="第二步：解决转移方程——往前找一个接得上"><a href="#第二步：解决转移方程——往前找一个接得上" class="headerlink" title="第二步：解决转移方程——往前找一个接得上"></a>第二步：解决转移方程——往前找一个接得上</h4><p><strong>思路</strong>：nums[i] 作为当前结尾，要拼上一个 nums[i - 1]、nums[i - 2]... 中<strong>比它小</strong>的元素，才能保持递增。设前面某个 j 满足 <code>nums[j] &lt; nums[i]</code>，那以 nums[j] 结尾的最长递增子序列长度是 dp[j]，拼上 nums[i] 就是 <code>dp[j] + 1</code>。</p>
+<p>j 不确定，从 0 到 i-1 全部枚举一遍，取 max：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">dp[i] = max(dp[j] + 1)，前提 nums[j] &lt; nums[i]</span><br></pre></td></tr></table></figure>
+
+<p><strong>初始条件</strong>：<code>dp[i] = 1</code>，最差情况就只包含自己一个元素（前面没有能接上的）。</p>
+<p><strong>答案为什么不是 <code>dp[n-1]</code>？</strong> 因为最长子序列不一定以最后一个元素结尾。比如把示例 2 的 6 个元素再延长一个，比如 nums &#x3D; <code>[0,1,0,3,2,3,1]</code>，最长子序列仍是 <code>[0,1,2,3]</code>（长度 4），结尾的 3 在索引 5 而不是末尾 6。所以要遍历所有 dp[i] 取最大值 <code>res</code>。</p>
+<p><strong>复杂度</strong>：外层 n 个状态，内层最多扫 i 个 j，O(n²)。</p>
+<h4 id="第三步：用示例-1-走一遍-DP"><a href="#第三步：用示例-1-走一遍-DP" class="headerlink" title="第三步：用示例 1 走一遍 DP"></a>第三步：用示例 1 走一遍 DP</h4><p><code>nums = [10, 9, 2, 5, 3, 7, 101, 18]</code>，答案是 4。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">i=0 (10)：dp[0]=1，前面没有可接的</span><br><span class="line">i=1 (9) ：前面 10 &gt; 9，接不上 → dp[1]=1</span><br><span class="line">i=2 (2) ：前面都 &gt; 2，接不上 → dp[2]=1</span><br><span class="line">i=3 (5) ：前面比 5 小的有 2</span><br><span class="line">        dp[3] = max(1, dp[2]+1) = 2          ← [2,5]</span><br><span class="line">i=4 (3) ：前面比 3 小的有 2</span><br><span class="line">        dp[4] = max(1, dp[2]+1) = 2          ← [2,3]</span><br><span class="line">i=5 (7) ：前面比 7 小的有 2,5,3</span><br><span class="line">        dp[5] = max(1, dp[2]+1, dp[3]+1, dp[4]+1) = 3  ← [2,5,7]</span><br><span class="line">i=6 (101)：前面都比 101 小</span><br><span class="line">        dp[6] = max(...) → 最高 dp[5]+1=4    ← [2,5,7,101]</span><br><span class="line">i=7 (18) ：前面比 18 小的有 2,5,3,7</span><br><span class="line">        dp[7] = max(...) → dp[5]+1=4        ← [2,5,7,18]</span><br><span class="line"></span><br><span class="line">res = max(dp) = 4 ✓</span><br></pre></td></tr></table></figure>
+
+<p>注意 i&#x3D;7 时的 [2,3,7,18] 也是 4，验证了&quot;答案不一定在最后一位结束&quot;。</p>
+<h4 id="复杂度分析（方法一）"><a href="#复杂度分析（方法一）" class="headerlink" title="复杂度分析（方法一）"></a>复杂度分析（方法一）</h4><p>**时间复杂度 O(n²)**：双重循环。</p>
+<p>**空间复杂度 O(n)**：dp 数组。</p>
+<hr>
+<h3 id="四、引导思考：方法一能优化吗？"><a href="#四、引导思考：方法一能优化吗？" class="headerlink" title="四、引导思考：方法一能优化吗？"></a>四、引导思考：方法一能优化吗？</h3><p>O(n²) 能解决问题，但 2000 个元素就是 400 万次比较，百万级元素要上万亿次——能不能更快？</p>
+<p><strong>哪里在浪费时间？</strong> 我们不引用具体题目，造一段小场景感受一下。假设前面已经出现了这三个长度为 2 的递增子序列：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">[1, 2], [1, 3], [2, 4]   长度都是 2，末尾值分别是 2、3、4</span><br></pre></td></tr></table></figure>
+
+<p>接下来来了个 5，三条都得接上：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">[1,2,5], [1,3,5], [2,4,5]   长度都是 3，末尾都是 5</span><br></pre></td></tr></table></figure>
+
+<p>三条<strong>完全等价</strong>——后续能扩展成什么样只取决于末尾的 5，跟前面具体是 1 还是 2 无关。O(n²) 的 DP 把三条全算了一遍，这是浪费。</p>
+<p><strong>再往后看</strong>：下一个值是 3。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">[1,2,3]         ← 新冒出来的长度为 3 的子序列，末尾 3</span><br><span class="line">[1,2,5], [1,3,5], [2,4,5]  ← 之前的三条，末尾都是 5</span><br></pre></td></tr></table></figure>
+
+<p>[1,2,3] 比 [1,2,5] &quot;更短但末尾更小&quot;——3 比 5 小。如果后面来了 4、5，能从 [1,2,3] 接出 [1,2,3,4]、[1,2,3,5]，但从末尾 5 的子序列一个都接不上（要严格递增，得 &gt;5 才行）。可见 <strong>同样的长度里，末尾更小的那条更有可能更长</strong>。</p>
+<p><strong>关键观察</strong>：</p>
+<ul>
+<li><strong>当未来值大于某条子序列末尾时，能不能接上取决于这个末尾</strong>——末尾越小，未来能接上的概率越大，也更有可能更长</li>
+<li>同一个长度有多条子序列，<strong>只需要保留末尾最小的那条</strong>——它最有可能继续增长，其他都是被它覆盖的&quot;死路&quot;</li>
+</ul>
+<p>按这个思路重新组织状态：能不能用&quot;长度为 i+1 的递增子序列中末尾元素的最小值&quot;代替原来&quot;以 nums[i] 为结尾的最长长度&quot;？这样同一个长度只保留一条最有前途的，多余的全砍掉。</p>
+<p>这就是方法二的核心思路。</p>
+<hr>
+<h3 id="五、方法二：二分优化，O-n-log-n"><a href="#五、方法二：二分优化，O-n-log-n" class="headerlink" title="五、方法二：二分优化，O(n log n)"></a>五、方法二：二分优化，O(n log n)</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="type">int</span> <span class="title function_">lengthOfLIS</span><span class="params">(<span class="type">int</span>[] nums)</span> &#123;</span><br><span class="line">    <span class="type">int</span>[] tails = <span class="keyword">new</span> <span class="title class_">int</span>[nums.length];</span><br><span class="line">    <span class="type">int</span> <span class="variable">size</span> <span class="operator">=</span> <span class="number">0</span>;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> num : nums) &#123;</span><br><span class="line">        <span class="type">int</span> <span class="variable">left</span> <span class="operator">=</span> <span class="number">0</span>, right = size;</span><br><span class="line">        <span class="keyword">while</span> (left &lt; right) &#123;</span><br><span class="line">            <span class="type">int</span> <span class="variable">mid</span> <span class="operator">=</span> left + (right - left) / <span class="number">2</span>;</span><br><span class="line">            <span class="keyword">if</span> (tails[mid] &lt; num) &#123;</span><br><span class="line">                left = mid + <span class="number">1</span>;</span><br><span class="line">            &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                right = mid;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        tails[left] = num;</span><br><span class="line">        <span class="keyword">if</span> (left == size) &#123;</span><br><span class="line">            size++;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> size;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>思路简要说明：</p>
+<ol>
+<li><strong>tails[i] 的含义</strong>：长度为 <code>i + 1</code> 的递增子序列中，<strong>末尾元素的最小值</strong></li>
+<li><strong>遍历 num</strong>：二分找到 num 在 tails 里的位置（第一个 ≥ num 的位置），替换；找不到则追加到末尾</li>
+<li><strong>答案</strong>：size（tails 的有效长度 &#x3D; 最长递增子序列长度）</li>
+<li>**时间复杂度 O(n log n)**：n 次遍历 × 每次二分 O(log n)</li>
+</ol>
+<h4 id="第一步：tails-数组的语义和操作"><a href="#第一步：tails-数组的语义和操作" class="headerlink" title="第一步：tails 数组的语义和操作"></a>第一步：tails 数组的语义和操作</h4><p>定义 <code>tails[k]</code> &#x3D; 长度为 k+1 的递增子序列中，末尾元素的<strong>最小可能值</strong>。例：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">子序列 [2,5,7]     → tails[2] = 7</span><br><span class="line">子序列 [2,3,7]     → tails[2] = 7（并列最优之一）</span><br><span class="line">子序列 [2,3,8]     → tails[2] = 8</span><br><span class="line">但 7 &lt; 8，所以 tails[2] 最终是 7（更小，能接后面的数更多）</span><br></pre></td></tr></table></figure>
+
+<p><strong>关键性质</strong>：<code>tails</code> 数组本身是<strong>严格递增</strong>的（长度更大的子序列，末尾最小值必然更大）。</p>
+<p>遍历 nums 里的每个 num：</p>
+<ol>
+<li>二分找到 tails 里<strong>第一个 ≥ num 的位置</strong>（即 <code>lower_bound</code>）</li>
+<li>把 num 填进去（替换掉该位置原值；找不到则说明 num 比所有都大，追加到 size 位置，size++）</li>
+</ol>
+<p><strong>为什么这样操作是对的？</strong></p>
+<ul>
+<li>num ≥ tails[mid]：num 可以接在长度为 mid+1 的子序列后面，长度升级 → 跳到 mid+1 之后找</li>
+<li>num &lt; tails[mid]：num 太短接不上 mid 长度的（不是递增），但可能作为更短长度的更优末尾 → 把 mid 收下来</li>
+<li>找到的位置 left 就是&quot;长度 left 的子序列的<strong>更优末尾</strong>&quot;——把 num 填进去，因为 num &lt; tails[left]（原值），所以是&quot;更小末尾&quot;的覆盖</li>
+<li>找不到（left &#x3D;&#x3D; size）：num 比所有 tails 都大，能接在最长子序列后面形成更长的 → size++</li>
+</ul>
+<p><strong>维护单调性的代价</strong>：tails 数组始终递增，binary search 走 O(log n)。</p>
+<h4 id="第二步：用示例-1-走一遍-tails"><a href="#第二步：用示例-1-走一遍-tails" class="headerlink" title="第二步：用示例 1 走一遍 tails"></a>第二步：用示例 1 走一遍 tails</h4><p><code>nums = [10, 9, 2, 5, 3, 7, 101, 18]</code></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">num=10  ：tails 空，10 追加       → tails=[10], size=1</span><br><span class="line">num=9   ：找 ≥9 的位置：tails[0]=10 ≥9 → 替换 tails[0]=9</span><br><span class="line">        → tails=[9], size=1                     ← 长度 1 的末尾最小值从 10 优化到 9</span><br><span class="line">num=2   ：替换 tails[0]=2          → tails=[2], size=1</span><br><span class="line">num=5   ：找 ≥5 的位置：tails[0]=2 &lt;5 → 追到末尾追加</span><br><span class="line">        → tails=[2,5], size=2                    ← [2,5]</span><br><span class="line">num=3   ：找 ≥3 的位置：tails[0]=2&lt;3, tails[1]=5≥3 → 替换 tails[1]=3</span><br><span class="line">        → tails=[2,3], size=2                    ← 长度 2 的最小末尾从 5 优化到 3</span><br><span class="line">num=7   ：追加                        → tails=[2,3,7], size=3   ← [2,3,7]</span><br><span class="line">num=101 ：追加                        → tails=[2,3,7,101], size=4 ← [2,3,7,101]</span><br><span class="line">num=18  ：找 ≥18 的位置：tails[0..2] 都 &lt;18，tails[3]=101≥18 → 替换 tails[3]=18</span><br><span class="line">        → tails=[2,3,7,18], size=4</span><br><span class="line"></span><br><span class="line">返回 size = 4 ✓</span><br></pre></td></tr></table></figure>
+
+<p><strong>注意</strong> num&#x3D;3 那步：tails[1] 原先是 5（对应子序列 [2,5]，长度 2），被 num&#x3D;3 替换后变成 3（对应 [2,3]，长度 2）——同长度（2）下，更小的末尾 3 把更大的末尾 5 覆盖掉。如果之后来了 4，能从 [2,3] 接出 [2,3,4]，但 [2,5] 接不上（要严格递增，4 ≤ 5 都不行）。<strong>这就是 tails 自动丢弃&quot;死路&quot;、保留&quot;活路&quot;的过程</strong>。</p>
+<h4 id="第三步：完整执行过程（示例-2）"><a href="#第三步：完整执行过程（示例-2）" class="headerlink" title="第三步：完整执行过程（示例 2）"></a>第三步：完整执行过程（示例 2）</h4><p><code>nums = [0, 1, 0, 3, 2, 3]</code>，答案是 4。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">num=0  ：追加                → tails=[0], size=1</span><br><span class="line">num=1  ：追加                → tails=[0,1], size=2</span><br><span class="line">num=0  ：替换 tails[0]=0（没变）→ tails=[0,1]</span><br><span class="line">num=3  ：追加                → tails=[0,1,3], size=3</span><br><span class="line">num=2  ：tails[2]=3≥2 → 替换 tails[2]=2 → tails=[0,1,2]</span><br><span class="line">num=3  ：找 ≥3 的位置：tails[2]=2&lt;3 → 追加 → tails=[0,1,2,3], size=4</span><br><span class="line"></span><br><span class="line">返回 size = 4 ✓</span><br></pre></td></tr></table></figure>
+
+<h4 id="第四步：代码细节"><a href="#第四步：代码细节" class="headerlink" title="第四步：代码细节"></a>第四步：代码细节</h4><p>**<code>right = size</code> 而不是 <code>tails.length</code>**：只在 <code>tails[0..size-1]</code> 里二分，未填充的部分是垃圾数据。</p>
+<p>**<code>left + (right - left) / 2</code>**：防 <code>(left + right) / 2</code> 在 left、right 都很大时溢出 int。</p>
+<p>**二分条件 <code>tails[mid] &lt; num</code> 用左闭右开 [left, right)**：<code>lower_bound</code> 标准写法，找第一个 ≥ num 的位置；最后 <code>tails[left]</code> 一定 ≥ num（若 left &lt; size）或 left &#x3D;&#x3D; size（追加）。</p>
+<p>**<code>if (left == size) size++</code>**：分两种情况——二分落在 size 位置说明 num 比所有现有尾巴都大，扩展；落在 0..size-1 是替换，size 不变。</p>
+<p><strong>数组大小开 nums.length</strong>：虽然 size 最多到 n，但开 n 够了，简化代码（也可以开 n 配合 size 收紧边界，思路一样）。</p>
+<h4 id="复杂度分析（方法二）"><a href="#复杂度分析（方法二）" class="headerlink" title="复杂度分析（方法二）"></a>复杂度分析（方法二）</h4><p>**时间复杂度 O(n log n)**：n 次遍历 + 每次 O(log size) 的二分查找。</p>
+<p>**空间复杂度 O(n)**：tails 数组。</p>
+<p><strong>优化本质</strong>：用 tails[i] 单一变量吸收了 DP 中&quot;同一个长度的多条子序列&quot;，把所有保留价值的子序列压成 O(n) 个；二分把&quot;找可接位置&quot;从线性降到对数。</p>
+<hr>
+<h3 id="六、总结"><a href="#六、总结" class="headerlink" title="六、总结"></a>六、总结</h3><p>最长递增子序列的核心思路：</p>
+<ol>
+<li><strong>状态定义两版</strong>：<ul>
+<li>DP 版：<code>dp[i]</code> &#x3D; 以 nums[i] 为结尾的最长长度</li>
+<li>优化版：<code>tails[k]</code> &#x3D; 长度为 k+1 的子序列的最小末尾值</li>
+</ul>
+</li>
+<li><strong>DP 转移方程</strong>：<code>dp[i] = max(dp[j] + 1)</code>，j 满足 <code>nums[j] &lt; nums[i]</code></li>
+<li><strong>优化核心</strong>：同一长度多条子序列只留末尾最小的那条——它最有可能继续增长，其他都被覆盖</li>
+<li><strong>tails 操作</strong>：二分找&quot;第一个 ≥ num 的位置&quot;，替换；找不到则追加，size++</li>
+<li><strong>tails 性质</strong>：严格递增 → 保证二分有效 → 保证 lower_bound 逻辑正确</li>
+</ol>
+<p><strong>和前面 DP 的关系</strong>：</p>
+<ul>
+<li>这题是&quot;以元素结尾&quot;的经典二维降一维（不需要 i,j 两层下标，只看结尾一个位置）</li>
+<li>DP 给 O(n²)，优化方法把&quot;同一长度的多条子序列&quot;压成一个数，进一步降到 O(n log n)</li>
+<li>优化的本质是<strong>贪心</strong>：每一步选最优（最小末尾），全局最优由这些局部最优推出</li>
+</ul>
+<p><strong>DP 到贪心的转化信号</strong>：当发现&quot;某个状态只用保留最有代表性的那个值（比如最小末尾、最大得分、最少消耗）&quot;时，往往就能从 O(n²) 的枚举 DP 优化到 O(n log n) 甚至 O(n)——后者用更精的数据结构（堆、二分、单调栈）替代了&quot;枚举所有候选&quot;的循环。</p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://LI-S-H.github.io">青山木</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://li-s-h.github.io/2026/09/14/Hot%20100%20---%20%E6%9C%80%E9%95%BF%E9%80%92%E5%A2%9E%E5%AD%90%E5%BA%8F%E5%88%97/">https://li-s-h.github.io/2026/09/14/Hot%20100%20---%20%E6%9C%80%E9%95%BF%E9%80%92%E5%A2%9E%E5%AD%90%E5%BA%8F%E5%88%97/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://LI-S-H.github.io" target="_blank">青山木</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E7%AE%97%E6%B3%95/">算法</a><a class="post-meta__tags" href="/tags/leetcode/">leetcode</a><a class="post-meta__tags" href="/tags/%E8%B4%AA%E5%BF%83/">贪心</a><a class="post-meta__tags" href="/tags/%E6%95%B0%E7%BB%84/">数组</a><a class="post-meta__tags" href="/tags/%E5%8A%A8%E6%80%81%E8%A7%84%E5%88%92/">动态规划</a><a class="post-meta__tags" href="/tags/DP/">DP</a><a class="post-meta__tags" href="/tags/%E4%BA%8C%E5%88%86/">二分</a></div><div class="post-share"><div class="social-share" data-image="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/2026/09/14/Hot%20100%20---%20%E5%8D%95%E8%AF%8D%E6%8B%86%E5%88%86/" title="Hot 100 --- 单词拆分"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="onerror=null;src='/img/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">Hot 100 --- 单词拆分</div></div><div class="info-2"><div class="info-item-1">本文讲解单词拆分的核心思路：dp[i] 表示 s 的前 i 个字符能否拆成字典单词，枚举切割点 j，dp[j] 且 [j,i) 是单词则 dp[i] 为 true，从暴力 DFS 优化到 O(n²) 的 DP 判定</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/2026/09/13/%E6%9E%9A%E4%B8%BE%E7%B1%BBDP%E8%BF%9B%E9%98%B6%EF%BC%9A%E5%AE%8C%E5%85%A8%E5%B9%B3%E6%96%B9%E6%95%B0%E4%B8%8E%E9%9B%B6%E9%92%B1%E5%85%91%E6%8D%A2/" title="枚举类DP进阶：完全平方数与零钱兑换"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-09-13</div><div class="info-item-2">枚举类DP进阶：完全平方数与零钱兑换</div></div><div class="info-2"><div class="info-item-1">本文从线性 DP 进阶到枚举类 DP：完全平方数与零钱兑换两题合一讲解，dp[i] 由枚举"最后一步"的候选集合推出，min(dp[i - j²] + 1) 与 min(dp[i - coin] + 1) 同源</div></div></div></a><a class="pagination-related" href="/2026/06/10/Hot%20100%20---%20%E6%9C%80%E5%A4%A7%E5%AD%90%E6%95%B0%E7%BB%84%E5%92%8C/" title="Hot 100 --- 最大子数组和"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-06-10</div><div class="info-item-2">Hot 100 --- 最大子数组和</div></div><div class="info-2"><div class="info-item-1">本文以LeetCode经典题目"最大子数组和"为例，从暴力解法入手，利用前缀和优化到维护最小前缀和的O(n)解法，再从动态规划角度重新理解，系统讲解如何利用"前数组和是否对当前元素有贡献"这一关键判断，将时间复杂度从O(n²)优化到O(n)</div></div></div></a><a class="pagination-related" href="/2026/09/07/Hot%20100%20---%20%E4%B9%B0%E5%8D%96%E8%82%A1%E7%A5%A8%E7%9A%84%E6%9C%80%E4%BD%B3%E6%97%B6%E6%9C%BA/" title="Hot 100 --- 买卖股票的最佳时机"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-09-07</div><div class="info-item-2">Hot 100 --- 买卖股票的最佳时机</div></div><div class="info-2"><div class="info-item-1">本文讲解买卖股票的最佳时机的核心思路：每个卖出日的最优买入日就是它前面的历史最低价，一次遍历同时维护最小价格和最大利润，从 O(n²) 降到 O(n)</div></div></div></a><a class="pagination-related" href="/2026/09/14/Hot%20100%20---%20%E5%8D%95%E8%AF%8D%E6%8B%86%E5%88%86/" title="Hot 100 --- 单词拆分"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-09-14</div><div class="info-item-2">Hot 100 --- 单词拆分</div></div><div class="info-2"><div class="info-item-1">本文讲解单词拆分的核心思路：dp[i] 表示 s 的前 i 个字符能否拆成字典单词，枚举切割点 j，dp[j] 且 [j,i) 是单词则 dp[i] 为 true，从暴力 DFS 优化到 O(n²) 的 DP 判定</div></div></div></a><a class="pagination-related" href="/2026/09/08/Hot%20100%20---%20%E8%B7%B3%E8%B7%83%E6%B8%B8%E6%88%8F/" title="Hot 100 --- 跳跃游戏"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-09-08</div><div class="info-item-2">Hot 100 --- 跳跃游戏</div></div><div class="info-2"><div class="info-item-1">本文讲解跳跃游戏的核心思路：不关心具体路径，只维护"最远可达位置"，被覆盖的走法直接丢弃，从路径枚举降到 O(n)</div></div></div></a><a class="pagination-related" href="/2026/09/13/Hot%20100%20---%20%E6%89%93%E5%AE%B6%E5%8A%AB%E8%88%8D/" title="Hot 100 --- 打家劫舍"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-09-13</div><div class="info-item-2">Hot 100 --- 打家劫舍</div></div><div class="info-2"><div class="info-item-1">本文讲解打家劫舍的核心思路：dp[i] 表示偷到第 i 房的最大金额，偷或不偷第 i 房两种情况取最大，滚动变量优化到 O(1) 空间</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/%E5%A4%B4%E5%83%8F.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">青山木</div><div class="author-info-description">正在学习Java后端开发＋智能体开发，希望能与大家多多交流</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">92</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">176</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">5</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/LI-S-H"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/LI-S-H" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">欢迎来到我的博客，记录学习与成长的点滴。</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%80%E3%80%81%E9%A2%98%E7%9B%AE"><span class="toc-number">1.</span> <span class="toc-text">一、题目</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BA%8C%E3%80%81%E9%A2%98%E7%9B%AE%E5%88%86%E6%9E%90"><span class="toc-number">2.</span> <span class="toc-text">二、题目分析</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#1-%E9%A2%98%E7%9B%AE%E8%A6%81%E6%B1%82"><span class="toc-number">2.1.</span> <span class="toc-text">1. 题目要求</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#2-%E6%80%8E%E4%B9%88%E6%83%B3%E8%BF%99%E9%A2%98%EF%BC%9F"><span class="toc-number">2.2.</span> <span class="toc-text">2. 怎么想这题？</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#3-%E9%9C%80%E8%A6%81%E8%A7%A3%E5%86%B3%E5%93%AA%E5%87%A0%E4%B8%AA%E9%97%AE%E9%A2%98%EF%BC%9F"><span class="toc-number">2.3.</span> <span class="toc-text">3. 需要解决哪几个问题？</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%89%E3%80%81%E6%96%B9%E6%B3%95%E4%B8%80%EF%BC%9ADP-%E6%9E%9A%E4%B8%BE%EF%BC%8CO-n%C2%B2"><span class="toc-number">3.</span> <span class="toc-text">三、方法一：DP 枚举，O(n²)</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%AC%AC%E4%B8%80%E6%AD%A5%EF%BC%9A%E8%A7%A3%E5%86%B3%E7%8A%B6%E6%80%81%E5%AE%9A%E4%B9%89%E2%80%94%E2%80%94%E4%BB%A5%E8%B0%81%E4%B8%BA%E7%BB%93%E5%B0%BE%EF%BC%9F"><span class="toc-number">3.1.</span> <span class="toc-text">第一步：解决状态定义——以谁为结尾？</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%AC%AC%E4%BA%8C%E6%AD%A5%EF%BC%9A%E8%A7%A3%E5%86%B3%E8%BD%AC%E7%A7%BB%E6%96%B9%E7%A8%8B%E2%80%94%E2%80%94%E5%BE%80%E5%89%8D%E6%89%BE%E4%B8%80%E4%B8%AA%E6%8E%A5%E5%BE%97%E4%B8%8A"><span class="toc-number">3.2.</span> <span class="toc-text">第二步：解决转移方程——往前找一个接得上</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%AC%AC%E4%B8%89%E6%AD%A5%EF%BC%9A%E7%94%A8%E7%A4%BA%E4%BE%8B-1-%E8%B5%B0%E4%B8%80%E9%81%8D-DP"><span class="toc-number">3.3.</span> <span class="toc-text">第三步：用示例 1 走一遍 DP</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%A4%8D%E6%9D%82%E5%BA%A6%E5%88%86%E6%9E%90%EF%BC%88%E6%96%B9%E6%B3%95%E4%B8%80%EF%BC%89"><span class="toc-number">3.4.</span> <span class="toc-text">复杂度分析（方法一）</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9B%9B%E3%80%81%E5%BC%95%E5%AF%BC%E6%80%9D%E8%80%83%EF%BC%9A%E6%96%B9%E6%B3%95%E4%B8%80%E8%83%BD%E4%BC%98%E5%8C%96%E5%90%97%EF%BC%9F"><span class="toc-number">4.</span> <span class="toc-text">四、引导思考：方法一能优化吗？</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BA%94%E3%80%81%E6%96%B9%E6%B3%95%E4%BA%8C%EF%BC%9A%E4%BA%8C%E5%88%86%E4%BC%98%E5%8C%96%EF%BC%8CO-n-log-n"><span class="toc-number">5.</span> <span class="toc-text">五、方法二：二分优化，O(n log n)</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%AC%AC%E4%B8%80%E6%AD%A5%EF%BC%9Atails-%E6%95%B0%E7%BB%84%E7%9A%84%E8%AF%AD%E4%B9%89%E5%92%8C%E6%93%8D%E4%BD%9C"><span class="toc-number">5.1.</span> <span class="toc-text">第一步：tails 数组的语义和操作</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%AC%AC%E4%BA%8C%E6%AD%A5%EF%BC%9A%E7%94%A8%E7%A4%BA%E4%BE%8B-1-%E8%B5%B0%E4%B8%80%E9%81%8D-tails"><span class="toc-number">5.2.</span> <span class="toc-text">第二步：用示例 1 走一遍 tails</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%AC%AC%E4%B8%89%E6%AD%A5%EF%BC%9A%E5%AE%8C%E6%95%B4%E6%89%A7%E8%A1%8C%E8%BF%87%E7%A8%8B%EF%BC%88%E7%A4%BA%E4%BE%8B-2%EF%BC%89"><span class="toc-number">5.3.</span> <span class="toc-text">第三步：完整执行过程（示例 2）</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%AC%AC%E5%9B%9B%E6%AD%A5%EF%BC%9A%E4%BB%A3%E7%A0%81%E7%BB%86%E8%8A%82"><span class="toc-number">5.4.</span> <span class="toc-text">第四步：代码细节</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%A4%8D%E6%9D%82%E5%BA%A6%E5%88%86%E6%9E%90%EF%BC%88%E6%96%B9%E6%B3%95%E4%BA%8C%EF%BC%89"><span class="toc-number">5.5.</span> <span class="toc-text">复杂度分析（方法二）</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%85%AD%E3%80%81%E6%80%BB%E7%BB%93"><span class="toc-number">6.</span> <span class="toc-text">六、总结</span></a></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/2026/09/14/Hot%20100%20---%20%E6%9C%80%E9%95%BF%E9%80%92%E5%A2%9E%E5%AD%90%E5%BA%8F%E5%88%97/" title="Hot 100 --- 最长递增子序列"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 最长递增子序列"/></a><div class="content"><a class="title" href="/2026/09/14/Hot%20100%20---%20%E6%9C%80%E9%95%BF%E9%80%92%E5%A2%9E%E5%AD%90%E5%BA%8F%E5%88%97/" title="Hot 100 --- 最长递增子序列">Hot 100 --- 最长递增子序列</a><time datetime="2026-09-13T17:30:00.000Z" title="发表于 2026-09-14 01:30:00">2026-09-14</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/09/14/Hot%20100%20---%20%E5%8D%95%E8%AF%8D%E6%8B%86%E5%88%86/" title="Hot 100 --- 单词拆分"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 单词拆分"/></a><div class="content"><a class="title" href="/2026/09/14/Hot%20100%20---%20%E5%8D%95%E8%AF%8D%E6%8B%86%E5%88%86/" title="Hot 100 --- 单词拆分">Hot 100 --- 单词拆分</a><time datetime="2026-09-13T16:30:00.000Z" title="发表于 2026-09-14 00:30:00">2026-09-14</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/09/13/%E6%9E%9A%E4%B8%BE%E7%B1%BBDP%E8%BF%9B%E9%98%B6%EF%BC%9A%E5%AE%8C%E5%85%A8%E5%B9%B3%E6%96%B9%E6%95%B0%E4%B8%8E%E9%9B%B6%E9%92%B1%E5%85%91%E6%8D%A2/" title="枚举类DP进阶：完全平方数与零钱兑换"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="枚举类DP进阶：完全平方数与零钱兑换"/></a><div class="content"><a class="title" href="/2026/09/13/%E6%9E%9A%E4%B8%BE%E7%B1%BBDP%E8%BF%9B%E9%98%B6%EF%BC%9A%E5%AE%8C%E5%85%A8%E5%B9%B3%E6%96%B9%E6%95%B0%E4%B8%8E%E9%9B%B6%E9%92%B1%E5%85%91%E6%8D%A2/" title="枚举类DP进阶：完全平方数与零钱兑换">枚举类DP进阶：完全平方数与零钱兑换</a><time datetime="2026-09-13T15:30:00.000Z" title="发表于 2026-09-13 23:30:00">2026-09-13</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/09/13/Hot%20100%20---%20%E6%89%93%E5%AE%B6%E5%8A%AB%E8%88%8D/" title="Hot 100 --- 打家劫舍"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 打家劫舍"/></a><div class="content"><a class="title" href="/2026/09/13/Hot%20100%20---%20%E6%89%93%E5%AE%B6%E5%8A%AB%E8%88%8D/" title="Hot 100 --- 打家劫舍">Hot 100 --- 打家劫舍</a><time datetime="2026-09-13T15:00:00.000Z" title="发表于 2026-09-13 23:00:00">2026-09-13</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/09/10/%E5%8A%A8%E6%80%81%E8%A7%84%E5%88%92%E5%85%A5%E9%97%A8/" title="动态规划入门"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="动态规划入门"/></a><div class="content"><a class="title" href="/2026/09/10/%E5%8A%A8%E6%80%81%E8%A7%84%E5%88%92%E5%85%A5%E9%97%A8/" title="动态规划入门">动态规划入门</a><time datetime="2026-09-10T15:00:00.000Z" title="发表于 2026-09-10 23:00:00">2026-09-10</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By 青山木</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.5.4"></script><script src="/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script>
+(function() {
+  /* 仅在首页标题上方插入头像 */
+  if (window.location.pathname !== '/' && !window.location.pathname.endsWith('/index.html')) return;
+  var siteTitle = document.getElementById('site-title');
+  if (siteTitle) {
+    var avatar = document.createElement('img');
+    avatar.src = '/img/头像.jpg';
+    avatar.alt = 'avatar';
+    avatar.className = 'avatar-img';
+    siteTitle.parentNode.insertBefore(avatar, siteTitle);
+  }
+})();
+</script>
+<script>
+(function() {
+  function initMermaid() {
+    if (window.mermaid) return Promise.resolve();
+    return new Promise(function(resolve, reject) {
+      var script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/mermaid@11.12.2/dist/mermaid.min.js';
+      script.onload = function() {
+        mermaid.initialize({
+          startOnLoad: false,
+          // 图表主题固定，避免站点深浅色切换时重新解析整篇文章的所有 Mermaid 图。
+          theme: 'dark',
+          securityLevel: 'loose'
+        });
+        resolve();
+      };
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  }
+
+  // Mermaid 会异步改变文章高度；目录跳转必须等所有图表完成布局后再读取标题位置。
+  window.mermaidReady = Promise.resolve();
+  var renderSequence = 0;
+
+  function waitForStableLayout() {
+    return new Promise(function(resolve) {
+      requestAnimationFrame(function() {
+        requestAnimationFrame(function() {
+          // 让 SVG 内的 foreignObject 完成一次实际布局，再刷新 Butterfly 的标题位置缓存。
+          setTimeout(resolve, 50);
+        });
+      });
+    });
+  }
+
+  function showMermaidSource(pre) {
+    pre.hidden = false;
+    pre.style.display = 'block';
+    pre.style.color = '#d32f2f';
+    pre.style.whiteSpace = 'pre-wrap';
+    pre.style.fontSize = '13px';
+  }
+
+  function refreshTocPositions() {
+    // Butterfly 只在 resize 时重新缓存标题坐标。
+    window.dispatchEvent(new Event('resize'));
+    document.dispatchEvent(new CustomEvent('mermaid:rendered'));
+  }
+
+  function renderMermaidDiagrams() {
+    var wraps = document.querySelectorAll('#article-container .mermaid-wrap');
+    if (wraps.length === 0) {
+      window.mermaidReady = Promise.resolve();
+      return window.mermaidReady;
+    }
+
+    var renderTask = initMermaid().then(function() {
+      return Promise.all(Array.prototype.map.call(wraps, function(wrap, index) {
+        var pre = wrap.querySelector('pre.mermaid-src');
+        if (!pre || pre.dataset.rendered === 'true') return Promise.resolve();
+
+        var code = pre.textContent;
+        var id = 'mermaid-' + index + '-' + (++renderSequence);
+        return Promise.resolve().then(function() {
+          return mermaid.render(id, code);
+        }).then(function(result) {
+          pre.dataset.rendered = 'true';
+          pre.style.display = 'none';
+          var div = document.createElement('div');
+          div.innerHTML = result.svg;
+          wrap.insertBefore(div.firstChild, pre.nextSibling);
+        }).catch(function(err) {
+          console.error('[Mermaid] Block #' + index + ' render failed:', err);
+          showMermaidSource(pre);
+        });
+      }));
+    }).then(function() {
+      return waitForStableLayout();
+    }).then(function() {
+      refreshTocPositions();
+    }).catch(function(err) {
+      console.error('[Mermaid] Failed to load mermaid.js:', err);
+      wraps.forEach(function(wrap) {
+        var pre = wrap.querySelector('pre.mermaid-src');
+        if (pre) showMermaidSource(pre);
+      });
+    });
+
+    window.mermaidReady = renderTask;
+    return renderTask;
+  }
+
+  // 页面加载完成后渲染
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', renderMermaidDiagrams);
+  } else {
+    renderMermaidDiagrams();
+  }
+
+  // 拦截目录点击：若图表仍在渲染，等待布局稳定后按实时坐标滚动。
+  // 使用捕获阶段，避免 Butterfly 先按渲染前的坐标启动平滑滚动。
+  var tocNavigationSequence = 0;
+  document.addEventListener('click', function(e) {
+    var link = e.target.closest('#card-toc .toc-link');
+    if (!link) return;
+
+    var href = link.getAttribute('href') || '';
+    var hashIndex = href.indexOf('#');
+    if (hashIndex < 0) return;
+
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    var navigationSequence = ++tocNavigationSequence;
+    var headingId = decodeURI(href.slice(hashIndex + 1));
+
+    (window.mermaidReady || Promise.resolve()).then(function() {
+      return waitForStableLayout();
+    }).then(function() {
+      if (navigationSequence !== tocNavigationSequence) return;
+      var heading = document.getElementById(headingId);
+      if (!heading) return;
+
+      // 使用点击时的实际位置，避免异步 SVG 插入改变标题高度后跳错章节。
+      var top = heading.getBoundingClientRect().top + window.scrollY;
+      if (window.btf && window.btf.scrollToDest) {
+        window.btf.scrollToDest(top, 300);
+      } else {
+        window.scrollTo({ top: top, behavior: 'smooth' });
+      }
+    });
+  }, true);
+
+})();
+</script>
+<script id="canvas_nest" defer="defer" color="107,159,255" opacity="0.6" zIndex="-1" count="99" mobile="false" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/dist/canvas-nest.min.js"></script></div></body></html>

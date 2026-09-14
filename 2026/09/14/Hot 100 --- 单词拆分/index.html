@@ -1,0 +1,457 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="dark"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>Hot 100 --- 单词拆分 | 青山木</title><meta name="author" content="青山木"><meta name="copyright" content="青山木"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#0d1117"><meta name="description" content="本文讲解单词拆分的核心思路：dp[i] 表示 s 的前 i 个字符能否拆成字典单词，枚举切割点 j，dp[j] 且 [j,i) 是单词则 dp[i] 为 true，从暴力 DFS 优化到 O(n²) 的 DP 判定">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Hot 100 --- 单词拆分">
+<meta property="og:url" content="https://li-s-h.github.io/2026/09/14/Hot%20100%20---%20%E5%8D%95%E8%AF%8D%E6%8B%86%E5%88%86/index.html">
+<meta property="og:site_name" content="青山木">
+<meta property="og:description" content="本文讲解单词拆分的核心思路：dp[i] 表示 s 的前 i 个字符能否拆成字典单词，枚举切割点 j，dp[j] 且 [j,i) 是单词则 dp[i] 为 true，从暴力 DFS 优化到 O(n²) 的 DP 判定">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://li-s-h.github.io/img/title-picture/%E5%8A%9B%E6%89%A3.jpg">
+<meta property="article:published_time" content="2026-09-13T16:30:00.000Z">
+<meta property="article:modified_time" content="2026-09-14T17:22:57.934Z">
+<meta property="article:author" content="青山木">
+<meta property="article:tag" content="算法">
+<meta property="article:tag" content="leetcode">
+<meta property="article:tag" content="哈希表">
+<meta property="article:tag" content="字符串">
+<meta property="article:tag" content="动态规划">
+<meta property="article:tag" content="DP">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://li-s-h.github.io/img/title-picture/%E5%8A%9B%E6%89%A3.jpg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Hot 100 --- 单词拆分",
+  "url": "https://li-s-h.github.io/2026/09/14/Hot%20100%20---%20%E5%8D%95%E8%AF%8D%E6%8B%86%E5%88%86/",
+  "image": "https://li-s-h.github.io/img/title-picture/%E5%8A%9B%E6%89%A3.jpg",
+  "datePublished": "2026-09-13T16:30:00.000Z",
+  "dateModified": "2026-09-14T17:22:57.934Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "青山木",
+      "url": "https://LI-S-H.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/%E5%A4%B4%E5%83%8F.jpg"><link rel="canonical" href="https://li-s-h.github.io/2026/09/14/Hot%20100%20---%20%E5%8D%95%E8%AF%8D%E6%8B%86%E5%88%86/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="stylesheet" href="/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d1117')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', 'ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: 'Hot 100 --- 单词拆分',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><style>
+  #site-title { font-size: 1.76em !important; }
+  #subtitle { font-size: 0.88em !important; }
+
+  /* 卡片悬停放大 + 辉光 */
+  #recent-posts .recent-post-item {
+    transition: transform .3s ease, box-shadow .3s ease, border-color .3s ease;
+  }
+  #recent-posts .recent-post-item:hover {
+    transform: scale(1.025) !important;
+    border-color: rgba(107,159,255,0.5) !important;
+    box-shadow: 0 0 0 1px rgba(107,159,255,0.15),
+                0 0 45px rgba(107,159,255,0.12),
+                0 8px 30px rgba(0,0,0,0.4) !important;
+  }
+
+  /* 首页标题上方头像 */
+  #site-info .avatar-img {
+    display: block;
+    width: 144px;
+    height: 144px;
+    border-radius: 50%;
+    margin: 0 auto 20px;
+    border: 3px solid rgba(107,159,255,0.6);
+    box-shadow: 0 0 30px rgba(107,159,255,0.35),
+                0 0 60px rgba(107,159,255,0.15),
+                0 4px 20px rgba(0,0,0,0.25);
+    object-fit: cover;
+    transition: box-shadow .4s ease, border-color .4s ease;
+  }
+  #site-info .avatar-img:hover {
+    border-color: rgba(107,159,255,0.9);
+    box-shadow: 0 0 40px rgba(107,159,255,0.5),
+                0 0 80px rgba(107,159,255,0.25),
+                0 4px 20px rgba(0,0,0,0.25);
+  }
+
+  /* Mermaid 图表容器样式 */
+  .mermaid-wrap {
+    position: relative;
+    /* 图表固定使用深色画布，主题切换无需销毁并重绘所有 SVG。 */
+    background: #1e1e1e !important;
+    padding: 12px !important;
+    border-radius: 8px !important;
+    border: 1px solid #444 !important;
+    text-align: center;
+    margin: 0 0 20px 0;
+    overflow-x: auto;
+  }
+  .mermaid-wrap > svg {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+  }
+  /* 深色图表画布在两种站点主题下保持一致，避免切换时重排。 */
+  [data-theme="dark"] .mermaid-wrap {
+    background: #1e1e1e !important;
+    border-color: #444 !important;
+  }
+</style>
+<meta name="generator" content="Hexo 7.3.0"></head><body><div class="bg-animation" id="web_bg" style="background-image: url(/img/%E8%83%8C%E6%99%AF%E5%9B%BE2.webp);"></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(/img/title-picture/%E5%8A%9B%E6%89%A3.jpg);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">青山木</span></a><a class="nav-page-title" href="/"><span class="site-name">Hot 100 --- 单词拆分</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">Hot 100 --- 单词拆分</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-09-13T16:30:00.000Z" title="发表于 2026-09-14 00:30:00">2026-09-14</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-09-14T17:22:57.934Z" title="更新于 2026-09-15 01:22:57">2026-09-15</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/LeetCode-%E7%83%AD%E9%A2%98-HOT-100/">LeetCode 热题 HOT 100</a></span></div><div class="meta-secondline"></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><blockquote>
+<p><strong>本文概览</strong>：本文讲解单词拆分的核心思路：dp[i] 表示 s 的前 i 个字符能否拆成字典单词，枚举切割点 j，dp[j] 且 [j,i) 是单词则 dp[i] 为 true，从暴力 DFS 优化到 O(n²) 的 DP 判定</p>
+</blockquote>
+<hr>
+<h3 id="一、题目"><a href="#一、题目" class="headerlink" title="一、题目"></a>一、题目</h3><p><img src="/img/hot%20100%20%E5%8D%95%E8%AF%8D%E6%8B%86%E5%88%86/%E5%8D%95%E8%AF%8D%E6%8B%86%E5%88%86.png" alt="单词拆分 题目图片"></p>
+<hr>
+<h3 id="二、题目分析"><a href="#二、题目分析" class="headerlink" title="二、题目分析"></a>二、题目分析</h3><h4 id="1-题目要求"><a href="#1-题目要求" class="headerlink" title="1. 题目要求"></a>1. 题目要求</h4><p>给你一个字符串 <code>s</code> 和一个字符串列表 <code>wordDict</code> 作为字典。如果可以利用字典中出现的一个或多个单词<strong>拼接出 s</strong> 则返回 true。</p>
+<p><strong>注意</strong>：不要求字典中的单词全部都使用，并且字典中的单词可以<strong>重复使用</strong>。</p>
+<p><strong>示例 1</strong>：<code>s = &quot;leetcode&quot;</code>，<code>wordDict = [&quot;leet&quot;, &quot;code&quot;]</code> → true（leet + code）</p>
+<p><strong>示例 2</strong>：<code>s = &quot;applepenapple&quot;</code>，<code>wordDict = [&quot;apple&quot;, &quot;pen&quot;]</code> → true（apple + pen + apple，apple 被重复使用）</p>
+<p><strong>示例 3</strong>：<code>s = &quot;catsandog&quot;</code>，<code>wordDict = [&quot;cats&quot;, &quot;dog&quot;, &quot;sand&quot;, &quot;and&quot;, &quot;cat&quot;]</code> → false</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">cats + and + ？ → &quot;og&quot; 不是单词 ✗</span><br><span class="line">cats + an + ？  → &quot;an&quot; 不是单词 ✗</span><br><span class="line">cat + sand + ？ → &quot;og&quot; 不是单词 ✗</span><br><span class="line">cat + sa + ...  → 后面全凑不出 ✗</span><br><span class="line">任何切法都有一段残缺 → false</span><br></pre></td></tr></table></figure>
+
+<h4 id="2-这题的几个关键点"><a href="#2-这题的几个关键点" class="headerlink" title="2. 这题的几个关键点"></a>2. 这题的几个关键点</h4><p><strong>第一：单词可以复用</strong>。示例 2 里 apple 出现了两次，用一次之后还能再用。这决定了字典要用 HashSet 存，查完不删。</p>
+<p><strong>第二：示例 3 揭示的陷阱</strong>。字典里有多个相似单词（cat 和 cats、and 和 sand），前缀对上了不代表能切下去。比如 &quot;catsand...&quot; 开头既可能是 cat 也可能是 cats，<strong>你根本不知道该切哪个</strong>。如果切错了，后面就走不通，但切之前看不出来。</p>
+<p><strong>第三：遍历每个字符是必然的</strong>，问题是怎么知道在哪里切割出一个单词。</p>
+<h4 id="3-暴力思路的问题"><a href="#3-暴力思路的问题" class="headerlink" title="3. 暴力思路的问题"></a>3. 暴力思路的问题</h4><p><strong>最暴力的思路</strong>：从头开始，枚举每一个可能的单词切法，遇到一个字典里存在的单词就从这里往下继续 for 递归，走不通就回头换一个切法（DFS 回溯）。</p>
+<p><strong>问题</strong>：代码很难写，而且同一个前缀的失败会被反复验证。比如 &quot;catsandog&quot;，&quot;cat&quot; 切法失败后回溯，&quot;cats&quot; 切法走到 &quot;andog&quot; 时，&quot;and&quot; 后面的 &quot;og&quot; 又要从头验证一遍；换 &quot;sand&quot; 切法时 &quot;og&quot; <strong>再</strong>验证一遍。切法的组合是指数级的，时间复杂度会超级大。</p>
+<p><strong>核心浪费</strong>：&quot;og 能不能拆成单词&quot;这个问题的答案，跟它是从哪条路走过来的<strong>完全无关</strong>，但暴力法把它算了无数遍。</p>
+<h4 id="4-需要解决哪几个问题？"><a href="#4-需要解决哪几个问题？" class="headerlink" title="4. 需要解决哪几个问题？"></a>4. 需要解决哪几个问题？</h4><p><strong>问题一</strong>：怎么记录&quot;前面某段已经成功了&quot;这个状态，让它不被反复计算？</p>
+<p><strong>问题二</strong>：状态之间怎么衔接？已知前面的状态，怎么推出当前的状态？</p>
+<hr>
+<h3 id="三、思路概览"><a href="#三、思路概览" class="headerlink" title="三、思路概览"></a>三、思路概览</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="type">boolean</span> <span class="title function_">wordBreak</span><span class="params">(String s, List&lt;String&gt; wordDict)</span> &#123;</span><br><span class="line">    HashSet&lt;String&gt; set = <span class="keyword">new</span> <span class="title class_">HashSet</span>&lt;&gt;(wordDict);</span><br><span class="line">    <span class="type">boolean</span>[] dp = <span class="keyword">new</span> <span class="title class_">boolean</span>[s.length() + <span class="number">1</span>];</span><br><span class="line">    dp[<span class="number">0</span>] = <span class="literal">true</span>;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> <span class="variable">i</span> <span class="operator">=</span> <span class="number">1</span>; i &lt;= s.length(); i++) &#123;</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> <span class="variable">j</span> <span class="operator">=</span> <span class="number">0</span>; j &lt; i; j++) &#123;</span><br><span class="line">            <span class="keyword">if</span> (dp[j] &amp;&amp; set.contains(s.substring(j, i))) &#123;</span><br><span class="line">                dp[i] = <span class="literal">true</span>;</span><br><span class="line">                <span class="keyword">break</span>;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> dp[s.length()];</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>思路简要说明：</p>
+<ol>
+<li><strong>状态定义</strong>：<code>dp[i]</code> 表示 s 的前 i 个字符（即 s[0..i)）能否被字典单词拼出</li>
+<li><strong>转移方程</strong>：外层枚举结束位置 i，内层枚举切割点 j；如果 <code>dp[j]</code> 为 true（前 j 个字符已拼出）且 <code>s.substring(j, i)</code> 是字典单词（第 j 到第 i-1 个字符是一个完整单词），则 <code>dp[i] = true</code></li>
+<li><strong>初始条件</strong>：<code>dp[0] = true</code>（空前缀，什么都不用拼，天然成立）</li>
+<li><strong>答案</strong>：<code>dp[s.length()]</code></li>
+<li>**时间复杂度 O(n²)**，空间 O(n)</li>
+</ol>
+<hr>
+<h3 id="四、思路详解"><a href="#四、思路详解" class="headerlink" title="四、思路详解"></a>四、思路详解</h3><h4 id="第一步：换个看法，从-数单词-到-数字符"><a href="#第一步：换个看法，从-数单词-到-数字符" class="headerlink" title="第一步：换个看法，从&quot;数单词&quot;到&quot;数字符&quot;"></a>第一步：换个看法，从&quot;数单词&quot;到&quot;数字符&quot;</h4><p>暴力法难写、难想的根源是<strong>以单词为单位</strong>往前推进：cat 还是 cats？切错就回溯。</p>
+<p>换个角度，<strong>以字符为单位</strong>往前走，用示例 2 的 &quot;applepenapple&quot; 感受一下：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">a p p l e p e n a p p l e</span><br><span class="line">        ↑</span><br><span class="line">  到第一个 e 为止，&quot;apple&quot; 是一个完整单词，</span><br><span class="line">  前面任何位置截断都不是单词 → 这里是第一个&quot;成功点&quot;</span><br><span class="line"></span><br><span class="line">  再往后走，p、pe、pep...和前面的组合都不是单词</span><br><span class="line">  直到 n 出现，&quot;pen&quot; 是单词</span><br><span class="line">  但注意：pen 能接上，前提是它前面的 &quot;apple&quot; 已经成功了 → 又一个成功点</span><br><span class="line"></span><br><span class="line">  后面的 &quot;apple&quot; 同理 → 第三个成功点 = 字符串末尾 → true</span><br></pre></td></tr></table></figure>
+
+<p>发现了吗：**&quot;走到第 i 个字符时，前 i 个字符能不能拼出来&quot;是一个确定的、只和 i 有关的状态**。它一旦是 true，不管后面怎么接、前面是怎么拼成的（一个词还是十个词），都不影响后续使用。无后效性，天然的 DP 结构。</p>
+<h4 id="第二步：解决状态定义"><a href="#第二步：解决状态定义" class="headerlink" title="第二步：解决状态定义"></a>第二步：解决状态定义</h4><p><code>dp[i]</code> 表示 <strong>s 的前 i 个字符（s[0..i)）能否被字典单词拼出</strong>，boolean 型。</p>
+<p><strong>为什么定义成&quot;前 i 个字符&quot;而不是&quot;从某处到 i&quot;？</strong> 因为拼接是从左往右顺次进行的，任何合法的完整拆分，都可以看成&quot;某个成功的前缀 + 紧跟其后的一个单词&quot;。前缀状态只需一个下标就能定位，这是最省的刻画。</p>
+<p>答案就是 <code>dp[s.length()]</code>。</p>
+<h4 id="第三步：解决转移方程"><a href="#第三步：解决转移方程" class="headerlink" title="第三步：解决转移方程"></a>第三步：解决转移方程</h4><p><strong>推导</strong>：前 i 个字符能拼出，意味着什么？意味着<strong>存在一个切割点 j</strong>，把前 i 个字符分成两段：</p>
+<ul>
+<li>前段 s[0..j)：它的成败由 <code>dp[j]</code> 记录</li>
+<li>后段 s[j..i)：要求它<strong>正好是一个字典单词</strong></li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">a p p l e p e n</span><br><span class="line">↑       ↑       ↑</span><br><span class="line">0       j       i</span><br><span class="line">└─ dp[j] ┘└─单词─┘</span><br><span class="line">  （已成功） （set 里有）</span><br></pre></td></tr></table></figure>
+
+<p>两段都成立，<code>dp[i]</code> 就是 true。写成代码：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> (dp[j] &amp;&amp; set.contains(s.substring(j, i))) dp[i] = <span class="literal">true</span>;</span><br></pre></td></tr></table></figure>
+
+<p><strong>j 是不知道的，所以从 0 到 i-1 全部枚举一遍</strong>，任何一个 j 成立就够（break 跳出）。</p>
+<p><strong>回看示例 3 为什么返回 false</strong>：&quot;catsandog&quot; 的每个 i 都找不到合法的 j：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">i=3  &quot;cat&quot;    ：dp[0]=true 且 &quot;cat&quot; 是单词 → dp[3]=true</span><br><span class="line">i=4  &quot;cats&quot;   ：dp[0]=true 且 &quot;cats&quot; 是单词 → dp[4]=true</span><br><span class="line">i=7  &quot;catsand&quot;：j=3 时 dp[3] 且 &quot;sand&quot; 是单词 → dp[7]=true</span><br><span class="line">                j=4 时 dp[4] 且 &quot;and&quot; 是单词 → 也成立（殊途同归）</span><br><span class="line">i=8  &quot;catsando&quot;：j 扫一遍，dp[3]+&quot;ando&quot;？不是单词。dp[4]+&quot;ndo&quot;？不是。dp[7]+&quot;o&quot;？不是。→ false</span><br><span class="line">i=9  &quot;catsandog&quot;：同理全失败 → false</span><br><span class="line"></span><br><span class="line">dp[9] = false → 返回 false ✓</span><br></pre></td></tr></table></figure>
+
+<p>cat 和 cats <strong>两个都试</strong>，不需要纠结切哪个，这就是枚举切割点对&quot;相似单词陷阱&quot;的化解。而 dp[8]、dp[9] 的失败被记录下来后，如果字符串后面还有内容，直接查 dp 就行，不会再被反复验证（对应暴力法回溯时 &quot;og&quot; 被反复检查的浪费）。</p>
+<h4 id="第四步：初始条件为什么是-dp-0-true？"><a href="#第四步：初始条件为什么是-dp-0-true？" class="headerlink" title="第四步：初始条件为什么是 dp[0] &#x3D; true？"></a>第四步：初始条件为什么是 dp[0] &#x3D; true？</h4><p><code>dp[0]</code> 表示<strong>空前缀</strong>。一个字符都不用拼，空串天然&quot;拼得出&quot;，所以是 true。</p>
+<p>它不是随口设的，是转移的起点：算 dp[3]（&quot;cat&quot;）时 j&#x3D;0 这条路走的就是 <code>dp[0] &amp;&amp; &quot;cat&quot; 是单词</code>。dp[0] 若是 false，所有 i 的 j&#x3D;0 分支全部死掉，整条链推不动。</p>
+<p>对比一下：它和完全平方数的 <code>dp[0] = 0</code>（和为 0 用 0 个数）、零钱兑换的 <code>dp[0] = 0</code>（金额 0 用 0 枚硬币）是同一个角色，**&quot;规模为零时问题平凡成立&quot;**。</p>
+<h4 id="第五步：代码细节"><a href="#第五步：代码细节" class="headerlink" title="第五步：代码细节"></a>第五步：代码细节</h4><p><strong>字典存成 HashSet</strong>：<code>contains</code> 是 O(1)（算上 substring 的哈希开销是 O(单词长度)）。如果用 List 存，每次 <code>contains</code> 都要线性扫整个字典，总复杂度会多乘一个字典大小。</p>
+<p><strong>substring(j, i) 的边界</strong>：左闭右开，正好取出第 j 到第 i-1 个字符，和&quot;dp[j] 管前 j 个字符&quot;的下标体系无缝对齐。dp 数组开 <code>s.length() + 1</code>，多出的那一格就是 dp[0]。</p>
+<p><strong>内层 break</strong>：dp[i] 是 boolean，找到一个成立的 j 就够了，再扫下去没有意义，直接跳出省时间。</p>
+<p><strong>枚举方向</strong>：j 从 0 往 i-1 走。也可以倒着从 i-1 往 0 走（先试短前缀还是长前缀），对本题的复杂度和正确性没有影响，只是命中成功 j 的早晚不同。</p>
+<h4 id="完整执行过程"><a href="#完整执行过程" class="headerlink" title="完整执行过程"></a>完整执行过程</h4><p>以 <code>s = &quot;applepenapple&quot;</code>，<code>wordDict = [&quot;apple&quot;, &quot;pen&quot;]</code> 为例：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line">初始：dp = [true, false, false, ..., false]（长度 13+1 = 14）</span><br><span class="line"></span><br><span class="line">i=1 &quot;a&quot;     ：j=0，&quot;a&quot; 不是单词 → dp[1] = false</span><br><span class="line">i=2 &quot;ap&quot;    ：j=0，&quot;ap&quot; 不是 → false（j=1 的 dp[1] 是 false，跳过）</span><br><span class="line">i=3 &quot;app&quot;   ：false</span><br><span class="line">i=4 &quot;appl&quot;  ：false</span><br><span class="line">i=5 &quot;apple&quot; ：j=0，dp[0]=true 且 &quot;apple&quot; ∈ 字典 → dp[5] = true ✓</span><br><span class="line"></span><br><span class="line">i=6 &quot;applep&quot; ：j=5，dp[5]=true 但 &quot;p&quot; 不是 → false（其他 j 的 dp 都是 false）</span><br><span class="line">i=7 &quot;applepe&quot;：false</span><br><span class="line">i=8 &quot;applepen&quot;：j=5，dp[5]=true 且 &quot;pen&quot; ∈ 字典 → dp[8] = true ✓</span><br><span class="line"></span><br><span class="line">i=9..12 &quot;applepenappl&quot;：j=8 之后凑不出单词 → false</span><br><span class="line">i=13 &quot;applepenapple&quot;：j=8，dp[8]=true 且 &quot;apple&quot; ∈ 字典 → dp[13] = true ✓</span><br><span class="line"></span><br><span class="line">dp = [T, F, F, F, F, T, F, F, T, F, F, F, F, T]</span><br><span class="line">       0  1  2  3  4  5  6  7  8  9 10 11 12 13</span><br><span class="line"></span><br><span class="line">返回 dp[13] = true ✓</span><br></pre></td></tr></table></figure>
+
+<p>dp 数组里 true 的位置（0、5、8、13）正好是每个成功切点的&quot;落点&quot;，一眼能看出 apple &#x2F; pen &#x2F; apple 的拼接轨迹。</p>
+<h4 id="复杂度分析"><a href="#复杂度分析" class="headerlink" title="复杂度分析"></a>复杂度分析</h4><p><strong>时间复杂度 O(n²)<strong>（n 为 s 的长度）：外层 i 走 n 个状态，内层 j 每次最多扫 i 个切割点。其中每次 substring + contains 的哈希开销正比于单词长度，最坏整体是 O(n³) 字符级操作，但状态数是 n² 级。对比暴力回溯的指数级，核心收益是</strong>每个前缀的成败只算一次</strong>。</p>
+<p>**空间复杂度 O(n)**：dp 数组 + 字典集合。</p>
+<hr>
+<h3 id="五、总结"><a href="#五、总结" class="headerlink" title="五、总结"></a>五、总结</h3><p>单词拆分的核心思路：</p>
+<ol>
+<li><strong>两个关键点</strong>：单词可复用（HashSet 查完不删）；相似单词的切割陷阱（cat&#x2F;cats 不知道切哪个）</li>
+<li><strong>化解陷阱的手法</strong>：不选边，<strong>枚举所有切割点</strong>，让成立的那个自己浮出来</li>
+<li><strong>状态定义</strong>：<code>dp[i]</code> &#x3D; 前 i 个字符能否拼出，boolean 型</li>
+<li><strong>转移方程</strong>：<code>dp[j] &amp;&amp; set.contains(s.substring(j, i))</code> 则 <code>dp[i] = true</code></li>
+<li><strong>初始条件</strong>：<code>dp[0] = true</code>（空前缀平凡成立，一切转移的起点）</li>
+</ol>
+<p><strong>和前面枚举类 DP 的关系</strong>：完全平方数、零钱兑换枚举的是&quot;最后一步选什么候选&quot;，这题枚举的是&quot;最后一个单词从哪里切起&quot;。都是站在 i 往回看、把前半段当子问题已知；差别只是这题的子问题答案是 boolean（能不能），不是数值（最少几个），转移从 min 变成了逻辑与。</p>
+<p><strong>暴力到 DP 的通用转化信号</strong>：当发现&quot;某个中间结果的答案与来路无关，却被反复计算&quot;（比如这题的 &quot;og 能不能拆&quot;），就说明可以把它抽成状态、记进 dp 数组，回溯的指数树就被压成了填表。</p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://LI-S-H.github.io">青山木</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://li-s-h.github.io/2026/09/14/Hot%20100%20---%20%E5%8D%95%E8%AF%8D%E6%8B%86%E5%88%86/">https://li-s-h.github.io/2026/09/14/Hot%20100%20---%20%E5%8D%95%E8%AF%8D%E6%8B%86%E5%88%86/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://LI-S-H.github.io" target="_blank">青山木</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E7%AE%97%E6%B3%95/">算法</a><a class="post-meta__tags" href="/tags/leetcode/">leetcode</a><a class="post-meta__tags" href="/tags/%E5%93%88%E5%B8%8C%E8%A1%A8/">哈希表</a><a class="post-meta__tags" href="/tags/%E5%AD%97%E7%AC%A6%E4%B8%B2/">字符串</a><a class="post-meta__tags" href="/tags/%E5%8A%A8%E6%80%81%E8%A7%84%E5%88%92/">动态规划</a><a class="post-meta__tags" href="/tags/DP/">DP</a></div><div class="post-share"><div class="social-share" data-image="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/2026/09/14/Hot%20100%20---%20%E6%9C%80%E9%95%BF%E9%80%92%E5%A2%9E%E5%AD%90%E5%BA%8F%E5%88%97/" title="Hot 100 --- 最长递增子序列"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="onerror=null;src='/img/404.jpg'" alt="cover of previous post"><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">Hot 100 --- 最长递增子序列</div></div><div class="info-2"><div class="info-item-1">本文讲解最长递增子序列的核心思路：方法一是 O(n²) 的 DP 枚举（以每个元素结尾的 dp[i]），方法二是 O(n log n) 的二分优化（维护各长度子序列的最小末尾值），从重复组合的浪费中提炼出"保留最小末尾"的剪枝</div></div></div></a><a class="pagination-related" href="/2026/09/13/%E6%9E%9A%E4%B8%BE%E7%B1%BBDP%E8%BF%9B%E9%98%B6%EF%BC%9A%E5%AE%8C%E5%85%A8%E5%B9%B3%E6%96%B9%E6%95%B0%E4%B8%8E%E9%9B%B6%E9%92%B1%E5%85%91%E6%8D%A2/" title="枚举类DP进阶：完全平方数与零钱兑换"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="onerror=null;src='/img/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">枚举类DP进阶：完全平方数与零钱兑换</div></div><div class="info-2"><div class="info-item-1">本文从线性 DP 进阶到枚举类 DP：完全平方数与零钱兑换两题合一讲解，dp[i] 由枚举"最后一步"的候选集合推出，min(dp[i - j²] + 1) 与 min(dp[i - coin] + 1) 同源</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/2026/09/13/Hot%20100%20---%20%E6%89%93%E5%AE%B6%E5%8A%AB%E8%88%8D/" title="Hot 100 --- 打家劫舍"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-09-13</div><div class="info-item-2">Hot 100 --- 打家劫舍</div></div><div class="info-2"><div class="info-item-1">本文讲解打家劫舍的核心思路：dp[i] 表示偷到第 i 房的最大金额，偷或不偷第 i 房两种情况取最大，滚动变量优化到 O(1) 空间</div></div></div></a><a class="pagination-related" href="/2026/09/13/%E6%9E%9A%E4%B8%BE%E7%B1%BBDP%E8%BF%9B%E9%98%B6%EF%BC%9A%E5%AE%8C%E5%85%A8%E5%B9%B3%E6%96%B9%E6%95%B0%E4%B8%8E%E9%9B%B6%E9%92%B1%E5%85%91%E6%8D%A2/" title="枚举类DP进阶：完全平方数与零钱兑换"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-09-13</div><div class="info-item-2">枚举类DP进阶：完全平方数与零钱兑换</div></div><div class="info-2"><div class="info-item-1">本文从线性 DP 进阶到枚举类 DP：完全平方数与零钱兑换两题合一讲解，dp[i] 由枚举"最后一步"的候选集合推出，min(dp[i - j²] + 1) 与 min(dp[i - coin] + 1) 同源</div></div></div></a><a class="pagination-related" href="/2026/08/02/Hot%20100%20---%20%E5%88%86%E5%89%B2%E5%9B%9E%E6%96%87%E4%B8%B2/" title="Hot 100 --- 分割回文串"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-02</div><div class="info-item-2">Hot 100 --- 分割回文串</div></div><div class="info-2"><div class="info-item-1">本文以LeetCode题目"分割回文串"为例，讲解如何用动态规划预处理回文表，以及回溯切割方案的设计</div></div></div></a><a class="pagination-related" href="/2026/09/14/Hot%20100%20---%20%E6%9C%80%E9%95%BF%E9%80%92%E5%A2%9E%E5%AD%90%E5%BA%8F%E5%88%97/" title="Hot 100 --- 最长递增子序列"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-09-14</div><div class="info-item-2">Hot 100 --- 最长递增子序列</div></div><div class="info-2"><div class="info-item-1">本文讲解最长递增子序列的核心思路：方法一是 O(n²) 的 DP 枚举（以每个元素结尾的 dp[i]），方法二是 O(n log n) 的二分优化（维护各长度子序列的最小末尾值），从重复组合的浪费中提炼出"保留最小末尾"的剪枝</div></div></div></a><a class="pagination-related" href="/2026/09/09/Hot%20100%20---%20%E5%88%92%E5%88%86%E5%AD%97%E6%AF%8D%E5%8C%BA%E9%97%B4/" title="Hot 100 --- 划分字母区间"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-09-09</div><div class="info-item-2">Hot 100 --- 划分字母区间</div></div><div class="info-2"><div class="info-item-1">本文讲解划分字母区间的核心思路：先记录每个字符最后出现位置，再用"最远边界"贪心切割，i == curMaxEnd 时切一刀，O(n) 完成</div></div></div></a><a class="pagination-related" href="/2026/06/10/Hot%20100%20---%20%E6%9C%80%E5%A4%A7%E5%AD%90%E6%95%B0%E7%BB%84%E5%92%8C/" title="Hot 100 --- 最大子数组和"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-06-10</div><div class="info-item-2">Hot 100 --- 最大子数组和</div></div><div class="info-2"><div class="info-item-1">本文以LeetCode经典题目"最大子数组和"为例，从暴力解法入手，利用前缀和优化到维护最小前缀和的O(n)解法，再从动态规划角度重新理解，系统讲解如何利用"前数组和是否对当前元素有贡献"这一关键判断，将时间复杂度从O(n²)优化到O(n)</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/%E5%A4%B4%E5%83%8F.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">青山木</div><div class="author-info-description">正在学习Java后端开发＋智能体开发，希望能与大家多多交流</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">92</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">176</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">5</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/LI-S-H"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/LI-S-H" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">欢迎来到我的博客，记录学习与成长的点滴。</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%80%E3%80%81%E9%A2%98%E7%9B%AE"><span class="toc-number">1.</span> <span class="toc-text">一、题目</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BA%8C%E3%80%81%E9%A2%98%E7%9B%AE%E5%88%86%E6%9E%90"><span class="toc-number">2.</span> <span class="toc-text">二、题目分析</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#1-%E9%A2%98%E7%9B%AE%E8%A6%81%E6%B1%82"><span class="toc-number">2.1.</span> <span class="toc-text">1. 题目要求</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#2-%E8%BF%99%E9%A2%98%E7%9A%84%E5%87%A0%E4%B8%AA%E5%85%B3%E9%94%AE%E7%82%B9"><span class="toc-number">2.2.</span> <span class="toc-text">2. 这题的几个关键点</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#3-%E6%9A%B4%E5%8A%9B%E6%80%9D%E8%B7%AF%E7%9A%84%E9%97%AE%E9%A2%98"><span class="toc-number">2.3.</span> <span class="toc-text">3. 暴力思路的问题</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#4-%E9%9C%80%E8%A6%81%E8%A7%A3%E5%86%B3%E5%93%AA%E5%87%A0%E4%B8%AA%E9%97%AE%E9%A2%98%EF%BC%9F"><span class="toc-number">2.4.</span> <span class="toc-text">4. 需要解决哪几个问题？</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%89%E3%80%81%E6%80%9D%E8%B7%AF%E6%A6%82%E8%A7%88"><span class="toc-number">3.</span> <span class="toc-text">三、思路概览</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9B%9B%E3%80%81%E6%80%9D%E8%B7%AF%E8%AF%A6%E8%A7%A3"><span class="toc-number">4.</span> <span class="toc-text">四、思路详解</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%AC%AC%E4%B8%80%E6%AD%A5%EF%BC%9A%E6%8D%A2%E4%B8%AA%E7%9C%8B%E6%B3%95%EF%BC%8C%E4%BB%8E-%E6%95%B0%E5%8D%95%E8%AF%8D-%E5%88%B0-%E6%95%B0%E5%AD%97%E7%AC%A6"><span class="toc-number">4.1.</span> <span class="toc-text">第一步：换个看法，从&quot;数单词&quot;到&quot;数字符&quot;</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%AC%AC%E4%BA%8C%E6%AD%A5%EF%BC%9A%E8%A7%A3%E5%86%B3%E7%8A%B6%E6%80%81%E5%AE%9A%E4%B9%89"><span class="toc-number">4.2.</span> <span class="toc-text">第二步：解决状态定义</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%AC%AC%E4%B8%89%E6%AD%A5%EF%BC%9A%E8%A7%A3%E5%86%B3%E8%BD%AC%E7%A7%BB%E6%96%B9%E7%A8%8B"><span class="toc-number">4.3.</span> <span class="toc-text">第三步：解决转移方程</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%AC%AC%E5%9B%9B%E6%AD%A5%EF%BC%9A%E5%88%9D%E5%A7%8B%E6%9D%A1%E4%BB%B6%E4%B8%BA%E4%BB%80%E4%B9%88%E6%98%AF-dp-0-true%EF%BC%9F"><span class="toc-number">4.4.</span> <span class="toc-text">第四步：初始条件为什么是 dp[0] &#x3D; true？</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%AC%AC%E4%BA%94%E6%AD%A5%EF%BC%9A%E4%BB%A3%E7%A0%81%E7%BB%86%E8%8A%82"><span class="toc-number">4.5.</span> <span class="toc-text">第五步：代码细节</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%AE%8C%E6%95%B4%E6%89%A7%E8%A1%8C%E8%BF%87%E7%A8%8B"><span class="toc-number">4.6.</span> <span class="toc-text">完整执行过程</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%A4%8D%E6%9D%82%E5%BA%A6%E5%88%86%E6%9E%90"><span class="toc-number">4.7.</span> <span class="toc-text">复杂度分析</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BA%94%E3%80%81%E6%80%BB%E7%BB%93"><span class="toc-number">5.</span> <span class="toc-text">五、总结</span></a></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/2026/09/14/Hot%20100%20---%20%E6%9C%80%E9%95%BF%E9%80%92%E5%A2%9E%E5%AD%90%E5%BA%8F%E5%88%97/" title="Hot 100 --- 最长递增子序列"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 最长递增子序列"/></a><div class="content"><a class="title" href="/2026/09/14/Hot%20100%20---%20%E6%9C%80%E9%95%BF%E9%80%92%E5%A2%9E%E5%AD%90%E5%BA%8F%E5%88%97/" title="Hot 100 --- 最长递增子序列">Hot 100 --- 最长递增子序列</a><time datetime="2026-09-13T17:30:00.000Z" title="发表于 2026-09-14 01:30:00">2026-09-14</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/09/14/Hot%20100%20---%20%E5%8D%95%E8%AF%8D%E6%8B%86%E5%88%86/" title="Hot 100 --- 单词拆分"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 单词拆分"/></a><div class="content"><a class="title" href="/2026/09/14/Hot%20100%20---%20%E5%8D%95%E8%AF%8D%E6%8B%86%E5%88%86/" title="Hot 100 --- 单词拆分">Hot 100 --- 单词拆分</a><time datetime="2026-09-13T16:30:00.000Z" title="发表于 2026-09-14 00:30:00">2026-09-14</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/09/13/%E6%9E%9A%E4%B8%BE%E7%B1%BBDP%E8%BF%9B%E9%98%B6%EF%BC%9A%E5%AE%8C%E5%85%A8%E5%B9%B3%E6%96%B9%E6%95%B0%E4%B8%8E%E9%9B%B6%E9%92%B1%E5%85%91%E6%8D%A2/" title="枚举类DP进阶：完全平方数与零钱兑换"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="枚举类DP进阶：完全平方数与零钱兑换"/></a><div class="content"><a class="title" href="/2026/09/13/%E6%9E%9A%E4%B8%BE%E7%B1%BBDP%E8%BF%9B%E9%98%B6%EF%BC%9A%E5%AE%8C%E5%85%A8%E5%B9%B3%E6%96%B9%E6%95%B0%E4%B8%8E%E9%9B%B6%E9%92%B1%E5%85%91%E6%8D%A2/" title="枚举类DP进阶：完全平方数与零钱兑换">枚举类DP进阶：完全平方数与零钱兑换</a><time datetime="2026-09-13T15:30:00.000Z" title="发表于 2026-09-13 23:30:00">2026-09-13</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/09/13/Hot%20100%20---%20%E6%89%93%E5%AE%B6%E5%8A%AB%E8%88%8D/" title="Hot 100 --- 打家劫舍"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 打家劫舍"/></a><div class="content"><a class="title" href="/2026/09/13/Hot%20100%20---%20%E6%89%93%E5%AE%B6%E5%8A%AB%E8%88%8D/" title="Hot 100 --- 打家劫舍">Hot 100 --- 打家劫舍</a><time datetime="2026-09-13T15:00:00.000Z" title="发表于 2026-09-13 23:00:00">2026-09-13</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/09/10/%E5%8A%A8%E6%80%81%E8%A7%84%E5%88%92%E5%85%A5%E9%97%A8/" title="动态规划入门"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="动态规划入门"/></a><div class="content"><a class="title" href="/2026/09/10/%E5%8A%A8%E6%80%81%E8%A7%84%E5%88%92%E5%85%A5%E9%97%A8/" title="动态规划入门">动态规划入门</a><time datetime="2026-09-10T15:00:00.000Z" title="发表于 2026-09-10 23:00:00">2026-09-10</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By 青山木</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.5.4"></script><script src="/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script>
+(function() {
+  /* 仅在首页标题上方插入头像 */
+  if (window.location.pathname !== '/' && !window.location.pathname.endsWith('/index.html')) return;
+  var siteTitle = document.getElementById('site-title');
+  if (siteTitle) {
+    var avatar = document.createElement('img');
+    avatar.src = '/img/头像.jpg';
+    avatar.alt = 'avatar';
+    avatar.className = 'avatar-img';
+    siteTitle.parentNode.insertBefore(avatar, siteTitle);
+  }
+})();
+</script>
+<script>
+(function() {
+  function initMermaid() {
+    if (window.mermaid) return Promise.resolve();
+    return new Promise(function(resolve, reject) {
+      var script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/mermaid@11.12.2/dist/mermaid.min.js';
+      script.onload = function() {
+        mermaid.initialize({
+          startOnLoad: false,
+          // 图表主题固定，避免站点深浅色切换时重新解析整篇文章的所有 Mermaid 图。
+          theme: 'dark',
+          securityLevel: 'loose'
+        });
+        resolve();
+      };
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  }
+
+  // Mermaid 会异步改变文章高度；目录跳转必须等所有图表完成布局后再读取标题位置。
+  window.mermaidReady = Promise.resolve();
+  var renderSequence = 0;
+
+  function waitForStableLayout() {
+    return new Promise(function(resolve) {
+      requestAnimationFrame(function() {
+        requestAnimationFrame(function() {
+          // 让 SVG 内的 foreignObject 完成一次实际布局，再刷新 Butterfly 的标题位置缓存。
+          setTimeout(resolve, 50);
+        });
+      });
+    });
+  }
+
+  function showMermaidSource(pre) {
+    pre.hidden = false;
+    pre.style.display = 'block';
+    pre.style.color = '#d32f2f';
+    pre.style.whiteSpace = 'pre-wrap';
+    pre.style.fontSize = '13px';
+  }
+
+  function refreshTocPositions() {
+    // Butterfly 只在 resize 时重新缓存标题坐标。
+    window.dispatchEvent(new Event('resize'));
+    document.dispatchEvent(new CustomEvent('mermaid:rendered'));
+  }
+
+  function renderMermaidDiagrams() {
+    var wraps = document.querySelectorAll('#article-container .mermaid-wrap');
+    if (wraps.length === 0) {
+      window.mermaidReady = Promise.resolve();
+      return window.mermaidReady;
+    }
+
+    var renderTask = initMermaid().then(function() {
+      return Promise.all(Array.prototype.map.call(wraps, function(wrap, index) {
+        var pre = wrap.querySelector('pre.mermaid-src');
+        if (!pre || pre.dataset.rendered === 'true') return Promise.resolve();
+
+        var code = pre.textContent;
+        var id = 'mermaid-' + index + '-' + (++renderSequence);
+        return Promise.resolve().then(function() {
+          return mermaid.render(id, code);
+        }).then(function(result) {
+          pre.dataset.rendered = 'true';
+          pre.style.display = 'none';
+          var div = document.createElement('div');
+          div.innerHTML = result.svg;
+          wrap.insertBefore(div.firstChild, pre.nextSibling);
+        }).catch(function(err) {
+          console.error('[Mermaid] Block #' + index + ' render failed:', err);
+          showMermaidSource(pre);
+        });
+      }));
+    }).then(function() {
+      return waitForStableLayout();
+    }).then(function() {
+      refreshTocPositions();
+    }).catch(function(err) {
+      console.error('[Mermaid] Failed to load mermaid.js:', err);
+      wraps.forEach(function(wrap) {
+        var pre = wrap.querySelector('pre.mermaid-src');
+        if (pre) showMermaidSource(pre);
+      });
+    });
+
+    window.mermaidReady = renderTask;
+    return renderTask;
+  }
+
+  // 页面加载完成后渲染
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', renderMermaidDiagrams);
+  } else {
+    renderMermaidDiagrams();
+  }
+
+  // 拦截目录点击：若图表仍在渲染，等待布局稳定后按实时坐标滚动。
+  // 使用捕获阶段，避免 Butterfly 先按渲染前的坐标启动平滑滚动。
+  var tocNavigationSequence = 0;
+  document.addEventListener('click', function(e) {
+    var link = e.target.closest('#card-toc .toc-link');
+    if (!link) return;
+
+    var href = link.getAttribute('href') || '';
+    var hashIndex = href.indexOf('#');
+    if (hashIndex < 0) return;
+
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    var navigationSequence = ++tocNavigationSequence;
+    var headingId = decodeURI(href.slice(hashIndex + 1));
+
+    (window.mermaidReady || Promise.resolve()).then(function() {
+      return waitForStableLayout();
+    }).then(function() {
+      if (navigationSequence !== tocNavigationSequence) return;
+      var heading = document.getElementById(headingId);
+      if (!heading) return;
+
+      // 使用点击时的实际位置，避免异步 SVG 插入改变标题高度后跳错章节。
+      var top = heading.getBoundingClientRect().top + window.scrollY;
+      if (window.btf && window.btf.scrollToDest) {
+        window.btf.scrollToDest(top, 300);
+      } else {
+        window.scrollTo({ top: top, behavior: 'smooth' });
+      }
+    });
+  }, true);
+
+})();
+</script>
+<script id="canvas_nest" defer="defer" color="107,159,255" opacity="0.6" zIndex="-1" count="99" mobile="false" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/dist/canvas-nest.min.js"></script></div></body></html>
