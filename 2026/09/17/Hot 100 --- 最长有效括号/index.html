@@ -1,0 +1,528 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="dark"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>Hot 100 --- 最长有效括号 | 青山木</title><meta name="author" content="青山木"><meta name="copyright" content="青山木"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#0d1117"><meta name="description" content="本文讲解最长有效括号的核心思路：方法一是栈加哨兵记录断点位置，方法二是双指针正反各扫一遍，补齐&quot;左侧多余左括号&quot;导致的漏算">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Hot 100 --- 最长有效括号">
+<meta property="og:url" content="https://li-s-h.github.io/2026/09/17/Hot%20100%20---%20%E6%9C%80%E9%95%BF%E6%9C%89%E6%95%88%E6%8B%AC%E5%8F%B7/index.html">
+<meta property="og:site_name" content="青山木">
+<meta property="og:description" content="本文讲解最长有效括号的核心思路：方法一是栈加哨兵记录断点位置，方法二是双指针正反各扫一遍，补齐&quot;左侧多余左括号&quot;导致的漏算">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://li-s-h.github.io/img/title-picture/%E5%8A%9B%E6%89%A3.jpg">
+<meta property="article:published_time" content="2026-09-17T14:30:00.000Z">
+<meta property="article:modified_time" content="2026-09-19T10:05:19.986Z">
+<meta property="article:author" content="青山木">
+<meta property="article:tag" content="双指针">
+<meta property="article:tag" content="算法">
+<meta property="article:tag" content="leetcode">
+<meta property="article:tag" content="字符串">
+<meta property="article:tag" content="栈">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://li-s-h.github.io/img/title-picture/%E5%8A%9B%E6%89%A3.jpg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Hot 100 --- 最长有效括号",
+  "url": "https://li-s-h.github.io/2026/09/17/Hot%20100%20---%20%E6%9C%80%E9%95%BF%E6%9C%89%E6%95%88%E6%8B%AC%E5%8F%B7/",
+  "image": "https://li-s-h.github.io/img/title-picture/%E5%8A%9B%E6%89%A3.jpg",
+  "datePublished": "2026-09-17T14:30:00.000Z",
+  "dateModified": "2026-09-19T10:05:19.986Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "青山木",
+      "url": "https://LI-S-H.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/%E5%A4%B4%E5%83%8F.jpg"><link rel="canonical" href="https://li-s-h.github.io/2026/09/17/Hot%20100%20---%20%E6%9C%80%E9%95%BF%E6%9C%89%E6%95%88%E6%8B%AC%E5%8F%B7/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="stylesheet" href="/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d1117')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', 'ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: 'Hot 100 --- 最长有效括号',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><style>
+  #site-title { font-size: 1.76em !important; }
+  #subtitle { font-size: 0.88em !important; }
+
+  /* 卡片悬停放大 + 辉光 */
+  #recent-posts .recent-post-item {
+    transition: transform .3s ease, box-shadow .3s ease, border-color .3s ease;
+  }
+  #recent-posts .recent-post-item:hover {
+    transform: scale(1.025) !important;
+    border-color: rgba(107,159,255,0.5) !important;
+    box-shadow: 0 0 0 1px rgba(107,159,255,0.15),
+                0 0 45px rgba(107,159,255,0.12),
+                0 8px 30px rgba(0,0,0,0.4) !important;
+  }
+
+  /* 首页标题上方头像 */
+  #site-info .avatar-img {
+    display: block;
+    width: 144px;
+    height: 144px;
+    border-radius: 50%;
+    margin: 0 auto 20px;
+    border: 3px solid rgba(107,159,255,0.6);
+    box-shadow: 0 0 30px rgba(107,159,255,0.35),
+                0 0 60px rgba(107,159,255,0.15),
+                0 4px 20px rgba(0,0,0,0.25);
+    object-fit: cover;
+    transition: box-shadow .4s ease, border-color .4s ease;
+  }
+  #site-info .avatar-img:hover {
+    border-color: rgba(107,159,255,0.9);
+    box-shadow: 0 0 40px rgba(107,159,255,0.5),
+                0 0 80px rgba(107,159,255,0.25),
+                0 4px 20px rgba(0,0,0,0.25);
+  }
+
+  /* Mermaid 图表容器样式 */
+  .mermaid-wrap {
+    position: relative;
+    /* 图表固定使用深色画布，主题切换无需销毁并重绘所有 SVG。 */
+    background: #1e1e1e !important;
+    padding: 12px !important;
+    border-radius: 8px !important;
+    border: 1px solid #444 !important;
+    text-align: center;
+    margin: 0 0 20px 0;
+    overflow-x: auto;
+  }
+  .mermaid-wrap > svg {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+  }
+  /* 深色图表画布在两种站点主题下保持一致，避免切换时重排。 */
+  [data-theme="dark"] .mermaid-wrap {
+    background: #1e1e1e !important;
+    border-color: #444 !important;
+  }
+</style>
+<meta name="generator" content="Hexo 7.3.0"></head><body><div class="bg-animation" id="web_bg" style="background-image: url(/img/%E8%83%8C%E6%99%AF%E5%9B%BE2.webp);"></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(/img/title-picture/%E5%8A%9B%E6%89%A3.jpg);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">青山木</span></a><a class="nav-page-title" href="/"><span class="site-name">Hot 100 --- 最长有效括号</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">Hot 100 --- 最长有效括号</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-09-17T14:30:00.000Z" title="发表于 2026-09-17 22:30:00">2026-09-17</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-09-19T10:05:19.986Z" title="更新于 2026-09-19 18:05:19">2026-09-19</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/LeetCode-%E7%83%AD%E9%A2%98-HOT-100/">LeetCode 热题 HOT 100</a></span></div><div class="meta-secondline"></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><blockquote>
+<p><strong>本文概览</strong>：本文讲解最长有效括号的核心思路：方法一是栈加哨兵记录断点位置，方法二是双指针正反各扫一遍，补齐&quot;左侧多余左括号&quot;导致的漏算</p>
+</blockquote>
+<hr>
+<h3 id="一、题目"><a href="#一、题目" class="headerlink" title="一、题目"></a>一、题目</h3><p><img src="/img/hot%20100%20%E6%9C%80%E9%95%BF%E6%9C%89%E6%95%88%E6%8B%AC%E5%8F%B7/%E6%9C%80%E9%95%BF%E6%9C%89%E6%95%88%E6%8B%AC%E5%8F%B7.png" alt="最长有效括号 题目图片"></p>
+<hr>
+<h3 id="二、题目分析"><a href="#二、题目分析" class="headerlink" title="二、题目分析"></a>二、题目分析</h3><h4 id="1-题目要求"><a href="#1-题目要求" class="headerlink" title="1. 题目要求"></a>1. 题目要求</h4><p>给你一个只包含 <code>&#39;(&#39;</code> 和 <code>&#39;)&#39;</code> 的字符串，找出<strong>最长有效（格式正确且连续）括号子串</strong>的长度。</p>
+<p><strong>有效括号</strong>：每个左括号都有对应的右括号将其闭合，如 <code>&quot;(()())&quot;</code>。</p>
+<p><strong>示例 1</strong>：<code>s = &quot;(()&quot;</code> → 2（最长有效括号子串是 <code>&quot;()&quot;</code>）</p>
+<p><strong>示例 2</strong>：<code>s = &quot;)()())&quot;</code> → 4（最长有效括号子串是 <code>&quot;()()&quot;</code>）</p>
+<p>括号匹配是前面 <a target="_blank" rel="noopener" href="https://blog.csdn.net/LI_124301012/article/details/163646439?spm=1001.2014.3001.5501">20. 有效的括号</a> 讲过的栈题目，这里直接复用它的一个结论：从左到右遍历，一旦出现右括号数比左括号数还多，这个右括号就无法被闭合，整串失效。不了解有效括号判定的可以先回看那篇。</p>
+<h4 id="2-从-有效-到-连续有效"><a href="#2-从-有效-到-连续有效" class="headerlink" title="2. 从&quot;有效&quot;到&quot;连续有效&quot;"></a>2. 从&quot;有效&quot;到&quot;连续有效&quot;</h4><p>&quot;有效&quot;好判断，但这题要的是&quot;连续&quot;的合法子串，得先搞清楚&quot;连续&quot;是怎么被破坏的。</p>
+<p>还是从左到右遍历，边扫边数左右括号。看例子 <code>( ( ) ) ) ( )</code>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">下标:    0  1  2  3  4  5  6</span><br><span class="line">字符:    (  (  )  )  )  (  )</span><br><span class="line">左括号数累计: 1  2  2  2  2  3  3</span><br><span class="line">右括号数累计: 0  0  1  2  3  3  4</span><br></pre></td></tr></table></figure>
+
+<p>走到下标 4 这个 <code>)</code> 时，右括号数累计到 3，左括号只有 2，右括号比左括号多了，它是多余的。它一出现，前面那段合法部分 <code>(())</code>（长度 4）就到此为止，后面 <code>()</code>（长度 2）要重新另起一段。这个多余右括号就是一个&quot;断点&quot;，把整串切成了两段。</p>
+<p>所以题目可以转述成：<strong>找出所有断点，相邻断点之间的合法部分取最长</strong>。</p>
+<h4 id="3-需要解决哪几个问题？"><a href="#3-需要解决哪几个问题？" class="headerlink" title="3. 需要解决哪几个问题？"></a>3. 需要解决哪几个问题？</h4><p>最直接的想法还是用栈，仿照有效括号那样左括号进栈、匹配时出栈。但栈只有一项能力，就是告诉你&quot;谁和谁配上了对&quot;，一对一对地配对。题目要的是&quot;连续合法的一段有多长&quot;，长度是按&quot;段&quot;算的，不是按&quot;对&quot;算的，这两者对不上。</p>
+<p>拿 <code>( ) ) ( )</code> 看。下标 2 的 <code>)</code> 前面已经没有能配的左括号了，它是个多余的右括号，从这里往后只能重新再起一段。换句话说，整串是被这些多余的右括号切成一段一段的。要用栈算长度，就得让栈在配对的同时，还能守住每一段的起点，这要解决两件事：</p>
+<p><strong>问题一</strong>：一个右括号配上一对后，怎么知道它所在的这一段是从哪开始的？长度该用它的下标减谁？</p>
+<p><strong>问题二</strong>：遇到多余的右括号（比如下标 2 那个），它把这一段切开了，栈里这时该怎么处理，才能让它顺势变成下一段的新起点？</p>
+<hr>
+<h3 id="三、方法一：栈，O-n"><a href="#三、方法一：栈，O-n" class="headerlink" title="三、方法一：栈，O(n)"></a>三、方法一：栈，O(n)</h3><h4 id="1-思路概览"><a href="#1-思路概览" class="headerlink" title="1. 思路概览"></a>1. 思路概览</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="type">int</span> <span class="title function_">longestValidParentheses</span><span class="params">(String s)</span> &#123;</span><br><span class="line">    <span class="type">int</span> <span class="variable">n</span> <span class="operator">=</span> s.length();</span><br><span class="line">    <span class="keyword">if</span> (n == <span class="number">0</span>) &#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    Deque&lt;Integer&gt; stack = <span class="keyword">new</span> <span class="title class_">ArrayDeque</span>&lt;&gt;();</span><br><span class="line">    stack.push(-<span class="number">1</span>);</span><br><span class="line">    <span class="type">int</span> <span class="variable">max</span> <span class="operator">=</span> <span class="number">0</span>;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> <span class="variable">i</span> <span class="operator">=</span> <span class="number">0</span>; i &lt; n; i++) &#123;</span><br><span class="line">        <span class="keyword">if</span> (s.charAt(i) == <span class="string">&#x27;(&#x27;</span>) &#123;</span><br><span class="line">            stack.push(i);                       <span class="comment">// 左括号直接进栈</span></span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            stack.pop();                         <span class="comment">// 右括号先尝试弹出配对</span></span><br><span class="line">            <span class="keyword">if</span> (stack.isEmpty()) &#123;</span><br><span class="line">                stack.push(i);                   <span class="comment">// 弹空了，说明它是多余右括号，作新断点</span></span><br><span class="line">            &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                max = Math.max(max, i - stack.peek());  <span class="comment">// 配对成功，算长度</span></span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> max;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>思路简要说明：</p>
+<ol>
+<li><strong>栈里存下标</strong>：不放括号字符本身，因为要用下标算长度</li>
+<li><strong>右括号先弹再判</strong>：弹出栈顶尝试配对，剩下的栈顶就是&quot;断点基准&quot;</li>
+<li><strong>弹空则进断点</strong>：弹空说明这个右括号多余，把它的下标压入，当作新的断点</li>
+<li><strong>初始压 -1</strong>：充当&quot;第 0 位之前&quot;的哨兵断点</li>
+<li>**时间复杂度 O(n)**，空间 O(n)</li>
+</ol>
+<h4 id="2-思路详解"><a href="#2-思路详解" class="headerlink" title="2. 思路详解"></a>2. 思路详解</h4><p><strong>第一步：解决长度怎么算——为什么减的是&quot;断点&quot;而不是&quot;左括号&quot;？</strong></p>
+<p>栈里存下标，遇到右括号先弹一下，弹出来的那个正是和它配对的左括号下标。那长度是不是直接用 <code>i - 弹出来的下标 + 1</code>？</p>
+<p>不行。看 <code>()()</code>，答案应是 4，它是两对连续拼成的一段。如果每次只算&quot;这一对&quot;的长度，第一对 <code>()</code> 算 2、第二对 <code>()</code> 又算 2，两个 2 拼不出 4——中间那道缝被漏掉了。</p>
+<p>正确的做法是：<strong>长度 &#x3D; 当前右括号下标 - 上一个断点下标</strong>。断点指&quot;合法子串开始位置的前一位&quot;。对 <code>()()</code> 来说，第一个 <code>(</code> 的前一位是 -1，所以第二对算 <code>3 - (-1) = 4</code>，两段自动连起来了。</p>
+<p>好在栈在配对时天然维护着这个断点：弹出配对的左括号后，剩下的栈顶要么是 -1，要么是上一个多余右括号，都是断点。所以 <code>i - stack.peek()</code> 就是这段的正确长度，不需要知道弹出来的是哪个左括号。</p>
+<p><strong>第二步：解决断点怎么处理——弹空了就压自己进去当新起点</strong></p>
+<p>配对弹出后，如果栈空了，说明左括号已经用光，当前这个右括号是多余的，它切开了这一段。这时把它的下标压回栈里，让它从&quot;多余的右括号&quot;变成&quot;下一段的起点基准&quot;，后面的合法部分照着它往前算。</p>
+<p>拿题目分析里的 <code>( ) ) ( )</code> 走一遍，重点看下标 2 那个右括号：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">初始      stack = [-1]</span><br><span class="line">i=0 (()：push 0 → stack = [-1, 0]</span><br><span class="line">i=1 ())：弹出 0 → stack = [-1]，不空，长度 = 1 - (-1) = 2</span><br><span class="line">i=2 ())：弹出 -1 → 栈空 → push 2 → stack = [2]   ← 多余右括号，成为下一段起点</span><br><span class="line">i=3 (()：push 3 → stack = [2, 3]</span><br><span class="line">i=4 ())：弹出 3 → stack = [2]，不空，长度 = 4 - 2 = 2 ✓</span><br></pre></td></tr></table></figure>
+
+<p>第一段 <code>()</code> 靠断点 -1 算出长度 2；下标 2 的 <code>)</code> 弹空后压自己进去，成了新的起点；第二段 <code>()</code> 再靠它算出 <code>4 - 2 = 2</code>。两段互不干扰，各自长度的计算都归功于&quot;栈里一直留着上一段的断点——配对后剩下的栈顶，要么是 -1，要么是上一个多余右括号&quot;。</p>
+<p><strong>第三步：为什么初始要压 -1？</strong></p>
+<p>栈初始化压入 -1，有两个作用，缺一不可。</p>
+<p>第一个作用，让第一个 <code>)</code> 也有东西可弹。如果栈一开始是空的，字符串第一个字符就是 <code>)</code> 时，<code>stack.pop()</code> 会直接抛空栈异常。压了 -1，多余右括号永远能先弹再判，逻辑才不乱。</p>
+<p>第二个作用，充当&quot;第 0 位之前的断点&quot;。像 <code>()</code> 这种从下标 0 就开头的合法子串，配对完成后栈里只剩 -1，<code>1 - (-1) = 2</code> 才对；如果栈空着，第一个 <code>(</code> 就没有&quot;上一个断点&quot;了。</p>
+<p><strong>第四步：完整执行过程</strong></p>
+<p>示例 1 <code>&quot;(()&quot;</code>，答案是 2：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">下标:    0  1  2</span><br><span class="line">字符:    (  (  )</span><br><span class="line">初始      stack = [-1], max = 0</span><br><span class="line"></span><br><span class="line">i=0 (()：push 0 → stack = [-1, 0]</span><br><span class="line">i=1 (()：push 1 → stack = [-1, 0, 1]</span><br><span class="line">i=2 ())：弹出 1 → stack = [-1, 0]，不空，max = max(0, 2 - 0) = 2 ✓</span><br></pre></td></tr></table></figure>
+
+<p>示例 2 <code>&quot;)()())&quot;</code>，答案是 4：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">下标:    0  1  2  3  4  5</span><br><span class="line">字符:    )  (  )  (  )  )</span><br><span class="line">初始      stack = [-1], max = 0</span><br><span class="line"></span><br><span class="line">i=0 ())：弹出 -1 → 栈空 → push 0 → stack = [0]</span><br><span class="line">i=1 (()：push 1 → stack = [0, 1]</span><br><span class="line">i=2 ())：弹出 1 → stack = [0]，不空，max = max(0, 2 - 0) = 2</span><br><span class="line">i=3 (()：push 3 → stack = [0, 3]</span><br><span class="line">i=4 ())：弹出 3 → stack = [0]，不空，max = max(2, 4 - 0) = 4</span><br><span class="line">i=5 ())：弹出 0 → 栈空 → push 5 → stack = [5]</span><br><span class="line"></span><br><span class="line">返回 max = 4 ✓</span><br></pre></td></tr></table></figure>
+
+<p>下标 0 和下标 5 的两个多余 <code>)</code> 都作为断点进了栈，中间 <code>()()</code> 这段靠着断点 0 连起来算出了 4。</p>
+<h4 id="3-复杂度分析"><a href="#3-复杂度分析" class="headerlink" title="3. 复杂度分析"></a>3. 复杂度分析</h4><p>**时间复杂度 O(n)**：每个字符最多进栈一次、弹栈一次。</p>
+<p>**空间复杂度 O(n)**：栈最坏存 O(n) 个下标（全是左括号时）。</p>
+<hr>
+<h3 id="四、栈能不能省掉？"><a href="#四、栈能不能省掉？" class="headerlink" title="四、栈能不能省掉？"></a>四、栈能不能省掉？</h3><p>方法一用了一个栈，空间 O(n)。栈里真正有用的信息是什么？只有&quot;断点位置&quot;——多余右括号的下标，外加一个 -1。而断点的本质，就是&quot;某个位置右括号比左括号多了&quot;。</p>
+<p>那能不能不用栈，直接数一数左括号和右括号的数量，把&quot;多了&quot;这件事跟踪出来？</p>
+<p>顺着这个想法，用两个计数器 left、right 从头上扫：</p>
+<ul>
+<li>遇到 <code>(</code>，left 加 1</li>
+<li>遇到 <code>)</code>，right 加 1</li>
+<li>当 left &#x3D;&#x3D; right，说明从断点之后扫到这是一段平衡的合法串，长度 &#x3D; 2 × right</li>
+<li>当 right &gt; left，右括号多了，前面作废，left、right 清零重来</li>
+</ul>
+<p><strong>但这么扫一遍，会不会漏？</strong> 会，而且漏在哪值得想清楚。</p>
+<p>看 <code>(()</code>，从左边扫：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">(  → left = 1</span><br><span class="line">(  → left = 2</span><br><span class="line">)  → right = 1，left = 2 ≠ right = 1，到最后也没等到相等，max = 0</span><br></pre></td></tr></table></figure>
+
+<p>真实答案明明是 2（后两个字符 <code>()</code>）。漏在这段从没触发 <code>right &gt; left</code> 的重置，也从没走到 <code>left == right</code>，从头到尾 left 一直比 right 大。那个多余的左括号（第一个 <code>(</code>）垫高了 left，把后面的合法部分 <code>()</code> 盖住了。</p>
+<p>换句话说，从左到右扫描是&quot;右括号&quot;负责触发重置、负责和 left 对齐。一旦合法子串<strong>前面垫着一串多余左括号</strong>，left 就永远领先，right 怎么追都追不平，这一段就统计不到。</p>
+<hr>
+<h3 id="五、方法二：双指针正反各扫一遍，O-1"><a href="#五、方法二：双指针正反各扫一遍，O-1" class="headerlink" title="五、方法二：双指针正反各扫一遍，O(1)"></a>五、方法二：双指针正反各扫一遍，O(1)</h3><h4 id="1-思路概览-1"><a href="#1-思路概览-1" class="headerlink" title="1. 思路概览"></a>1. 思路概览</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="type">int</span> <span class="title function_">longestValidParentheses</span><span class="params">(String s)</span> &#123;</span><br><span class="line">    <span class="type">int</span> <span class="variable">n</span> <span class="operator">=</span> s.length();</span><br><span class="line">    <span class="keyword">if</span> (n == <span class="number">0</span>) &#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="type">int</span> <span class="variable">left</span> <span class="operator">=</span> <span class="number">0</span>;</span><br><span class="line">    <span class="type">int</span> <span class="variable">right</span> <span class="operator">=</span> <span class="number">0</span>;</span><br><span class="line">    <span class="type">int</span> <span class="variable">max</span> <span class="operator">=</span> <span class="number">0</span>;</span><br><span class="line">    <span class="comment">// 第一遍：从左到右，右括号触发重置</span></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> <span class="variable">i</span> <span class="operator">=</span> <span class="number">0</span>; i &lt; n; i++) &#123;</span><br><span class="line">        <span class="keyword">if</span> (s.charAt(i) == <span class="string">&#x27;(&#x27;</span>) &#123;</span><br><span class="line">            left++;</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            <span class="keyword">if</span> (right &lt; left) &#123;</span><br><span class="line">                right++;                     <span class="comment">// 有左括号可配，右括号+1</span></span><br><span class="line">            &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                left = <span class="number">0</span>;                    <span class="comment">// 右括号不多于左括号，多加这个就超了，重置</span></span><br><span class="line">                right = <span class="number">0</span>;</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="keyword">if</span> (left == right) &#123;</span><br><span class="line">                max = Math.max(max, right * <span class="number">2</span>);   <span class="comment">// 扫到一段平衡，更新长度</span></span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    left = <span class="number">0</span>;</span><br><span class="line">    right = <span class="number">0</span>;</span><br><span class="line">    <span class="comment">// 第二遍：从右到左，左括号触发重置，角色对调</span></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> <span class="variable">i</span> <span class="operator">=</span> n - <span class="number">1</span>; i &gt;= <span class="number">0</span>; i--) &#123;</span><br><span class="line">        <span class="keyword">if</span> (s.charAt(i) == <span class="string">&#x27;)&#x27;</span>) &#123;</span><br><span class="line">            right++;</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            <span class="keyword">if</span> (left &lt; right) &#123;</span><br><span class="line">                left++;                      <span class="comment">// 有右括号可配，左括号+1</span></span><br><span class="line">            &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                right = <span class="number">0</span>;                   <span class="comment">// 左括号不多于右括号，重置</span></span><br><span class="line">                left = <span class="number">0</span>;</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="keyword">if</span> (left == right) &#123;</span><br><span class="line">                max = Math.max(max, left * <span class="number">2</span>);</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> max;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>思路简要说明：</p>
+<ol>
+<li><strong>先想清答案长什么样</strong>：最长合法子串两侧的多余括号，最多只出现在一侧（左边多左括号与右边多右括号不能共存）</li>
+<li><strong>第一遍从左到右</strong>：右括号变多就清零，处理掉&quot;右边多余的右括号&quot;</li>
+<li><strong>第二遍从右到左</strong>：角色对调，左括号变多就清零，处理掉&quot;左边多余的左括号&quot;</li>
+<li>**时间复杂度 O(n)**，空间 O(1)</li>
+</ol>
+<h4 id="2-思路详解-1"><a href="#2-思路详解-1" class="headerlink" title="2. 思路详解"></a>2. 思路详解</h4><p><strong>第一步：先想清楚答案长什么样</strong></p>
+<p>假定答案是某个最长合法子串，记作 S。它本身左右括号正好配对，是平衡的。往 S 的左右两边看，字符串里 S 之外的部分，只可能是三种情况之一：</p>
+<ul>
+<li>左边多挂了一串左括号，没有右括号去配；</li>
+<li>右边多挂了一串右括号，没有左括号去配；</li>
+<li>两边都干净，没有多余。</li>
+</ul>
+<p>会不会左边、右边同时都挂着多余括号？不会。如果左边有多余的左括号、右边也有多余的右括号，这俩正好能配成一对，把 S 整个括起来，形成一个比 S 更长的合法子串——这跟&quot;S 最长&quot;矛盾。</p>
+<p>所以多余括号只能出现在一侧，甚至一侧都没有。这就把问题简化成两件事：<strong>左边的多余左括号怎么解决，右边的多余右括号怎么解决</strong>。</p>
+<p><strong>第二步：从左到右扫，解决右边的多余右括号</strong></p>
+<p>从左到右走一遍，用 left、right 数左右括号，<code>right &gt; left</code> 就清零。</p>
+<p>这个清零动作，恰恰是冲着&quot;右边多余右括号&quot;去的：右括号一多出来，说明前面这段已经配平、到此为止，顺势清零重新起头。所以从左到右这一遍，能把&quot;右边挂多余右括号&quot;和&quot;两边都干净&quot;这两种情况都处理掉。</p>
+<p>但它处理不了&quot;左边挂多余左括号&quot;。左边那串左括号让 left 从头就领先 right，既不会触发 <code>right &gt; left</code> 的清零，也走不到 <code>left == right</code>——这一段就被盖住了。<code>(()</code> 就是这种：从左扫到底，max 还是 0。</p>
+<p><strong>第三步：从右到左扫，解决左边的多余左括号</strong></p>
+<p>换个方向就反过来了：从右到左扫，把左右括号的角色对调，改成数右括号、<code>left &gt; right</code> 就清零。这样一来，&quot;左括号多&quot;才触发清零，正好处理&quot;左边挂多余左括号&quot;。</p>
+<p>回到 <code>(()</code>，从右往左扫：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">)  → right = 1</span><br><span class="line">(  → left = 1，left == right，max = max(0, 1 * 2) = 2 ✓</span><br><span class="line">(  → left = 2，左括号多了，但 max 已经记下 2</span><br></pre></td></tr></table></figure>
+
+<p>那串垫在左边的多余左括号，从右往左看就成了&quot;扫到末尾才遇到的、可忽略的尾巴&quot;；真正的合法子串 <code>()</code> 先一步被 <code>left == right</code> 捕捉到，长度 2。</p>
+<p>两遍一合：从左到右解决&quot;右边多余&quot;，从右到左解决&quot;左边多余&quot;，加上&quot;两边都干净&quot;，三种情况全覆盖。每遍都对同一个 max 取最大，最后 max 就是答案。</p>
+<p><strong>第四步：完整执行过程（示例 2）</strong></p>
+<p><code>&quot;)()())&quot;</code>，答案是 4。</p>
+<p>第一遍从左到右：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">i=0 ())：right(0) 不多于 left(0) → 重置 left = right = 0</span><br><span class="line">i=1 (()：left = 1</span><br><span class="line">i=2 ())：right &lt; left → right = 1，left == right → max = 2</span><br><span class="line">i=3 (()：left = 2</span><br><span class="line">i=4 ())：right &lt; left → right = 2，left == right → max = 4</span><br><span class="line">i=5 ())：right(2) 不多于 left(2) → 重置 left = right = 0</span><br><span class="line"></span><br><span class="line">第一遍得到 max = 4，已经正确</span><br></pre></td></tr></table></figure>
+
+<p>这个示例第一遍就出结果，因为它的多余 <code>)</code> 都压在合法子串两侧，从左到右正好被捕捉。真正依赖第二遍的是 <code>(()</code> 这种&quot;多余左括号垫左边&quot;的情况，前面已演示过。</p>
+<p><strong>第五步：代码细节</strong></p>
+<p>两遍遍历结构几乎一样，只有三处对调：</p>
+<ul>
+<li>关心哪半边：第一遍看 <code>&#39;(&#39;</code> 让 left 增加，第二遍看 <code>&#39;)&#39;</code> 让 right 增加，且遍历方向反过来</li>
+<li>谁触发重置：第一遍右括号变多重置，第二遍左括号变多重置</li>
+<li>记长度用谁：都是 <code>left == right</code>，第一遍写 <code>right * 2</code>，第二遍写 <code>left * 2</code>，两者那时相等，只是随主动方各有各的写法</li>
+</ul>
+<p>两遍之间要把 left、right 清零，否则第二遍会带上第一遍的残留计数。</p>
+<h4 id="3-复杂度分析-1"><a href="#3-复杂度分析-1" class="headerlink" title="3. 复杂度分析"></a>3. 复杂度分析</h4><p>**时间复杂度 O(n)**：字符串正反各扫一遍，共 O(2n)。</p>
+<p>**空间复杂度 O(1)**：只用两个计数器，不借助任何额外结构。</p>
+<p>对比方法一，双指针把&quot;显式存断点的栈&quot;换成了&quot;用计数器失衡隐式识别断点&quot;，空间从 O(n) 降到 O(1)。</p>
+<hr>
+<h3 id="六、总结"><a href="#六、总结" class="headerlink" title="六、总结"></a>六、总结</h3><table>
+<thead>
+<tr>
+<th>维度</th>
+<th>方法一 栈</th>
+<th>方法二 双指针</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>核心</td>
+<td>栈存下标，栈顶就是断点</td>
+<td>左右计数器，失衡即断点</td>
+</tr>
+<tr>
+<td>空间</td>
+<td>O(n)</td>
+<td>O(1)</td>
+</tr>
+<tr>
+<td>时间</td>
+<td>O(n)</td>
+<td>O(n)</td>
+</tr>
+<tr>
+<td>关键难点</td>
+<td>为什么减断点、为什么初始压 -1</td>
+<td>最长合法子串长什么样、左右多余为什么只在一侧</td>
+</tr>
+</tbody></table>
+<p>两种方法其实是同一个想法的两种表达：<strong>用&quot;断点&quot;把字符串切开，相邻断点之间的合法部分取最长</strong>。栈把这个断点显式存进栈里；双指针则靠&quot;某个方向括号变多就清零&quot;隐式定位断点。</p>
+<p>双指针的精髓不在计数器本身，而在先想明白答案长什么样：最长合法子串的两侧，多余括号只会出现在一侧，左边多左括号、右边多右括号不可能同时存在。既然只有一侧，就从左扫一遍解决右边的多余，再从右扫一遍解决左边的多余，两遍取最大，剩下的就是正确答案。</p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://LI-S-H.github.io">青山木</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://li-s-h.github.io/2026/09/17/Hot%20100%20---%20%E6%9C%80%E9%95%BF%E6%9C%89%E6%95%88%E6%8B%AC%E5%8F%B7/">https://li-s-h.github.io/2026/09/17/Hot%20100%20---%20%E6%9C%80%E9%95%BF%E6%9C%89%E6%95%88%E6%8B%AC%E5%8F%B7/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://LI-S-H.github.io" target="_blank">青山木</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E5%8F%8C%E6%8C%87%E9%92%88/">双指针</a><a class="post-meta__tags" href="/tags/%E7%AE%97%E6%B3%95/">算法</a><a class="post-meta__tags" href="/tags/leetcode/">leetcode</a><a class="post-meta__tags" href="/tags/%E5%AD%97%E7%AC%A6%E4%B8%B2/">字符串</a><a class="post-meta__tags" href="/tags/%E6%A0%88/">栈</a></div><div class="post-share"><div class="social-share" data-image="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/2026/09/18/RocketMQ%20%E5%85%A5%E9%97%A8%E5%88%B0%E5%8E%9F%E7%90%86%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9A%E6%95%B4%E4%BD%93%E6%9E%B6%E6%9E%84%E4%B8%8E%E6%B6%88%E6%81%AF%E7%9A%84%E7%94%9F%E5%91%BD%E5%91%A8%E6%9C%9F/" title="RocketMQ 入门到原理（一）：整体架构与消息的生命周期"><img class="cover" src="/img/RocketMQ%20%E5%85%A5%E9%97%A8%E5%88%B0%E5%8E%9F%E7%90%86%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9A%E6%95%B4%E4%BD%93%E6%9E%B6%E6%9E%84%E4%B8%8E%E6%B6%88%E6%81%AF%E7%9A%84%E7%94%9F%E5%91%BD%E5%91%A8%E6%9C%9F/rocketmq-architecture.jpg" onerror="onerror=null;src='/img/404.jpg'" alt="cover of previous post"><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">RocketMQ 入门到原理（一）：整体架构与消息的生命周期</div></div><div class="info-2"><div class="info-item-1">这是 RocketMQ 系列的第一篇，围绕"一条消息的生命周期"这条主线建立全局地图。本文从消息队列的三大作用（异步、解耦，削峰填谷）讲起，说明 MQ 高可用要求与随之而来的消息丢失、重复消费、堆积、顺序四大问题，再拆解 RocketMQ 的四大组成部分（Producer、Broker、NameServer、ConsumerGroup）及连接关系，最后用一条消息的生命周期把全部概念串起来。</div></div></div></a><a class="pagination-related" href="/2026/09/15/Hot%20100%20---%20%E5%88%86%E5%89%B2%E7%AD%89%E5%92%8C%E5%AD%90%E9%9B%86/" title="Hot 100 --- 分割等和子集"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="onerror=null;src='/img/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">Hot 100 --- 分割等和子集</div></div><div class="info-2"><div class="info-item-1">本文讲解分割等和子集的核心思路：能否分割等价于能否从数组中选出和为 sum/2 的子集，转化成 0/1 背包，dp[i] 表示能否凑出 i，内层必须从 target 往下遍历防重复选取</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/2026/07/24/Hot%20100%20---%20%E5%AD%97%E7%AC%A6%E4%B8%B2%E8%A7%A3%E7%A0%81/" title="Hot 100 --- 字符串解码"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-24</div><div class="info-item-2">Hot 100 --- 字符串解码</div></div><div class="info-2"><div class="info-item-1">本文讲解字符串解码的核心思路：用辅助栈处理嵌套括号，遇到 [ 入栈，遇到 ] 出栈并重复拼接</div></div></div></a><a class="pagination-related" href="/2026/09/09/Hot%20100%20---%20%E5%88%92%E5%88%86%E5%AD%97%E6%AF%8D%E5%8C%BA%E9%97%B4/" title="Hot 100 --- 划分字母区间"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-09-09</div><div class="info-item-2">Hot 100 --- 划分字母区间</div></div><div class="info-2"><div class="info-item-1">本文讲解划分字母区间的核心思路：先记录每个字符最后出现位置，再用"最远边界"贪心切割，i == curMaxEnd 时切一刀，O(n) 完成</div></div></div></a><a class="pagination-related" href="/2026/06/01/Hot%20100%20---%20%E7%9B%9B%E6%9C%80%E5%A4%9A%E6%B0%B4%E7%9A%84%E5%AE%B9%E5%99%A8/" title="Hot 100 --- 盛最多水的容器"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-06-01</div><div class="info-item-2">Hot 100 --- 盛最多水的容器</div></div><div class="info-2"><div class="info-item-1">本文以LeetCode经典题目"盛最多水的容器"为例，从暴力解法入手逐步推导双指针贪心策略，深入讲解如何通过移动短板缩小检索范围，将时间复杂度从O(n²)优化至O(n)</div></div></div></a><a class="pagination-related" href="/2026/08/02/Hot%20100%20---%20%E5%88%86%E5%89%B2%E5%9B%9E%E6%96%87%E4%B8%B2/" title="Hot 100 --- 分割回文串"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-02</div><div class="info-item-2">Hot 100 --- 分割回文串</div></div><div class="info-2"><div class="info-item-1">本文以LeetCode题目"分割回文串"为例，讲解如何用动态规划预处理回文表，以及回溯切割方案的设计</div></div></div></a><a class="pagination-related" href="/2026/06/22/Hot%20100%20---%20%E4%B8%A4%E6%95%B0%E7%9B%B8%E5%8A%A0/" title="Hot 100 --- 两数相加"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-06-22</div><div class="info-item-2">Hot 100 --- 两数相加</div></div><div class="info-2"><div class="info-item-1">本文以LeetCode经典题目"两数相加"为例，从题目特点入手，重点讲解链表倒序存储带来的便利，以及如何通过sum和carry两个变量优雅处理进位问题</div></div></div></a><a class="pagination-related" href="/2026/06/08/Hot%20100%20---%20%E6%9C%80%E5%B0%8F%E8%A6%86%E7%9B%96%E5%AD%90%E4%B8%B2/" title="Hot 100 --- 最小覆盖子串"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-06-08</div><div class="info-item-2">Hot 100 --- 最小覆盖子串</div></div><div class="info-2"><div class="info-item-1">本文以LeetCode经典题目"最小覆盖子串"为例，从暴力解法入手，逐步优化到双指针滑动窗口解法，重点讲解如何通过match变量动态维护哈希表的匹配状态，避免每次遍历比较，将时间复杂度从O(n²×m)优化到O(n)</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/%E5%A4%B4%E5%83%8F.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">青山木</div><div class="author-info-description">正在学习Java后端开发＋智能体开发，希望能与大家多多交流</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">97</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">186</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">7</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/LI-S-H"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/LI-S-H" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">欢迎来到我的博客，记录学习与成长的点滴。</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%80%E3%80%81%E9%A2%98%E7%9B%AE"><span class="toc-number">1.</span> <span class="toc-text">一、题目</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BA%8C%E3%80%81%E9%A2%98%E7%9B%AE%E5%88%86%E6%9E%90"><span class="toc-number">2.</span> <span class="toc-text">二、题目分析</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#1-%E9%A2%98%E7%9B%AE%E8%A6%81%E6%B1%82"><span class="toc-number">2.1.</span> <span class="toc-text">1. 题目要求</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#2-%E4%BB%8E-%E6%9C%89%E6%95%88-%E5%88%B0-%E8%BF%9E%E7%BB%AD%E6%9C%89%E6%95%88"><span class="toc-number">2.2.</span> <span class="toc-text">2. 从&quot;有效&quot;到&quot;连续有效&quot;</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#3-%E9%9C%80%E8%A6%81%E8%A7%A3%E5%86%B3%E5%93%AA%E5%87%A0%E4%B8%AA%E9%97%AE%E9%A2%98%EF%BC%9F"><span class="toc-number">2.3.</span> <span class="toc-text">3. 需要解决哪几个问题？</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%89%E3%80%81%E6%96%B9%E6%B3%95%E4%B8%80%EF%BC%9A%E6%A0%88%EF%BC%8CO-n"><span class="toc-number">3.</span> <span class="toc-text">三、方法一：栈，O(n)</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#1-%E6%80%9D%E8%B7%AF%E6%A6%82%E8%A7%88"><span class="toc-number">3.1.</span> <span class="toc-text">1. 思路概览</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#2-%E6%80%9D%E8%B7%AF%E8%AF%A6%E8%A7%A3"><span class="toc-number">3.2.</span> <span class="toc-text">2. 思路详解</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#3-%E5%A4%8D%E6%9D%82%E5%BA%A6%E5%88%86%E6%9E%90"><span class="toc-number">3.3.</span> <span class="toc-text">3. 复杂度分析</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9B%9B%E3%80%81%E6%A0%88%E8%83%BD%E4%B8%8D%E8%83%BD%E7%9C%81%E6%8E%89%EF%BC%9F"><span class="toc-number">4.</span> <span class="toc-text">四、栈能不能省掉？</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BA%94%E3%80%81%E6%96%B9%E6%B3%95%E4%BA%8C%EF%BC%9A%E5%8F%8C%E6%8C%87%E9%92%88%E6%AD%A3%E5%8F%8D%E5%90%84%E6%89%AB%E4%B8%80%E9%81%8D%EF%BC%8CO-1"><span class="toc-number">5.</span> <span class="toc-text">五、方法二：双指针正反各扫一遍，O(1)</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#1-%E6%80%9D%E8%B7%AF%E6%A6%82%E8%A7%88-1"><span class="toc-number">5.1.</span> <span class="toc-text">1. 思路概览</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#2-%E6%80%9D%E8%B7%AF%E8%AF%A6%E8%A7%A3-1"><span class="toc-number">5.2.</span> <span class="toc-text">2. 思路详解</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#3-%E5%A4%8D%E6%9D%82%E5%BA%A6%E5%88%86%E6%9E%90-1"><span class="toc-number">5.3.</span> <span class="toc-text">3. 复杂度分析</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%85%AD%E3%80%81%E6%80%BB%E7%BB%93"><span class="toc-number">6.</span> <span class="toc-text">六、总结</span></a></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/2026/09/19/RocketMQ%20%E5%85%A5%E9%97%A8%E5%88%B0%E5%8E%9F%E7%90%86%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9A%E6%B6%88%E6%81%AF%E5%8F%91%E9%80%81%E5%8E%9F%E7%90%86/" title="RocketMQ 入门到原理（二）：消息发送原理"><img src="/img/RocketMQ%20%E5%85%A5%E9%97%A8%E5%88%B0%E5%8E%9F%E7%90%86%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9A%E6%B6%88%E6%81%AF%E5%8F%91%E9%80%81%E5%8E%9F%E7%90%86/rocketmq-send-flow.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="RocketMQ 入门到原理（二）：消息发送原理"/></a><div class="content"><a class="title" href="/2026/09/19/RocketMQ%20%E5%85%A5%E9%97%A8%E5%88%B0%E5%8E%9F%E7%90%86%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9A%E6%B6%88%E6%81%AF%E5%8F%91%E9%80%81%E5%8E%9F%E7%90%86/" title="RocketMQ 入门到原理（二）：消息发送原理">RocketMQ 入门到原理（二）：消息发送原理</a><time datetime="2026-09-19T15:00:00.000Z" title="发表于 2026-09-19 23:00:00">2026-09-19</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/09/18/RocketMQ%20%E5%85%A5%E9%97%A8%E5%88%B0%E5%8E%9F%E7%90%86%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9A%E6%95%B4%E4%BD%93%E6%9E%B6%E6%9E%84%E4%B8%8E%E6%B6%88%E6%81%AF%E7%9A%84%E7%94%9F%E5%91%BD%E5%91%A8%E6%9C%9F/" title="RocketMQ 入门到原理（一）：整体架构与消息的生命周期"><img src="/img/RocketMQ%20%E5%85%A5%E9%97%A8%E5%88%B0%E5%8E%9F%E7%90%86%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9A%E6%95%B4%E4%BD%93%E6%9E%B6%E6%9E%84%E4%B8%8E%E6%B6%88%E6%81%AF%E7%9A%84%E7%94%9F%E5%91%BD%E5%91%A8%E6%9C%9F/rocketmq-architecture.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="RocketMQ 入门到原理（一）：整体架构与消息的生命周期"/></a><div class="content"><a class="title" href="/2026/09/18/RocketMQ%20%E5%85%A5%E9%97%A8%E5%88%B0%E5%8E%9F%E7%90%86%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9A%E6%95%B4%E4%BD%93%E6%9E%B6%E6%9E%84%E4%B8%8E%E6%B6%88%E6%81%AF%E7%9A%84%E7%94%9F%E5%91%BD%E5%91%A8%E6%9C%9F/" title="RocketMQ 入门到原理（一）：整体架构与消息的生命周期">RocketMQ 入门到原理（一）：整体架构与消息的生命周期</a><time datetime="2026-09-18T15:00:00.000Z" title="发表于 2026-09-18 23:00:00">2026-09-18</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/09/17/Hot%20100%20---%20%E6%9C%80%E9%95%BF%E6%9C%89%E6%95%88%E6%8B%AC%E5%8F%B7/" title="Hot 100 --- 最长有效括号"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 最长有效括号"/></a><div class="content"><a class="title" href="/2026/09/17/Hot%20100%20---%20%E6%9C%80%E9%95%BF%E6%9C%89%E6%95%88%E6%8B%AC%E5%8F%B7/" title="Hot 100 --- 最长有效括号">Hot 100 --- 最长有效括号</a><time datetime="2026-09-17T14:30:00.000Z" title="发表于 2026-09-17 22:30:00">2026-09-17</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/09/15/Hot%20100%20---%20%E5%88%86%E5%89%B2%E7%AD%89%E5%92%8C%E5%AD%90%E9%9B%86/" title="Hot 100 --- 分割等和子集"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 分割等和子集"/></a><div class="content"><a class="title" href="/2026/09/15/Hot%20100%20---%20%E5%88%86%E5%89%B2%E7%AD%89%E5%92%8C%E5%AD%90%E9%9B%86/" title="Hot 100 --- 分割等和子集">Hot 100 --- 分割等和子集</a><time datetime="2026-09-14T17:30:00.000Z" title="发表于 2026-09-15 01:30:00">2026-09-15</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/09/15/Hot%20100%20---%20%E4%B9%98%E7%A7%AF%E6%9C%80%E5%A4%A7%E5%AD%90%E6%95%B0%E7%BB%84/" title="Hot 100 --- 乘积最大子数组"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 乘积最大子数组"/></a><div class="content"><a class="title" href="/2026/09/15/Hot%20100%20---%20%E4%B9%98%E7%A7%AF%E6%9C%80%E5%A4%A7%E5%AD%90%E6%95%B0%E7%BB%84/" title="Hot 100 --- 乘积最大子数组">Hot 100 --- 乘积最大子数组</a><time datetime="2026-09-14T16:30:00.000Z" title="发表于 2026-09-15 00:30:00">2026-09-15</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By 青山木</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.5.4"></script><script src="/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script>
+(function() {
+  /* 仅在首页标题上方插入头像 */
+  if (window.location.pathname !== '/' && !window.location.pathname.endsWith('/index.html')) return;
+  var siteTitle = document.getElementById('site-title');
+  if (siteTitle) {
+    var avatar = document.createElement('img');
+    avatar.src = '/img/头像.jpg';
+    avatar.alt = 'avatar';
+    avatar.className = 'avatar-img';
+    siteTitle.parentNode.insertBefore(avatar, siteTitle);
+  }
+})();
+</script>
+<script>
+(function() {
+  function initMermaid() {
+    if (window.mermaid) return Promise.resolve();
+    return new Promise(function(resolve, reject) {
+      var script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/mermaid@11.12.2/dist/mermaid.min.js';
+      script.onload = function() {
+        mermaid.initialize({
+          startOnLoad: false,
+          // 图表主题固定，避免站点深浅色切换时重新解析整篇文章的所有 Mermaid 图。
+          theme: 'dark',
+          securityLevel: 'loose'
+        });
+        resolve();
+      };
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  }
+
+  // Mermaid 会异步改变文章高度；目录跳转必须等所有图表完成布局后再读取标题位置。
+  window.mermaidReady = Promise.resolve();
+  var renderSequence = 0;
+
+  function waitForStableLayout() {
+    return new Promise(function(resolve) {
+      requestAnimationFrame(function() {
+        requestAnimationFrame(function() {
+          // 让 SVG 内的 foreignObject 完成一次实际布局，再刷新 Butterfly 的标题位置缓存。
+          setTimeout(resolve, 50);
+        });
+      });
+    });
+  }
+
+  function showMermaidSource(pre) {
+    pre.hidden = false;
+    pre.style.display = 'block';
+    pre.style.color = '#d32f2f';
+    pre.style.whiteSpace = 'pre-wrap';
+    pre.style.fontSize = '13px';
+  }
+
+  function refreshTocPositions() {
+    // Butterfly 只在 resize 时重新缓存标题坐标。
+    window.dispatchEvent(new Event('resize'));
+    document.dispatchEvent(new CustomEvent('mermaid:rendered'));
+  }
+
+  function renderMermaidDiagrams() {
+    var wraps = document.querySelectorAll('#article-container .mermaid-wrap');
+    if (wraps.length === 0) {
+      window.mermaidReady = Promise.resolve();
+      return window.mermaidReady;
+    }
+
+    var renderTask = initMermaid().then(function() {
+      return Promise.all(Array.prototype.map.call(wraps, function(wrap, index) {
+        var pre = wrap.querySelector('pre.mermaid-src');
+        if (!pre || pre.dataset.rendered === 'true') return Promise.resolve();
+
+        var code = pre.textContent;
+        var id = 'mermaid-' + index + '-' + (++renderSequence);
+        return Promise.resolve().then(function() {
+          return mermaid.render(id, code);
+        }).then(function(result) {
+          pre.dataset.rendered = 'true';
+          pre.style.display = 'none';
+          var div = document.createElement('div');
+          div.innerHTML = result.svg;
+          wrap.insertBefore(div.firstChild, pre.nextSibling);
+        }).catch(function(err) {
+          console.error('[Mermaid] Block #' + index + ' render failed:', err);
+          showMermaidSource(pre);
+        });
+      }));
+    }).then(function() {
+      return waitForStableLayout();
+    }).then(function() {
+      refreshTocPositions();
+    }).catch(function(err) {
+      console.error('[Mermaid] Failed to load mermaid.js:', err);
+      wraps.forEach(function(wrap) {
+        var pre = wrap.querySelector('pre.mermaid-src');
+        if (pre) showMermaidSource(pre);
+      });
+    });
+
+    window.mermaidReady = renderTask;
+    return renderTask;
+  }
+
+  // 页面加载完成后渲染
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', renderMermaidDiagrams);
+  } else {
+    renderMermaidDiagrams();
+  }
+
+  // 拦截目录点击：若图表仍在渲染，等待布局稳定后按实时坐标滚动。
+  // 使用捕获阶段，避免 Butterfly 先按渲染前的坐标启动平滑滚动。
+  var tocNavigationSequence = 0;
+  document.addEventListener('click', function(e) {
+    var link = e.target.closest('#card-toc .toc-link');
+    if (!link) return;
+
+    var href = link.getAttribute('href') || '';
+    var hashIndex = href.indexOf('#');
+    if (hashIndex < 0) return;
+
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    var navigationSequence = ++tocNavigationSequence;
+    var headingId = decodeURI(href.slice(hashIndex + 1));
+
+    (window.mermaidReady || Promise.resolve()).then(function() {
+      return waitForStableLayout();
+    }).then(function() {
+      if (navigationSequence !== tocNavigationSequence) return;
+      var heading = document.getElementById(headingId);
+      if (!heading) return;
+
+      // 使用点击时的实际位置，避免异步 SVG 插入改变标题高度后跳错章节。
+      var top = heading.getBoundingClientRect().top + window.scrollY;
+      if (window.btf && window.btf.scrollToDest) {
+        window.btf.scrollToDest(top, 300);
+      } else {
+        window.scrollTo({ top: top, behavior: 'smooth' });
+      }
+    });
+  }, true);
+
+})();
+</script>
+<script id="canvas_nest" defer="defer" color="107,159,255" opacity="0.6" zIndex="-1" count="99" mobile="false" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/dist/canvas-nest.min.js"></script></div></body></html>
