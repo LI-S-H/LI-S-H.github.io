@@ -1,0 +1,496 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="dark"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>RocketMQ 入门到原理（四）：消息消费原理 | 青山木</title><meta name="author" content="青山木"><meta name="copyright" content="青山木"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#0d1117"><meta name="description" content="这是 RocketMQ 系列的第四篇，把「一条消息的生命周期」的消费阶段放大：消费者组与订阅关系一致性，消费全流程（问路 → Rebalance 分队列 → 长轮询拉取 → Tag 过滤消费 → 提交 offset），平均分配与一致性哈希两种 Rebalance 策略，Push&#x2F;Pull 与长轮询的本质，重试队列与死信队列机制，重复消费的两大根源与幂等消费的落地方法。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="RocketMQ 入门到原理（四）：消息消费原理">
+<meta property="og:url" content="https://li-s-h.github.io/2026/09/20/RocketMQ%20%E5%85%A5%E9%97%A8%E5%88%B0%E5%8E%9F%E7%90%86%EF%BC%88%E5%9B%9B%EF%BC%89%EF%BC%9A%E6%B6%88%E6%81%AF%E6%B6%88%E8%B4%B9%E5%8E%9F%E7%90%86/index.html">
+<meta property="og:site_name" content="青山木">
+<meta property="og:description" content="这是 RocketMQ 系列的第四篇，把「一条消息的生命周期」的消费阶段放大：消费者组与订阅关系一致性，消费全流程（问路 → Rebalance 分队列 → 长轮询拉取 → Tag 过滤消费 → 提交 offset），平均分配与一致性哈希两种 Rebalance 策略，Push&#x2F;Pull 与长轮询的本质，重试队列与死信队列机制，重复消费的两大根源与幂等消费的落地方法。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://li-s-h.github.io/img/title-picture/RocketMQ-4.jpg">
+<meta property="article:published_time" content="2026-09-20T02:00:00.000Z">
+<meta property="article:modified_time" content="2026-09-20T14:50:35.044Z">
+<meta property="article:author" content="青山木">
+<meta property="article:tag" content="RocketMQ">
+<meta property="article:tag" content="消息队列">
+<meta property="article:tag" content="幂等">
+<meta property="article:tag" content="消息消费">
+<meta property="article:tag" content="Consumer">
+<meta property="article:tag" content="Rebalance">
+<meta property="article:tag" content="长轮询">
+<meta property="article:tag" content="Tag过滤">
+<meta property="article:tag" content="offset">
+<meta property="article:tag" content="重试">
+<meta property="article:tag" content="死信队列">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://li-s-h.github.io/img/title-picture/RocketMQ-4.jpg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "RocketMQ 入门到原理（四）：消息消费原理",
+  "url": "https://li-s-h.github.io/2026/09/20/RocketMQ%20%E5%85%A5%E9%97%A8%E5%88%B0%E5%8E%9F%E7%90%86%EF%BC%88%E5%9B%9B%EF%BC%89%EF%BC%9A%E6%B6%88%E6%81%AF%E6%B6%88%E8%B4%B9%E5%8E%9F%E7%90%86/",
+  "image": "https://li-s-h.github.io/img/title-picture/RocketMQ-4.jpg",
+  "datePublished": "2026-09-20T02:00:00.000Z",
+  "dateModified": "2026-09-20T14:50:35.044Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "青山木",
+      "url": "https://LI-S-H.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/%E5%A4%B4%E5%83%8F.jpg"><link rel="canonical" href="https://li-s-h.github.io/2026/09/20/RocketMQ%20%E5%85%A5%E9%97%A8%E5%88%B0%E5%8E%9F%E7%90%86%EF%BC%88%E5%9B%9B%EF%BC%89%EF%BC%9A%E6%B6%88%E6%81%AF%E6%B6%88%E8%B4%B9%E5%8E%9F%E7%90%86/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="stylesheet" href="/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d1117')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', 'ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: 'RocketMQ 入门到原理（四）：消息消费原理',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><style>
+  #site-title { font-size: 1.76em !important; }
+  #subtitle { font-size: 0.88em !important; }
+
+  /* 卡片悬停放大 + 辉光 */
+  #recent-posts .recent-post-item {
+    transition: transform .3s ease, box-shadow .3s ease, border-color .3s ease;
+  }
+  #recent-posts .recent-post-item:hover {
+    transform: scale(1.025) !important;
+    border-color: rgba(107,159,255,0.5) !important;
+    box-shadow: 0 0 0 1px rgba(107,159,255,0.15),
+                0 0 45px rgba(107,159,255,0.12),
+                0 8px 30px rgba(0,0,0,0.4) !important;
+  }
+
+  /* 首页标题上方头像 */
+  #site-info .avatar-img {
+    display: block;
+    width: 144px;
+    height: 144px;
+    border-radius: 50%;
+    margin: 0 auto 20px;
+    border: 3px solid rgba(107,159,255,0.6);
+    box-shadow: 0 0 30px rgba(107,159,255,0.35),
+                0 0 60px rgba(107,159,255,0.15),
+                0 4px 20px rgba(0,0,0,0.25);
+    object-fit: cover;
+    transition: box-shadow .4s ease, border-color .4s ease;
+  }
+  #site-info .avatar-img:hover {
+    border-color: rgba(107,159,255,0.9);
+    box-shadow: 0 0 40px rgba(107,159,255,0.5),
+                0 0 80px rgba(107,159,255,0.25),
+                0 4px 20px rgba(0,0,0,0.25);
+  }
+
+  /* Mermaid 图表容器样式 */
+  .mermaid-wrap {
+    position: relative;
+    /* 图表固定使用深色画布，主题切换无需销毁并重绘所有 SVG。 */
+    background: #1e1e1e !important;
+    padding: 12px !important;
+    border-radius: 8px !important;
+    border: 1px solid #444 !important;
+    text-align: center;
+    margin: 0 0 20px 0;
+    overflow-x: auto;
+  }
+  .mermaid-wrap > svg {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+  }
+  /* 深色图表画布在两种站点主题下保持一致，避免切换时重排。 */
+  [data-theme="dark"] .mermaid-wrap {
+    background: #1e1e1e !important;
+    border-color: #444 !important;
+  }
+</style>
+<meta name="generator" content="Hexo 7.3.0"></head><body><div class="bg-animation" id="web_bg" style="background-image: url(/img/%E8%83%8C%E6%99%AF%E5%9B%BE2.webp);"></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(/img/title-picture/RocketMQ-4.jpg);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">青山木</span></a><a class="nav-page-title" href="/"><span class="site-name">RocketMQ 入门到原理（四）：消息消费原理</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">RocketMQ 入门到原理（四）：消息消费原理</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-09-20T02:00:00.000Z" title="发表于 2026-09-20 10:00:00">2026-09-20</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-09-20T14:50:35.044Z" title="更新于 2026-09-20 22:50:35">2026-09-20</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/%E5%90%8E%E7%AB%AF%E5%BC%80%E5%8F%91/">后端开发</a><i class="fas fa-angle-right post-meta-separator"></i><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/%E5%90%8E%E7%AB%AF%E5%BC%80%E5%8F%91/RocketMQ/">RocketMQ</a></span></div><div class="meta-secondline"></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h1 id="RocketMQ-入门到原理（四）：消息消费原理"><a href="#RocketMQ-入门到原理（四）：消息消费原理" class="headerlink" title="RocketMQ 入门到原理（四）：消息消费原理"></a>RocketMQ 入门到原理（四）：消息消费原理</h1><blockquote>
+<p>这是 RocketMQ 系列的第四篇。前三篇我们走完了「生产 → 存储」，本篇把生命周期的最后一段——<strong>消费</strong>——放大讲透。第一篇埋下的几个伏笔在这里全部回收：订阅关系为什么必须一致、Pull 和 Push 的区别、offset 存在哪、重试与死信队列是怎么回事。</p>
+</blockquote>
+<h3 id="一、消费者组与订阅关系"><a href="#一、消费者组与订阅关系" class="headerlink" title="一、消费者组与订阅关系"></a>一、消费者组与订阅关系</h3><p>先建立两个基本概念，它们是整个消费机制的地基。</p>
+<p><strong>消费者组（ConsumerGroup）</strong>：由<strong>一个或多个消费者</strong>组成。消费是「组」的行为——一个 Topic 的队列，由组内所有消费者<strong>共同分担</strong>消费（怎么分担，就是后面 Rebalance 的事）。</p>
+<p><strong>订阅关系</strong>：生产者组装消息时要指定 Topic，消息被投到对应 Broker 的队列里；消费者要消费这些消息，就必须向<strong>同一个 Topic 下的队列</strong>拉取。消费者组与 Topic 的这个绑定，就叫<strong>订阅关系</strong>。</p>
+<p>注意两个细节：</p>
+<ul>
+<li>订阅关系不止「纯 Topic」。**<code>topic:tag</code> 也是一种独立的订阅关系<strong>——订阅 <code>TopicA:a</code> 和订阅 <code>TopicA:b</code>、以及订阅纯 <code>TopicA</code>，是</strong>三种不同的订阅关系**。</li>
+<li><strong>同一个消费组内的所有消费者，必须维持完全相同的订阅关系</strong>，这叫<strong>订阅关系一致性</strong>。违反它会出现消息无法消费的问题——具体原因在第六节用一个例子讲透，这里先记住这条铁律。</li>
+</ul>
+<h3 id="二、消费的整体流程"><a href="#二、消费的整体流程" class="headerlink" title="二、消费的整体流程"></a>二、消费的整体流程</h3><p>有了上面的概念，先看消费的全流程，后面逐段放大：</p>
+<p><img src="/img/RocketMQ%20%E5%85%A5%E9%97%A8%E5%88%B0%E5%8E%9F%E7%90%86%EF%BC%88%E5%9B%9B%EF%BC%89%EF%BC%9A%E6%B6%88%E6%81%AF%E6%B6%88%E8%B4%B9%E5%8E%9F%E7%90%86/rocketmq-consume-flow.jpg" alt="RocketMQ 消费整体流程图"></p>
+<ol>
+<li><strong>启动问路</strong>：消费者组启动，多个消费者实例各自连接 NameServer，拿到订阅关系对应的 Broker 列表和队列列表。</li>
+<li><strong>Rebalance 分配</strong>：消费组<strong>客户端</strong>自行协商（Rebalance），把队列分配给组内各消费者——每个消费者各自负责一个或多个队列。</li>
+<li><strong>建立连接</strong>：分配完成后，消费者与对应 Broker 建立连接。</li>
+<li><strong>批量拉取</strong>：此后每个消费者<strong>只拉取自己负责的队列</strong>，而且是批量拉取。</li>
+<li><strong>消费</strong>：拉回来的消息过滤（Tag）后交给业务代码处理。</li>
+<li><strong>提交 offset</strong>：一批消息消费完成后，把消费到的位点（offset）提交给 Broker 记住，下次就从这之后拉取。</li>
+</ol>
+<h3 id="三、第一步：路由的拉取与更新"><a href="#三、第一步：路由的拉取与更新" class="headerlink" title="三、第一步：路由的拉取与更新"></a>三、第一步：路由的拉取与更新</h3><p>一个前面文章没讲过的问题：<strong>路由变了（Broker 扩容&#x2F;下线、队列数变化），消费者怎么知道？</strong></p>
+<p>答案是：<strong>NameServer 不做任何推送，全靠客户端主动拉</strong>。</p>
+<ul>
+<li>消费者和生产者<strong>默认每 30 秒</strong>向 NameServer 拉取一次路由表，和本地缓存对比。</li>
+<li>发现变化 → 更新本地路由表和连接，对消费者来说还会<strong>触发一次 Rebalance</strong> 重新分配队列。</li>
+</ul>
+<p>这个设计的好处是 NameServer 保持极简（无状态、不用维护客户端连接），代价是<strong>路由变化最多有 30 秒的感知延迟</strong>。</p>
+<p>还有一个细节：路由变化触发重新分配后，<strong>不再属于某个消费者的队列会被「交出」</strong>——它已经拉取但还没来得及消费的本地缓存消息会被直接抛弃，不由它继续消费；接手该队列的新消费者，会从 Broker 上记录的<strong>上次提交的位点</strong>开始拉取。这样保证队列只有一个主人，不会两边同时消费（已经消费到一半的消息可能被重新消费，这是重复消费的来源之一，第七节展开）。</p>
+<h3 id="四、第二步：Rebalance——队列怎么分"><a href="#四、第二步：Rebalance——队列怎么分" class="headerlink" title="四、第二步：Rebalance——队列怎么分"></a>四、第二步：Rebalance——队列怎么分</h3><p>拿到路由后，消费者组需要决定「谁消费哪些队列」。这一步发生在<strong>客户端</strong>，Broker 完全不参与——这正是第一篇讲的「Broker 不维护订阅关系」哲学的落地。分配有两种模式。</p>
+<h4 id="1-集群模式（默认）"><a href="#1-集群模式（默认）" class="headerlink" title="1. 集群模式（默认）"></a>1. 集群模式（默认）</h4><p>队列被<strong>切分</strong>给组内各消费者，一条消息只会被组内<strong>一个</strong>消费者消费。默认策略是<strong>平均分配</strong>：</p>
+<ul>
+<li>把 Queue 列表和 Consumer 列表分别<strong>排序</strong>，然后按「取模 + 余数」的方式尽可能均匀地切分。</li>
+<li><code>Queue 数 % Consumer 数 == 0</code>：完美均分。</li>
+<li>有余数：前 N 个消费者各多分 1 个队列（N &#x3D; 余数）。</li>
+</ul>
+<p>例如 8 个 Queue、3 个 Consumer → C1 负责 3 个、C2 负责 3 个、C3 负责 2 个。</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>优点</th>
+<th>缺点</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>平均分配</strong></td>
+<td>分配均匀、实现简单</td>
+<td>Broker 或消费者一变，<strong>全量重新分配</strong>，队列大规模换主人，容易引发重复消费</td>
+</tr>
+<tr>
+<td><strong>一致性哈希</strong></td>
+<td>消费者增减时<strong>只影响相邻节点</strong>，仅约 1&#x2F;N 的队列需要交接，迁移量最小</td>
+<td>负载可能不均（取决于哈希分布）、实现复杂</td>
+</tr>
+</tbody></table>
+<p>一致性哈希的原理：对 Consumer ID 做哈希环映射，Queue 也映射到环上，每个 Queue 归属<strong>顺时针方向最近的 Consumer</strong>。</p>
+<p><strong>适用场景</strong>：绝大多数业务用默认的平均分配就够了（队列数远大于消费者数，偶发的全量重分配影响可控）；一致性哈希适合<strong>消费者实例频繁扩缩容</strong>、希望把队列交接量压到最小的场景，比如大规模弹性实例池。</p>
+<p>集群模式还有一个硬约束：<strong>消费者数量 ≤ 队列数量</strong>。如果消费者比队列多，多出来的消费者分不到队列、只能空闲——所以扩容消费者前，先确认队列数够不够分。</p>
+<h4 id="2-广播模式"><a href="#2-广播模式" class="headerlink" title="2. 广播模式"></a>2. 广播模式</h4><p>广播模式下<strong>不存在分配</strong>：每个消费者拉取<strong>全部队列</strong>，一条消息会被组内<strong>每个消费者都消费一遍</strong>。</p>
+<p>两种模式的对比如下图，一目了然：</p>
+<p><img src="/img/RocketMQ%20%E5%85%A5%E9%97%A8%E5%88%B0%E5%8E%9F%E7%90%86%EF%BC%88%E5%9B%9B%EF%BC%89%EF%BC%9A%E6%B6%88%E6%81%AF%E6%B6%88%E8%B4%B9%E5%8E%9F%E7%90%86/rocketmq-cluster-broadcast.jpg" alt="集群模式与广播模式对比图"></p>
+<p>这带来两个代价：</p>
+<ul>
+<li><strong>重复消费是天然的</strong>（每个实例都会收到同一批消息），业务幂等性变得极其重要。</li>
+<li><strong>并发消费的优势没了</strong>——集群模式里 N 个消费者分摊消息、消费能力是 N 倍；广播模式每个消费者都要扛全量。</li>
+</ul>
+<p>所以广播模式不建议常规使用，只在「<strong>每个实例都必须拿到全量消息</strong>」的场景用：比如各服务实例的<strong>本地缓存刷新</strong>、<strong>配置变更广播</strong>——这种场景下「人人都收到一遍」恰恰是需求本身。</p>
+<h4 id="3-什么时候会触发重新分配"><a href="#3-什么时候会触发重新分配" class="headerlink" title="3. 什么时候会触发重新分配"></a>3. 什么时候会触发重新分配</h4><p>三种情况：<strong>消费者上线&#x2F;下线</strong>（组内成员变化）、<strong>路由变化</strong>（Broker 或队列数变化）、以及消费者启动时。重新分配带来的重复消费问题，第七节一起讲。</p>
+<p>正因为每次扩缩容都会触发全组重新分配、可能引发重复消费，<strong>扩缩容要挑时机</strong>：最好等队列里积压的消息<strong>全部消费完</strong>再做（此时交接的是空队列，无消息可重复）；并且选<strong>夜间低峰、无人使用</strong>的时段操作，把对业务的影响压到最小。</p>
+<h3 id="五、第三步：拉取——Push、Pull-与长轮询"><a href="#五、第三步：拉取——Push、Pull-与长轮询" class="headerlink" title="五、第三步：拉取——Push、Pull 与长轮询"></a>五、第三步：拉取——Push、Pull 与长轮询</h3><p>队列分好了，消费者开始向 Broker 拉消息。这里必须先讲 MQ 的两种基本模型。</p>
+<p><strong>Push 模型（Broker 主动推）</strong>：RabbitMQ 是典型代表。Broker 把队列里的消息主动推给消费者，消息非常及时、不容易堆积。但问题也很致命：<strong>Broker 不知道消费者扛不扛得住</strong>。消费者如果消费变慢（GC、下游超时），消息还在源源不断地推过来——拉来的消息都堆在消费者内存里，消费不过来又无法销毁，最终<strong>内存溢出、宕机</strong>。</p>
+<p><strong>Pull 模型（消费者主动拉）</strong>：反过来，消费者按自身能力主动拉取，拉多少、什么时候拉都自己说了算，永远不会被撑爆。但劣势是<strong>不及时</strong>——队列里没消息时，消费者要么傻等、要么反复空轮询，消息到达后不能第一时间知道。</p>
+<p><strong>RocketMQ 的答案：Pull + 长轮询</strong>。它本质是 Pull 模型（第一篇讲的「消费者主动拉取」），但用长轮询把「不及时」这个短板补上了：</p>
+<ol>
+<li>消费者发起拉取请求，如果队列里<strong>没有新消息</strong>，Broker <strong>不立即返回</strong>，而是把这个请求<strong>挂起</strong>（默认约 15 秒），挂起期间几乎不消耗资源。</li>
+<li>一旦新消息到达——CommitLog 写入后、后台线程（ReputMessageService）完成对应 ConsumeQueue 索引构建的那一刻——<strong>挂起的请求立刻被唤醒</strong>，根据索引拉取一批消息返回。</li>
+<li>而且这个读取<strong>先走 PageCache</strong>（第三篇讲过）：新消息大概率还在页缓存里，直接命中内存，返回极快。</li>
+</ol>
+<p>这就是「<strong>Push 的及时性 + Pull 的安全性</strong>」：消费者永远按自己的节奏拉，不会被撑爆；消息一到又几乎立刻送达，性能近似 Push。</p>
+<h3 id="六、第四步：消费——Tag-过滤与订阅关系一致性"><a href="#六、第四步：消费——Tag-过滤与订阅关系一致性" class="headerlink" title="六、第四步：消费——Tag 过滤与订阅关系一致性"></a>六、第四步：消费——Tag 过滤与订阅关系一致性</h3><h4 id="1-Tag-过滤"><a href="#1-Tag-过滤" class="headerlink" title="1. Tag 过滤"></a>1. Tag 过滤</h4><p>拉回来的消息，要先过滤再交给业务。原因第二篇讲过：<strong>Broker 对消息的分类只认 Topic，Tag 只是消息自带的属性</strong>。队列里混着各种 Tag 的消息，如果消费者组订阅的是 <code>topic:tag</code>，就要把不属于自己订阅的消息过滤掉，只留下匹配的。过滤分两层：Broker 端先用 ConsumeQueue 索引里存的 Tag HashCode 粗筛（第三篇的 20 字节结构），客户端再做精确过滤。</p>
+<h4 id="2-为什么订阅关系必须一致"><a href="#2-为什么订阅关系必须一致" class="headerlink" title="2. 为什么订阅关系必须一致"></a>2. 为什么订阅关系必须一致</h4><p>现在可以用一个例子把第一篇的伏笔讲透了。假设消费者组内两个消费者<strong>订阅不一致</strong>：消费者 A 订 <code>TopicA:a</code>，消费者 B 订 <code>TopicA:b</code>。经过 Rebalance，A 负责 MQ1、MQ2，B 负责 MQ3、MQ4。而消息是生产者轮询投递的，<strong>各队列里混杂着各种 Tag 的消息</strong>：</p>
+<ul>
+<li>MQ1、MQ2 里的消息：<code>tag:a, tag:a, tag:b…</code></li>
+<li>MQ3、MQ4 里的消息：<code>tag:a, tag:b, tag:b…</code></li>
+</ul>
+<p>问题出现了：A 只认 <code>tag:a</code>，它负责的 MQ1、MQ2 里的 <strong>tag:b 消息被过滤掉、无人消费</strong>；B 只认 <code>tag:b</code>，MQ3、MQ4 里的 <strong>tag:a 消息同样无人消费</strong>。这些消息既不算消费失败、也不会重试，就那样<strong>滞留在队列里</strong>——表现为「消息丢了」，实际是被另一个消费者的过滤器丢弃了。这就是订阅关系一致性这条铁律的由来。整个过程如下图：</p>
+<p><img src="/img/RocketMQ%20%E5%85%A5%E9%97%A8%E5%88%B0%E5%8E%9F%E7%90%86%EF%BC%88%E5%9B%9B%EF%BC%89%EF%BC%9A%E6%B6%88%E6%81%AF%E6%B6%88%E8%B4%B9%E5%8E%9F%E7%90%86/rocketmq-sub-consistency.jpg" alt="订阅关系不一致导致消息滞留的示例图"></p>
+<h4 id="3-消费失败：重试与死信队列"><a href="#3-消费失败：重试与死信队列" class="headerlink" title="3. 消费失败：重试与死信队列"></a>3. 消费失败：重试与死信队列</h4><p>消费的结果有两种返回：<strong>CONSUME_SUCCESS</strong>（成功）和 <strong>RECONSUME_LATER</strong>（稍后重试）。注意 RocketMQ 的机制：<strong>Broker 并不关心你消费成功还是失败</strong>——它只看返回值，返回 RECONSUME_LATER 就把消息丢进重试机制。这和 RabbitMQ 显式的消费者确认机制（ack&#x2F;nack）不同，RocketMQ 选择「默认可重试」，这正是它消费吞吐高的设计取向。</p>
+<p>重试的完整链路：</p>
+<ul>
+<li>消费失败的消息被投进<strong>重试队列</strong>，Topic 为 **<code>%RETRY% + 消费组名</code>**。</li>
+<li><strong>默认最多重试 16 次</strong>，且间隔<strong>越来越长</strong>（指数退避），退避时长用的正是延迟消息的延迟等级：<code>1s 5s 10s 30s 1m 2m 3m 4m 5m 6m 7m 8m 9m 10m 20m 30m 1h 2h</code> 共 18 级，重试从第 3 级（10s）开始逐级递增。延迟消息的原理第五篇讲。</li>
+<li><strong>16 次都失败</strong>，消息进入<strong>死信队列（DLQ）</strong>，Topic 为 <strong><code>%DLQ% + 消费组名</code><strong>。死信队列里的消息不会自动投递，等待</strong>人工处理</strong>（排查修复后重新投递或人工补偿）。</li>
+</ul>
+<p>另外，消息里自带<strong>重试次数</strong>字段（<code>reconsumeTimes</code>，第一篇 Message 结构里埋的那个字段）——你可以在业务代码里拿到它是第几次重试，做特殊处理（比如第 N 次后改走人工流程），然后主动返回 SUCCESS 终止重试。</p>
+<h3 id="七、第五步：提交-offset——消费进度与重复消费"><a href="#七、第五步：提交-offset——消费进度与重复消费" class="headerlink" title="七、第五步：提交 offset——消费进度与重复消费"></a>七、第五步：提交 offset——消费进度与重复消费</h3><p>消费完成后要提交消费位点，这样下次拉取才知道从哪继续。提交方式随消费模式不同。</p>
+<h4 id="1-集群模式：offset-存-Broker"><a href="#1-集群模式：offset-存-Broker" class="headerlink" title="1. 集群模式：offset 存 Broker"></a>1. 集群模式：offset 存 Broker</h4><p>消费者<strong>本地记录</strong> offset，然后<strong>定期提交</strong>（默认每 <strong>5 秒</strong>）给 Broker，Broker 持久化消费位点。下次拉取从该位点之后开始。<strong>为什么存 Broker</strong>（第一篇的伏笔）：消费者重启、或 Rebalance 换了队列主人后，新的消费者能读回上次的进度，做到既不多消费、也不漏消费。</p>
+<p>广播模式则完全相反：<strong>offset 只存消费者本地，Broker 完全不存</strong>——因为每个消费者都要从头消费全部消息，进度各管各的。</p>
+<h4 id="2-重复消费的两大根源"><a href="#2-重复消费的两大根源" class="headerlink" title="2. 重复消费的两大根源"></a>2. 重复消费的两大根源</h4><p>明白了 offset 的提交机制，一个自然的问题就冒出来了：<strong>消费是先做的、offset 是 5 秒后才提交的</strong>——那「已经消费、但 Broker 还不知道」的这段时间，就是重复消费的温床。具体会在什么情况下出事？主要有两个场景。</p>
+<p><strong>根源一：提交 offset 失败</strong>。消费者消费完一批消息，提交 offset 时网络波动或丢失，Broker 上的位点没更新——它还以为你只消费到上上次的位置。下次拉取，Broker 乖乖从旧位点之后发消息，于是<strong>刚刚消费过的这批消息又被拉回来，再消费一遍</strong>。这就是第二篇说「至少一次投递」在消费端的体现：宁可重复，不可漏掉。</p>
+<p><strong>根源二：Rebalance 队列交接</strong>。提交失败只是网络问题，还有一种更隐蔽的：队列<strong>换了主人</strong>。举个例子：队列扩容，4 个队列变 6 个，消费者还是 2 个。重新分配后，消费者 A 从负责 1、2 号队列变成负责 1、2、3 号，消费者 B 从 3、4 号变成 4、5、6 号。此时 3 号队列换了主人——但注意，B 可能<strong>正在消费 3 号队列、还没消费完没提交</strong>。A 接手后从 Broker 记录的<strong>上次提交位点</strong>开始拉，就把 B 消费到一半的消息又消费了一遍。消费者上下线触发的重分配，也是同样的道理。</p>
+<h4 id="3-为什么不会发生-offset-覆盖"><a href="#3-为什么不会发生-offset-覆盖" class="headerlink" title="3. 为什么不会发生 offset 覆盖"></a>3. 为什么不会发生 offset 覆盖</h4><p>顺着根源二再往下想一层，会出现一个更吓人的可能：3 号队列已经归 A 了，B 手里还攥着没提交完的消息。假设 B 消费得慢，A 接手后都推进到 offset 300 了，B 这才处理完自己手里的一批（还停在 offset 200）——B 这时提交，Broker 上的位点会不会被<strong>回写覆盖</strong>成 200？如果会，A 刚消费过的 200~300 又得再来一遍。</p>
+<p>答案是不会。现代客户端（DefaultMQPushConsumer）在<strong>提交 offset 前会检查该队列是否还属于自己</strong>：B 提交前发现 3 号队列已经不归自己了，就放弃提交。这是防止位点回退的最后保障。（早期的 PullConsumer 没有这个检查，确实存在覆盖问题。）</p>
+<h3 id="八、重复消费的解决：幂等消费落地"><a href="#八、重复消费的解决：幂等消费落地" class="headerlink" title="八、重复消费的解决：幂等消费落地"></a>八、重复消费的解决：幂等消费落地</h3><p>第二篇讲的是<strong>生产端不重复投递</strong>（Key、消息表），本篇要解决的是<strong>消费端不重复消费</strong>——同一消息到达两次，业务结果只生效一次。常用方法：</p>
+<ol>
+<li><strong>唯一键插入</strong>（最常用）：给业务表维护唯一键（用户 ID、订单 ID 等）。重复消费时第二次插入会因唯一冲突失败——捕获异常直接返回 SUCCESS 即可。</li>
+<li><strong>状态更新用 CAS</strong>：对状态类操作（如「待支付 → 已支付」），更新语句带上前置状态条件（<code>UPDATE ... WHERE status = &#39;待支付&#39;</code>），重复执行时条件不满足、影响行数为 0，天然幂等。</li>
+<li><strong>Redis 记录消费过的 Key</strong>：利用消息自带的 Key，消费完成后写入 Redis（如 <code>mq:idem:&#123;key&#125;</code>）。下次收到同 Key 的消息，先查 Redis，存在就直接跳过。</li>
+<li><strong>数据库去重表</strong>：建一张去重表，Key 做唯一主键。业务完成后插入该 Key 的记录；插入失败说明已消费过，捕获异常返回 SUCCESS（而不是 RECONSUME_LATER，避免无意义重试）。</li>
+</ol>
+<p>大多数场景，第一种唯一键就够用了；对一致性要求高的核心业务，可以再加第三、四种做双保险。</p>
+<h3 id="小结"><a href="#小结" class="headerlink" title="小结"></a>小结</h3><p>这一篇走完了消费的全流程：<strong>问路 NameServer（30s 主动拉取路由）→ Rebalance 分队列（集群模式平均分配&#x2F;一致性哈希、广播模式全量消费）→ 长轮询拉取（Pull 的安全 + Push 的及时）→ Tag 过滤消费（Broker 端 HashCode 粗筛 + 客户端精筛，订阅关系必须一致否则消息滞留）→ 提交 offset（集群存 Broker、5s 定期提交；广播存本地）</strong>。消费失败走重试队列（16 次、延迟等级逐级递增），最终失败进死信队列人工处理；重复消费源于提交失败与队列交接，靠「提交前检查队列归属」兜底，业务侧用唯一键、CAS、Redis、去重表做幂等。</p>
+<p>到这里，「一条消息的生命周期」主线已经完整闭环。下一篇进入横向专题——<strong>特殊消息类型</strong>：顺序消息、延迟消息、事务消息分别是怎么实现的。</p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://LI-S-H.github.io">青山木</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://li-s-h.github.io/2026/09/20/RocketMQ%20%E5%85%A5%E9%97%A8%E5%88%B0%E5%8E%9F%E7%90%86%EF%BC%88%E5%9B%9B%EF%BC%89%EF%BC%9A%E6%B6%88%E6%81%AF%E6%B6%88%E8%B4%B9%E5%8E%9F%E7%90%86/">https://li-s-h.github.io/2026/09/20/RocketMQ%20%E5%85%A5%E9%97%A8%E5%88%B0%E5%8E%9F%E7%90%86%EF%BC%88%E5%9B%9B%EF%BC%89%EF%BC%9A%E6%B6%88%E6%81%AF%E6%B6%88%E8%B4%B9%E5%8E%9F%E7%90%86/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://LI-S-H.github.io" target="_blank">青山木</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/RocketMQ/">RocketMQ</a><a class="post-meta__tags" href="/tags/%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97/">消息队列</a><a class="post-meta__tags" href="/tags/%E5%B9%82%E7%AD%89/">幂等</a><a class="post-meta__tags" href="/tags/%E6%B6%88%E6%81%AF%E6%B6%88%E8%B4%B9/">消息消费</a><a class="post-meta__tags" href="/tags/Consumer/">Consumer</a><a class="post-meta__tags" href="/tags/Rebalance/">Rebalance</a><a class="post-meta__tags" href="/tags/%E9%95%BF%E8%BD%AE%E8%AF%A2/">长轮询</a><a class="post-meta__tags" href="/tags/Tag%E8%BF%87%E6%BB%A4/">Tag过滤</a><a class="post-meta__tags" href="/tags/offset/">offset</a><a class="post-meta__tags" href="/tags/%E9%87%8D%E8%AF%95/">重试</a><a class="post-meta__tags" href="/tags/%E6%AD%BB%E4%BF%A1%E9%98%9F%E5%88%97/">死信队列</a></div><div class="post-share"><div class="social-share" data-image="/img/title-picture/RocketMQ-4.jpg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/2026/09/20/RocketMQ%20%E5%85%A5%E9%97%A8%E5%88%B0%E5%8E%9F%E7%90%86%EF%BC%88%E4%BA%94%EF%BC%89%EF%BC%9A%E7%89%B9%E6%AE%8A%E6%B6%88%E6%81%AF%E7%B1%BB%E5%9E%8B/" title="RocketMQ 入门到原理（五）：特殊消息类型"><img class="cover" src="/img/title-picture/RocketMQ-5.png" onerror="onerror=null;src='/img/404.jpg'" alt="cover of previous post"><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">RocketMQ 入门到原理（五）：特殊消息类型</div></div><div class="info-2"><div class="info-item-1">这是 RocketMQ 系列的第五篇，横向专题讲解三种特殊消息：顺序消息（生产端哈希投递+分布式锁、消费端单线程消费）、定时/延迟消息（SCHEDULE_TOPIC 中转+定时服务扫描）、事务消息（半消息+本地事务+二次确认+事务回查），以及消息过滤（Tag/SQL92）的实现原理与适用场景。</div></div></div></a><a class="pagination-related" href="/2026/09/19/RocketMQ%20%E5%85%A5%E9%97%A8%E5%88%B0%E5%8E%9F%E7%90%86%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9A%E6%B6%88%E6%81%AF%E5%8F%91%E9%80%81%E5%8E%9F%E7%90%86/" title="RocketMQ 入门到原理（二）：消息发送原理"><img class="cover" src="/img/title-picture/RocketMQ-2.jpg" onerror="onerror=null;src='/img/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">RocketMQ 入门到原理（二）：消息发送原理</div></div><div class="info-2"><div class="info-item-1">这是 RocketMQ 系列的第二篇，沿着「一条消息的生命周期」主线放大「发送」这一段。本文严格按「组装消息 → 问路 NameServer → 直连发送选队列 → 落盘确认」四步层层深入：详解 NameServer 的注册、路由表（写队列/读队列数量、perm 权限）与心跳剔除机制，说明轮询选队列的原理，对比同步、异步、单向三种发送方式，最后讲发送失败的重试、故障转移、故障隔离与重复消息的幂等解法。</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/2026/09/18/RocketMQ%20%E5%85%A5%E9%97%A8%E5%88%B0%E5%8E%9F%E7%90%86%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9A%E6%95%B4%E4%BD%93%E6%9E%B6%E6%9E%84%E4%B8%8E%E6%B6%88%E6%81%AF%E7%9A%84%E7%94%9F%E5%91%BD%E5%91%A8%E6%9C%9F/" title="RocketMQ 入门到原理（一）：整体架构与消息的生命周期"><img class="cover" src="/img/title-picture/RocketMQ-1.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-09-18</div><div class="info-item-2">RocketMQ 入门到原理（一）：整体架构与消息的生命周期</div></div><div class="info-2"><div class="info-item-1">这是 RocketMQ 系列的第一篇，围绕"一条消息的生命周期"这条主线建立全局地图。本文从消息队列的三大作用（异步、解耦，削峰填谷）讲起，说明 MQ 高可用要求与随之而来的消息丢失、重复消费、堆积、顺序四大问题，再拆解 RocketMQ 的四大组成部分（Producer、Broker、NameServer、ConsumerGroup）及连接关系，最后用一条消息的生命周期把全部概念串起来。</div></div></div></a><a class="pagination-related" href="/2026/09/19/RocketMQ%20%E5%85%A5%E9%97%A8%E5%88%B0%E5%8E%9F%E7%90%86%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9A%E6%B6%88%E6%81%AF%E5%8F%91%E9%80%81%E5%8E%9F%E7%90%86/" title="RocketMQ 入门到原理（二）：消息发送原理"><img class="cover" src="/img/title-picture/RocketMQ-2.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-09-19</div><div class="info-item-2">RocketMQ 入门到原理（二）：消息发送原理</div></div><div class="info-2"><div class="info-item-1">这是 RocketMQ 系列的第二篇，沿着「一条消息的生命周期」主线放大「发送」这一段。本文严格按「组装消息 → 问路 NameServer → 直连发送选队列 → 落盘确认」四步层层深入：详解 NameServer 的注册、路由表（写队列/读队列数量、perm 权限）与心跳剔除机制，说明轮询选队列的原理，对比同步、异步、单向三种发送方式，最后讲发送失败的重试、故障转移、故障隔离与重复消息的幂等解法。</div></div></div></a><a class="pagination-related" href="/2026/09/20/RocketMQ%20%E5%85%A5%E9%97%A8%E5%88%B0%E5%8E%9F%E7%90%86%EF%BC%88%E4%BA%94%EF%BC%89%EF%BC%9A%E7%89%B9%E6%AE%8A%E6%B6%88%E6%81%AF%E7%B1%BB%E5%9E%8B/" title="RocketMQ 入门到原理（五）：特殊消息类型"><img class="cover" src="/img/title-picture/RocketMQ-5.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-09-20</div><div class="info-item-2">RocketMQ 入门到原理（五）：特殊消息类型</div></div><div class="info-2"><div class="info-item-1">这是 RocketMQ 系列的第五篇，横向专题讲解三种特殊消息：顺序消息（生产端哈希投递+分布式锁、消费端单线程消费）、定时/延迟消息（SCHEDULE_TOPIC 中转+定时服务扫描）、事务消息（半消息+本地事务+二次确认+事务回查），以及消息过滤（Tag/SQL92）的实现原理与适用场景。</div></div></div></a><a class="pagination-related" href="/2026/09/19/RocketMQ%20%E5%85%A5%E9%97%A8%E5%88%B0%E5%8E%9F%E7%90%86%EF%BC%88%E4%B8%89%EF%BC%89%EF%BC%9A%E6%B6%88%E6%81%AF%E5%AD%98%E5%82%A8%E5%8E%9F%E7%90%86/" title="RocketMQ 入门到原理（三）：消息存储原理"><img class="cover" src="/img/title-picture/RocketMQ-3.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-09-19</div><div class="info-item-2">RocketMQ 入门到原理（三）：消息存储原理</div></div><div class="info-2"><div class="info-item-1">这是 RocketMQ 系列的第三篇，走进 Broker 内部，看一条消息落盘的全过程。本文先拆解存储的三大文件（CommitLog、ConsumeQueue、IndexFile），再按「写 PageCache → 刷盘返回 ACK → 异步构建索引」的流程讲透一条消息的落盘细节，接着解释为什么顺序写这么快（机械硬盘物理原理、页缓存、零拷贝），最后系统讲解主从复制机制与刷盘×复制的可靠性组合。</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/%E5%A4%B4%E5%83%8F.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">青山木</div><div class="author-info-description">正在学习Java后端开发＋智能体开发，希望能与大家多多交流</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">100</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">210</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">6</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/LI-S-H"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/LI-S-H" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">欢迎来到我的博客，记录学习与成长的点滴。</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#RocketMQ-%E5%85%A5%E9%97%A8%E5%88%B0%E5%8E%9F%E7%90%86%EF%BC%88%E5%9B%9B%EF%BC%89%EF%BC%9A%E6%B6%88%E6%81%AF%E6%B6%88%E8%B4%B9%E5%8E%9F%E7%90%86"><span class="toc-number">1.</span> <span class="toc-text">RocketMQ 入门到原理（四）：消息消费原理</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%80%E3%80%81%E6%B6%88%E8%B4%B9%E8%80%85%E7%BB%84%E4%B8%8E%E8%AE%A2%E9%98%85%E5%85%B3%E7%B3%BB"><span class="toc-number">1.0.1.</span> <span class="toc-text">一、消费者组与订阅关系</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BA%8C%E3%80%81%E6%B6%88%E8%B4%B9%E7%9A%84%E6%95%B4%E4%BD%93%E6%B5%81%E7%A8%8B"><span class="toc-number">1.0.2.</span> <span class="toc-text">二、消费的整体流程</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%89%E3%80%81%E7%AC%AC%E4%B8%80%E6%AD%A5%EF%BC%9A%E8%B7%AF%E7%94%B1%E7%9A%84%E6%8B%89%E5%8F%96%E4%B8%8E%E6%9B%B4%E6%96%B0"><span class="toc-number">1.0.3.</span> <span class="toc-text">三、第一步：路由的拉取与更新</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9B%9B%E3%80%81%E7%AC%AC%E4%BA%8C%E6%AD%A5%EF%BC%9ARebalance%E2%80%94%E2%80%94%E9%98%9F%E5%88%97%E6%80%8E%E4%B9%88%E5%88%86"><span class="toc-number">1.0.4.</span> <span class="toc-text">四、第二步：Rebalance——队列怎么分</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#1-%E9%9B%86%E7%BE%A4%E6%A8%A1%E5%BC%8F%EF%BC%88%E9%BB%98%E8%AE%A4%EF%BC%89"><span class="toc-number">1.0.4.1.</span> <span class="toc-text">1. 集群模式（默认）</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#2-%E5%B9%BF%E6%92%AD%E6%A8%A1%E5%BC%8F"><span class="toc-number">1.0.4.2.</span> <span class="toc-text">2. 广播模式</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#3-%E4%BB%80%E4%B9%88%E6%97%B6%E5%80%99%E4%BC%9A%E8%A7%A6%E5%8F%91%E9%87%8D%E6%96%B0%E5%88%86%E9%85%8D"><span class="toc-number">1.0.4.3.</span> <span class="toc-text">3. 什么时候会触发重新分配</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BA%94%E3%80%81%E7%AC%AC%E4%B8%89%E6%AD%A5%EF%BC%9A%E6%8B%89%E5%8F%96%E2%80%94%E2%80%94Push%E3%80%81Pull-%E4%B8%8E%E9%95%BF%E8%BD%AE%E8%AF%A2"><span class="toc-number">1.0.5.</span> <span class="toc-text">五、第三步：拉取——Push、Pull 与长轮询</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%85%AD%E3%80%81%E7%AC%AC%E5%9B%9B%E6%AD%A5%EF%BC%9A%E6%B6%88%E8%B4%B9%E2%80%94%E2%80%94Tag-%E8%BF%87%E6%BB%A4%E4%B8%8E%E8%AE%A2%E9%98%85%E5%85%B3%E7%B3%BB%E4%B8%80%E8%87%B4%E6%80%A7"><span class="toc-number">1.0.6.</span> <span class="toc-text">六、第四步：消费——Tag 过滤与订阅关系一致性</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#1-Tag-%E8%BF%87%E6%BB%A4"><span class="toc-number">1.0.6.1.</span> <span class="toc-text">1. Tag 过滤</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#2-%E4%B8%BA%E4%BB%80%E4%B9%88%E8%AE%A2%E9%98%85%E5%85%B3%E7%B3%BB%E5%BF%85%E9%A1%BB%E4%B8%80%E8%87%B4"><span class="toc-number">1.0.6.2.</span> <span class="toc-text">2. 为什么订阅关系必须一致</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#3-%E6%B6%88%E8%B4%B9%E5%A4%B1%E8%B4%A5%EF%BC%9A%E9%87%8D%E8%AF%95%E4%B8%8E%E6%AD%BB%E4%BF%A1%E9%98%9F%E5%88%97"><span class="toc-number">1.0.6.3.</span> <span class="toc-text">3. 消费失败：重试与死信队列</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%83%E3%80%81%E7%AC%AC%E4%BA%94%E6%AD%A5%EF%BC%9A%E6%8F%90%E4%BA%A4-offset%E2%80%94%E2%80%94%E6%B6%88%E8%B4%B9%E8%BF%9B%E5%BA%A6%E4%B8%8E%E9%87%8D%E5%A4%8D%E6%B6%88%E8%B4%B9"><span class="toc-number">1.0.7.</span> <span class="toc-text">七、第五步：提交 offset——消费进度与重复消费</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#1-%E9%9B%86%E7%BE%A4%E6%A8%A1%E5%BC%8F%EF%BC%9Aoffset-%E5%AD%98-Broker"><span class="toc-number">1.0.7.1.</span> <span class="toc-text">1. 集群模式：offset 存 Broker</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#2-%E9%87%8D%E5%A4%8D%E6%B6%88%E8%B4%B9%E7%9A%84%E4%B8%A4%E5%A4%A7%E6%A0%B9%E6%BA%90"><span class="toc-number">1.0.7.2.</span> <span class="toc-text">2. 重复消费的两大根源</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#3-%E4%B8%BA%E4%BB%80%E4%B9%88%E4%B8%8D%E4%BC%9A%E5%8F%91%E7%94%9F-offset-%E8%A6%86%E7%9B%96"><span class="toc-number">1.0.7.3.</span> <span class="toc-text">3. 为什么不会发生 offset 覆盖</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%85%AB%E3%80%81%E9%87%8D%E5%A4%8D%E6%B6%88%E8%B4%B9%E7%9A%84%E8%A7%A3%E5%86%B3%EF%BC%9A%E5%B9%82%E7%AD%89%E6%B6%88%E8%B4%B9%E8%90%BD%E5%9C%B0"><span class="toc-number">1.0.8.</span> <span class="toc-text">八、重复消费的解决：幂等消费落地</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%B0%8F%E7%BB%93"><span class="toc-number">1.0.9.</span> <span class="toc-text">小结</span></a></li></ol></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/2026/09/20/RocketMQ%20%E5%85%A5%E9%97%A8%E5%88%B0%E5%8E%9F%E7%90%86%EF%BC%88%E4%BA%94%EF%BC%89%EF%BC%9A%E7%89%B9%E6%AE%8A%E6%B6%88%E6%81%AF%E7%B1%BB%E5%9E%8B/" title="RocketMQ 入门到原理（五）：特殊消息类型"><img src="/img/title-picture/RocketMQ-5.png" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="RocketMQ 入门到原理（五）：特殊消息类型"/></a><div class="content"><a class="title" href="/2026/09/20/RocketMQ%20%E5%85%A5%E9%97%A8%E5%88%B0%E5%8E%9F%E7%90%86%EF%BC%88%E4%BA%94%EF%BC%89%EF%BC%9A%E7%89%B9%E6%AE%8A%E6%B6%88%E6%81%AF%E7%B1%BB%E5%9E%8B/" title="RocketMQ 入门到原理（五）：特殊消息类型">RocketMQ 入门到原理（五）：特殊消息类型</a><time datetime="2026-09-20T06:00:00.000Z" title="发表于 2026-09-20 14:00:00">2026-09-20</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/09/20/RocketMQ%20%E5%85%A5%E9%97%A8%E5%88%B0%E5%8E%9F%E7%90%86%EF%BC%88%E5%9B%9B%EF%BC%89%EF%BC%9A%E6%B6%88%E6%81%AF%E6%B6%88%E8%B4%B9%E5%8E%9F%E7%90%86/" title="RocketMQ 入门到原理（四）：消息消费原理"><img src="/img/title-picture/RocketMQ-4.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="RocketMQ 入门到原理（四）：消息消费原理"/></a><div class="content"><a class="title" href="/2026/09/20/RocketMQ%20%E5%85%A5%E9%97%A8%E5%88%B0%E5%8E%9F%E7%90%86%EF%BC%88%E5%9B%9B%EF%BC%89%EF%BC%9A%E6%B6%88%E6%81%AF%E6%B6%88%E8%B4%B9%E5%8E%9F%E7%90%86/" title="RocketMQ 入门到原理（四）：消息消费原理">RocketMQ 入门到原理（四）：消息消费原理</a><time datetime="2026-09-20T02:00:00.000Z" title="发表于 2026-09-20 10:00:00">2026-09-20</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/09/19/RocketMQ%20%E5%85%A5%E9%97%A8%E5%88%B0%E5%8E%9F%E7%90%86%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9A%E6%B6%88%E6%81%AF%E5%8F%91%E9%80%81%E5%8E%9F%E7%90%86/" title="RocketMQ 入门到原理（二）：消息发送原理"><img src="/img/title-picture/RocketMQ-2.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="RocketMQ 入门到原理（二）：消息发送原理"/></a><div class="content"><a class="title" href="/2026/09/19/RocketMQ%20%E5%85%A5%E9%97%A8%E5%88%B0%E5%8E%9F%E7%90%86%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9A%E6%B6%88%E6%81%AF%E5%8F%91%E9%80%81%E5%8E%9F%E7%90%86/" title="RocketMQ 入门到原理（二）：消息发送原理">RocketMQ 入门到原理（二）：消息发送原理</a><time datetime="2026-09-19T15:00:00.000Z" title="发表于 2026-09-19 23:00:00">2026-09-19</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/09/19/RocketMQ%20%E5%85%A5%E9%97%A8%E5%88%B0%E5%8E%9F%E7%90%86%EF%BC%88%E4%B8%89%EF%BC%89%EF%BC%9A%E6%B6%88%E6%81%AF%E5%AD%98%E5%82%A8%E5%8E%9F%E7%90%86/" title="RocketMQ 入门到原理（三）：消息存储原理"><img src="/img/title-picture/RocketMQ-3.png" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="RocketMQ 入门到原理（三）：消息存储原理"/></a><div class="content"><a class="title" href="/2026/09/19/RocketMQ%20%E5%85%A5%E9%97%A8%E5%88%B0%E5%8E%9F%E7%90%86%EF%BC%88%E4%B8%89%EF%BC%89%EF%BC%9A%E6%B6%88%E6%81%AF%E5%AD%98%E5%82%A8%E5%8E%9F%E7%90%86/" title="RocketMQ 入门到原理（三）：消息存储原理">RocketMQ 入门到原理（三）：消息存储原理</a><time datetime="2026-09-19T06:00:00.000Z" title="发表于 2026-09-19 14:00:00">2026-09-19</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/09/18/RocketMQ%20%E5%85%A5%E9%97%A8%E5%88%B0%E5%8E%9F%E7%90%86%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9A%E6%95%B4%E4%BD%93%E6%9E%B6%E6%9E%84%E4%B8%8E%E6%B6%88%E6%81%AF%E7%9A%84%E7%94%9F%E5%91%BD%E5%91%A8%E6%9C%9F/" title="RocketMQ 入门到原理（一）：整体架构与消息的生命周期"><img src="/img/title-picture/RocketMQ-1.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="RocketMQ 入门到原理（一）：整体架构与消息的生命周期"/></a><div class="content"><a class="title" href="/2026/09/18/RocketMQ%20%E5%85%A5%E9%97%A8%E5%88%B0%E5%8E%9F%E7%90%86%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9A%E6%95%B4%E4%BD%93%E6%9E%B6%E6%9E%84%E4%B8%8E%E6%B6%88%E6%81%AF%E7%9A%84%E7%94%9F%E5%91%BD%E5%91%A8%E6%9C%9F/" title="RocketMQ 入门到原理（一）：整体架构与消息的生命周期">RocketMQ 入门到原理（一）：整体架构与消息的生命周期</a><time datetime="2026-09-18T15:00:00.000Z" title="发表于 2026-09-18 23:00:00">2026-09-18</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By 青山木</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.5.4"></script><script src="/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script>
+(function() {
+  /* 仅在首页标题上方插入头像 */
+  if (window.location.pathname !== '/' && !window.location.pathname.endsWith('/index.html')) return;
+  var siteTitle = document.getElementById('site-title');
+  if (siteTitle) {
+    var avatar = document.createElement('img');
+    avatar.src = '/img/头像.jpg';
+    avatar.alt = 'avatar';
+    avatar.className = 'avatar-img';
+    siteTitle.parentNode.insertBefore(avatar, siteTitle);
+  }
+})();
+</script>
+<script>
+(function() {
+  function initMermaid() {
+    if (window.mermaid) return Promise.resolve();
+    return new Promise(function(resolve, reject) {
+      var script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/mermaid@11.12.2/dist/mermaid.min.js';
+      script.onload = function() {
+        mermaid.initialize({
+          startOnLoad: false,
+          // 图表主题固定，避免站点深浅色切换时重新解析整篇文章的所有 Mermaid 图。
+          theme: 'dark',
+          securityLevel: 'loose'
+        });
+        resolve();
+      };
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  }
+
+  // Mermaid 会异步改变文章高度；目录跳转必须等所有图表完成布局后再读取标题位置。
+  window.mermaidReady = Promise.resolve();
+  var renderSequence = 0;
+
+  function waitForStableLayout() {
+    return new Promise(function(resolve) {
+      requestAnimationFrame(function() {
+        requestAnimationFrame(function() {
+          // 让 SVG 内的 foreignObject 完成一次实际布局，再刷新 Butterfly 的标题位置缓存。
+          setTimeout(resolve, 50);
+        });
+      });
+    });
+  }
+
+  function showMermaidSource(pre) {
+    pre.hidden = false;
+    pre.style.display = 'block';
+    pre.style.color = '#d32f2f';
+    pre.style.whiteSpace = 'pre-wrap';
+    pre.style.fontSize = '13px';
+  }
+
+  function refreshTocPositions() {
+    // Butterfly 只在 resize 时重新缓存标题坐标。
+    window.dispatchEvent(new Event('resize'));
+    document.dispatchEvent(new CustomEvent('mermaid:rendered'));
+  }
+
+  function renderMermaidDiagrams() {
+    var wraps = document.querySelectorAll('#article-container .mermaid-wrap');
+    if (wraps.length === 0) {
+      window.mermaidReady = Promise.resolve();
+      return window.mermaidReady;
+    }
+
+    var renderTask = initMermaid().then(function() {
+      return Promise.all(Array.prototype.map.call(wraps, function(wrap, index) {
+        var pre = wrap.querySelector('pre.mermaid-src');
+        if (!pre || pre.dataset.rendered === 'true') return Promise.resolve();
+
+        var code = pre.textContent;
+        var id = 'mermaid-' + index + '-' + (++renderSequence);
+        return Promise.resolve().then(function() {
+          return mermaid.render(id, code);
+        }).then(function(result) {
+          pre.dataset.rendered = 'true';
+          pre.style.display = 'none';
+          var div = document.createElement('div');
+          div.innerHTML = result.svg;
+          wrap.insertBefore(div.firstChild, pre.nextSibling);
+        }).catch(function(err) {
+          console.error('[Mermaid] Block #' + index + ' render failed:', err);
+          showMermaidSource(pre);
+        });
+      }));
+    }).then(function() {
+      return waitForStableLayout();
+    }).then(function() {
+      refreshTocPositions();
+    }).catch(function(err) {
+      console.error('[Mermaid] Failed to load mermaid.js:', err);
+      wraps.forEach(function(wrap) {
+        var pre = wrap.querySelector('pre.mermaid-src');
+        if (pre) showMermaidSource(pre);
+      });
+    });
+
+    window.mermaidReady = renderTask;
+    return renderTask;
+  }
+
+  // 页面加载完成后渲染
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', renderMermaidDiagrams);
+  } else {
+    renderMermaidDiagrams();
+  }
+
+  // 拦截目录点击：若图表仍在渲染，等待布局稳定后按实时坐标滚动。
+  // 使用捕获阶段，避免 Butterfly 先按渲染前的坐标启动平滑滚动。
+  var tocNavigationSequence = 0;
+  document.addEventListener('click', function(e) {
+    var link = e.target.closest('#card-toc .toc-link');
+    if (!link) return;
+
+    var href = link.getAttribute('href') || '';
+    var hashIndex = href.indexOf('#');
+    if (hashIndex < 0) return;
+
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    var navigationSequence = ++tocNavigationSequence;
+    var headingId = decodeURI(href.slice(hashIndex + 1));
+
+    (window.mermaidReady || Promise.resolve()).then(function() {
+      return waitForStableLayout();
+    }).then(function() {
+      if (navigationSequence !== tocNavigationSequence) return;
+      var heading = document.getElementById(headingId);
+      if (!heading) return;
+
+      // 使用点击时的实际位置，避免异步 SVG 插入改变标题高度后跳错章节。
+      var top = heading.getBoundingClientRect().top + window.scrollY;
+      if (window.btf && window.btf.scrollToDest) {
+        window.btf.scrollToDest(top, 300);
+      } else {
+        window.scrollTo({ top: top, behavior: 'smooth' });
+      }
+    });
+  }, true);
+
+})();
+</script>
+<script id="canvas_nest" defer="defer" color="107,159,255" opacity="0.6" zIndex="-1" count="99" mobile="false" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/dist/canvas-nest.min.js"></script></div></body></html>
