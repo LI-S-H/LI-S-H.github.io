@@ -1,0 +1,543 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="dark"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>Hot 100 --- 最长公共子序列 | 青山木</title><meta name="author" content="青山木"><meta name="copyright" content="青山木"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#0d1117"><meta name="description" content="本文讲解最长公共子序列的核心思路：盯着两个字符串各自的最后一个字符，相等就接在前缀最优解后面加 1，不等就看丢掉任意一边哪种更长取较大者；方法一是二维 DP 表，方法二只保留上一行用一维数组把空间降到 O(n)">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Hot 100 --- 最长公共子序列">
+<meta property="og:url" content="https://li-s-h.github.io/2026/09/24/Hot%20100%20---%20%E6%9C%80%E9%95%BF%E5%85%AC%E5%85%B1%E5%AD%90%E5%BA%8F%E5%88%97/index.html">
+<meta property="og:site_name" content="青山木">
+<meta property="og:description" content="本文讲解最长公共子序列的核心思路：盯着两个字符串各自的最后一个字符，相等就接在前缀最优解后面加 1，不等就看丢掉任意一边哪种更长取较大者；方法一是二维 DP 表，方法二只保留上一行用一维数组把空间降到 O(n)">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://li-s-h.github.io/img/title-picture/%E5%8A%9B%E6%89%A3.jpg">
+<meta property="article:published_time" content="2026-09-24T15:00:00.000Z">
+<meta property="article:modified_time" content="2026-09-26T07:02:03.655Z">
+<meta property="article:author" content="青山木">
+<meta property="article:tag" content="算法">
+<meta property="article:tag" content="leetcode">
+<meta property="article:tag" content="动态规划">
+<meta property="article:tag" content="DP">
+<meta property="article:tag" content="字符串">
+<meta property="article:tag" content="二维DP">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://li-s-h.github.io/img/title-picture/%E5%8A%9B%E6%89%A3.jpg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Hot 100 --- 最长公共子序列",
+  "url": "https://li-s-h.github.io/2026/09/24/Hot%20100%20---%20%E6%9C%80%E9%95%BF%E5%85%AC%E5%85%B1%E5%AD%90%E5%BA%8F%E5%88%97/",
+  "image": "https://li-s-h.github.io/img/title-picture/%E5%8A%9B%E6%89%A3.jpg",
+  "datePublished": "2026-09-24T15:00:00.000Z",
+  "dateModified": "2026-09-26T07:02:03.655Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "青山木",
+      "url": "https://LI-S-H.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/%E5%A4%B4%E5%83%8F.jpg"><link rel="canonical" href="https://li-s-h.github.io/2026/09/24/Hot%20100%20---%20%E6%9C%80%E9%95%BF%E5%85%AC%E5%85%B1%E5%AD%90%E5%BA%8F%E5%88%97/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="stylesheet" href="/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d1117')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', 'ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: 'Hot 100 --- 最长公共子序列',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><style>
+  #site-title { font-size: 1.76em !important; }
+  #subtitle { font-size: 0.88em !important; }
+
+  /* 卡片悬停放大 + 辉光 */
+  #recent-posts .recent-post-item {
+    transition: transform .3s ease, box-shadow .3s ease, border-color .3s ease;
+  }
+  #recent-posts .recent-post-item:hover {
+    transform: scale(1.025) !important;
+    border-color: rgba(107,159,255,0.5) !important;
+    box-shadow: 0 0 0 1px rgba(107,159,255,0.15),
+                0 0 45px rgba(107,159,255,0.12),
+                0 8px 30px rgba(0,0,0,0.4) !important;
+  }
+
+  /* 首页标题上方头像 */
+  #site-info .avatar-img {
+    display: block;
+    width: 144px;
+    height: 144px;
+    border-radius: 50%;
+    margin: 0 auto 20px;
+    border: 3px solid rgba(107,159,255,0.6);
+    box-shadow: 0 0 30px rgba(107,159,255,0.35),
+                0 0 60px rgba(107,159,255,0.15),
+                0 4px 20px rgba(0,0,0,0.25);
+    object-fit: cover;
+    transition: box-shadow .4s ease, border-color .4s ease;
+  }
+  #site-info .avatar-img:hover {
+    border-color: rgba(107,159,255,0.9);
+    box-shadow: 0 0 40px rgba(107,159,255,0.5),
+                0 0 80px rgba(107,159,255,0.25),
+                0 4px 20px rgba(0,0,0,0.25);
+  }
+
+  /* Mermaid 图表容器样式 */
+  .mermaid-wrap {
+    position: relative;
+    /* 图表固定使用深色画布，主题切换无需销毁并重绘所有 SVG。 */
+    background: #1e1e1e !important;
+    padding: 12px !important;
+    border-radius: 8px !important;
+    border: 1px solid #444 !important;
+    text-align: center;
+    margin: 0 0 20px 0;
+    overflow-x: auto;
+  }
+  .mermaid-wrap > svg {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+  }
+  /* 深色图表画布在两种站点主题下保持一致，避免切换时重排。 */
+  [data-theme="dark"] .mermaid-wrap {
+    background: #1e1e1e !important;
+    border-color: #444 !important;
+  }
+</style>
+<meta name="generator" content="Hexo 7.3.0"></head><body><div class="bg-animation" id="web_bg" style="background-image: url(/img/%E8%83%8C%E6%99%AF%E5%9B%BE2.webp);"></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(/img/title-picture/%E5%8A%9B%E6%89%A3.jpg);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">青山木</span></a><a class="nav-page-title" href="/"><span class="site-name">Hot 100 --- 最长公共子序列</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">Hot 100 --- 最长公共子序列</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-09-24T15:00:00.000Z" title="发表于 2026-09-24 23:00:00">2026-09-24</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-09-26T07:02:03.655Z" title="更新于 2026-09-26 15:02:03">2026-09-26</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/LeetCode-%E7%83%AD%E9%A2%98-HOT-100/">LeetCode 热题 HOT 100</a></span></div><div class="meta-secondline"></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><blockquote>
+<p><strong>本文概览</strong>：本文讲解最长公共子序列的核心思路：盯着两个字符串各自的最后一个字符，相等就接在前缀最优解后面加 1，不等就看丢掉任意一边哪种更长取较大者；方法一是二维 DP 表，方法二只保留上一行用一维数组把空间降到 O(n)。重点讲清转移方程为什么是这样，而不是只贴公式。</p>
+</blockquote>
+<hr>
+<h3 id="一、题目"><a href="#一、题目" class="headerlink" title="一、题目"></a>一、题目</h3><p><img src="/img/Hot%20100%20---%20%E6%9C%80%E9%95%BF%E5%85%AC%E5%85%B1%E5%AD%90%E5%BA%8F%E5%88%97/Hot%20100%20---%20%E6%9C%80%E9%95%BF%E5%85%AC%E5%85%B1%E5%AD%90%E5%BA%8F%E5%88%97.png" alt="image-20260924093000001"></p>
+<hr>
+<h3 id="二、题目分析"><a href="#二、题目分析" class="headerlink" title="二、题目分析"></a>二、题目分析</h3><h4 id="1-题目要求"><a href="#1-题目要求" class="headerlink" title="1. 题目要求"></a>1. 题目要求</h4><p>给定两个字符串 <code>text1</code> 和 <code>text2</code>，返回这两个字符串的<strong>最长公共子序列</strong>（LCS，Longest Common Subsequence）的长度。如果不存在公共子序列，返回 0。</p>
+<p><strong>子序列</strong>：从字符串中删除某些（也可以不删除）字符，但不改变剩余字符的顺序。例如 <code>&quot;ace&quot;</code> 是 <code>&quot;abcde&quot;</code> 的子序列，而 <code>&quot;aec&quot;</code> 不是。</p>
+<p><strong>示例 1</strong>：<code>text1 = &quot;abcde&quot;, text2 = &quot;ace&quot;</code> → 3（<code>&quot;ace&quot;</code>）</p>
+<p><strong>示例 2</strong>：<code>text1 = &quot;abc&quot;, text2 = &quot;def&quot;</code> → 0</p>
+<p><strong>示例 3</strong>：<code>text1 = &quot;abc&quot;, text2 = &quot;abc&quot;</code> → 3</p>
+<h4 id="2-怎么想这题？"><a href="#2-怎么想这题？" class="headerlink" title="2. 怎么想这题？"></a>2. 怎么想这题？</h4><p>先把题目翻译成人话：在 text1 和 text2 里各挑一串字符出来，这两串字符<strong>按各自原来的顺序、能一个对一个地对上</strong>，问最长能挑多长。注意对比一下&quot;子串&quot;：子串必须连续，而这里挑出来的字符中间可以隔着别的字符跳过，只要顺序不颠倒就行。示例 1 里 <code>&quot;abcde&quot;</code> 中的 <code>&quot;ace&quot;</code>，跳过了 <code>b</code> 和 <code>d</code>，但顺序对得上，所以它是合法的公共子序列。</p>
+<p><strong>第一步：自己手动比对，看答案是怎么找出来的</strong></p>
+<p>先别急着写代码，自己拿着两个串手动比一遍。用 <code>text1 = &quot;abc&quot;</code>、<code>text2 = &quot;cef&quot;</code>。</p>
+<p>要把两个串的共同字符找出来，只能一个字符一个字符地比：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">text1 的 a，去和 text2 的每个字符比：c、e、f，都不是 a  → a 淘汰</span><br><span class="line">text1 的 b，去和 text2 的每个字符比：c、e、f，都不是 b  → b 淘汰</span><br><span class="line">text1 的 c，去和 text2 的每个字符比：第一个就是 c        → 配上，&quot;c&quot;，长度 1</span><br></pre></td></tr></table></figure>
+
+<p>text1 走完，最后得到的公共子序列就是 <code>&quot;c&quot;</code>，长度 1。</p>
+<p><strong>这里没有捷径</strong>：<code>text1</code> 的每一个字符，都得和 <code>text2</code> 的字符逐个比过，才知道它配不配得上。比一遍下来，两个串的字符会两两碰面一次，像一张表：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">        text2</span><br><span class="line">        c    e    f</span><br><span class="line">text1 a -    -    -</span><br><span class="line">      b -    -    -</span><br><span class="line">      c *</span><br></pre></td></tr></table></figure>
+
+<p>表里 <code>-</code> 表示这两个字符配不上，<code>*</code> 表示配上了。<code>a</code>、<code>b</code> 两行整行都是 <code>-</code>，说明它俩和 <code>text2</code> 里任何字符都对不上，全被淘汰；只有 <code>c</code> 行在 <code>text2</code> 的第一个字符上打出了 <code>*</code>。</p>
+<p><strong>关键的地方来了</strong>：这一遍遍比下来，我们手里始终捏着两个&quot;进度&quot;——text1 比到第几个字符了、text2 比到第几个字符了。上面那张表里，<strong>一行就是 text1 的一个进度，一列就是 text2 的一个进度</strong>，两个进度交在一起，就唯一确定了&quot;现在比到哪儿、前面已经配出了多长&quot;。</p>
+<p>所以这道题的状态就是这两个进度：<code>(i, j)</code> 表示 text1 看到第 <code>i</code> 个字符、text2 看到第 <code>j</code> 个字符时的局面（这里的 <code>i</code>、<code>j</code> 都是从 1 开始数，第 <code>i</code> 个字符在代码里是下标 <code>i-1</code>）。</p>
+<p><strong>第二步：复杂度天生就是 O(n x m)，关键是怎么别重复算</strong></p>
+<p>刚才那张碰面表就是这件事的缩影：text1 有 n 个字符、text2 有 m 个字符，两两碰面就是 n x m 种 <code>(i, j)</code> 组合。天真的做法是：每问一个 <code>(i, j)</code> 能配多长，就从头把两个串再比一遍——可同一个局面会被反复从头推很多次，纯属白费。</p>
+<p>真正的做法是<strong>把每个局面算出来的结果记下来</strong>：某个进度上&quot;最长能配多长&quot;一旦算过，以后要用就直接查，不用再比一遍。这样每个 <code>(i, j)</code> 只算一次，一共 n x m 个局面，效率就省出来了。这也正是动态规划的做法——算过的就存住。所以接下来只剩一件事：给定一个 <code>(i, j)</code>，怎么用已经记下来的、比它更靠前的局面，把它的值推出来。</p>
+<p><strong>第三步：从后往前看，<code>(i, j)</code> 的值怎么算？</strong></p>
+<p>想知道进度走到 <code>(i, j)</code> 时最长能配多长，就去看公共子序列的<strong>最后一个字符</strong>落在哪。此刻手里最新的两个字符，一个是 text1 的第 <code>i</code> 个，一个是 text2 的第 <code>j</code> 个，所以最后一个字符无非两种情况：</p>
+<p><strong>情况一：最后一个字符正好就是这一对。</strong> 前提是这个字符得两串里都有，也就是这两个字符<strong>必须先相等</strong>。相等时这一对可以充当公共子序列的收尾，把这一对去掉，前面那部分就是&quot;进度走到 <code>(i-1, j-1)</code> 时配出的公共子序列&quot;。于是</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">(i, j) 的最长长度 = (i-1, j-1) 的最长长度 + 1</span><br></pre></td></tr></table></figure>
+
+<p><strong>情况二：最后一个字符不是这一对。</strong> 要么这两个字符不相等，要么虽然相等但没用它。不管哪种，这一对里至少有一个字符没参与进来，最长长度就只能去更靠前的局面里找。</p>
+<p>往哪儿找、怎么保证不漏，就是下面思路详解要补上的部分。这里先记住这条主线：<strong>每一步都盯着&quot;最后一位配不配得上&quot;，配得上就接在上一个进度的长度后面加 1，配不上就往更前面退。</strong></p>
+<h4 id="3-需要解决哪几个问题？"><a href="#3-需要解决哪几个问题？" class="headerlink" title="3. 需要解决哪几个问题？"></a>3. 需要解决哪几个问题？</h4><p><strong>问题一</strong>：状态怎么定义？<code>dp[i][j]</code> 到底表示&quot;哪两个串&quot;之间的公共子序列？</p>
+<p><strong>问题二（核心）</strong>：转移方程为什么那样写？为什么两个字符串的<strong>末尾字符相等</strong>时可以直接接上去 +1，不相等时取两边的 <code>max</code> 就覆盖了所有可能？这背后&quot;盯着最后一个字符&quot;的思路是什么？</p>
+<p><strong>问题三</strong>：初值怎么填？空字符串怎么处理？</p>
+<hr>
+<h3 id="三、方法一：二维-DP，O-m-x-n-空间"><a href="#三、方法一：二维-DP，O-m-x-n-空间" class="headerlink" title="三、方法一：二维 DP，O(m x n) 空间"></a>三、方法一：二维 DP，O(m x n) 空间</h3><h4 id="1-思路概览"><a href="#1-思路概览" class="headerlink" title="1. 思路概览"></a>1. 思路概览</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="type">int</span> <span class="title function_">longestCommonSubsequence</span><span class="params">(String text1, String text2)</span> &#123;</span><br><span class="line">    <span class="type">int</span> <span class="variable">n</span> <span class="operator">=</span> text1.length(), m = text2.length();</span><br><span class="line">    <span class="type">int</span>[][] dp = <span class="keyword">new</span> <span class="title class_">int</span>[n + <span class="number">1</span>][m + <span class="number">1</span>];</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> <span class="variable">i</span> <span class="operator">=</span> <span class="number">1</span>; i &lt;= n; i++) &#123;</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> <span class="variable">j</span> <span class="operator">=</span> <span class="number">1</span>; j &lt;= m; j++) &#123;</span><br><span class="line">            <span class="keyword">if</span> (text1.charAt(i - <span class="number">1</span>) == text2.charAt(j - <span class="number">1</span>)) &#123;</span><br><span class="line">                dp[i][j] = dp[i - <span class="number">1</span>][j - <span class="number">1</span>] + <span class="number">1</span>;          <span class="comment">// 末尾相等,接上前缀最优解</span></span><br><span class="line">            &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                dp[i][j] = Math.max(dp[i - <span class="number">1</span>][j], dp[i][j - <span class="number">1</span>]); <span class="comment">// 不等,取丢掉一边的较大者</span></span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> dp[n][m];</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>思路简要说明：</p>
+<ol>
+<li><strong>状态定义</strong>：<code>dp[i][j]</code> 表示 <code>text1[0..i-1]</code> 和 <code>text2[0..j-1]</code> 的最长公共子序列长度（即前 <code>i</code> 个字符对前 <code>j</code> 个字符）</li>
+<li><strong>转移分两支</strong>：末尾字符相等 → <code>dp[i-1][j-1] + 1</code>；不等 → <code>max(dp[i-1][j], dp[i][j-1])</code></li>
+<li><strong>初值</strong>：<code>dp[0][*] = dp[*][0] = 0</code>（空串与任何串无公共字符）</li>
+<li>**时间复杂度 O(m x n)**，空间 O(m x n)</li>
+</ol>
+<h4 id="2-思路详解"><a href="#2-思路详解" class="headerlink" title="2. 思路详解"></a>2. 思路详解</h4><p><strong>第一步：解决状态定义——dp[i][j] 是哪两个串？</strong></p>
+<p>这是理解整题的钥匙。<code>dp[i][j]</code> 不是拿 text1 和 text2 的&quot;整个串&quot;去比，而是拿它们的<strong>前缀</strong>去比：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">dp[i][j] = text1 的前 i 个字符 与 text2 的前 j 个字符 的最长公共子序列长度</span><br></pre></td></tr></table></figure>
+
+<p>之所以这么定义，是因为递推必须以&quot;越比越短&quot;的方式推进。答案 <code>dp[n][m]</code> 正是两个完整字符串的结果——前缀推到尽头就是全串。</p>
+<p><strong>第二步：解决转移方程——为什么盯着最后一个字符？</strong></p>
+<p>顺着上面&quot;从后往前看最后一位&quot;的主线：进度走到 <code>(i, j)</code> 时，比前面局面<strong>多出来的新信息</strong>只有两个字符——text1 的第 <code>i</code> 个 <code>text1[i-1]</code>，和 text2 的第 <code>j</code> 个 <code>text2[j-1]</code>；而它俩之前的局面 <code>(i-1, j-1)</code> 的最优值已经算好了。<strong>递推就是在问：这两个新来的字符，能不能作为公共子序列的收尾配成一对？</strong> 答案取决于它俩是否相等。</p>
+<p><strong>分支一：末尾相等（<code>text1[i-1] == text2[j-1]</code>）。</strong></p>
+<p>这时这对字符一定能、而且应该被选进最优解。为什么&quot;一定&quot;？用一个反证体会一下：假设最优公共子序列没用上这一对相等的字符，那它整个都落在&quot;text1 前 <code>i-1</code> 个&quot;和&quot;text2 前 <code>j-1</code> 个&quot;的范围里，长度至多 <code>dp[i-1][j-1]</code>。可是既然 <code>text1[i-1] == text2[j-1]</code>，把这一对<strong>追加</strong>到那个解的最后，两个串的顺序都没乱，就得到了长度 <code>dp[i-1][j-1] + 1</code> 的子序列，比原来的还长。这说明&quot;不用这对&quot;不可能是最优，所以最优解必然收下这一对，接在前缀最优值后面：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">dp[i][j] = dp[i-1][j-1] + 1</span><br></pre></td></tr></table></figure>
+
+<p><strong>分支二：末尾不等（<code>text1[i-1] != text2[j-1]</code>）。</strong></p>
+<p>末尾这一对配不上，成不了公共子序列的收尾，那这两个字符里最多只能留下一个继续参与。所以最优解必然属于下面两种情况之一：</p>
+<ul>
+<li><strong>舍弃 text1 的第 <code>i</code> 个字符</strong>（留着它对不上任何东西），问题退化成 text1 前 <code>i-1</code> 个 对 text2 前 <code>j</code> 个 → <code>dp[i-1][j]</code>；</li>
+<li><strong>舍弃 text2 的第 <code>j</code> 个字符</strong>，问题退化成 text1 前 <code>i</code> 个 对 text2 前 <code>j-1</code> 个 → <code>dp[i][j-1]</code>。</li>
+</ul>
+<p><strong>为什么两边都得看？只算一边会错在哪？</strong> 举个例子。<code>text1 = &quot;abc&quot;</code>、<code>text2 = &quot;ab&quot;</code>，进度最后走到 <code>(i = 3, j = 2)</code>：text1 末尾是 <code>c</code>、text2 末尾是 <code>b</code>，不相等。</p>
+<ul>
+<li>舍弃 text1 末尾的 <code>c</code>（它谁都配不上），问题退化成 <code>&quot;ab&quot;</code> 对 <code>&quot;ab&quot;</code> → 长度 <strong>2</strong>，正好就是答案 <code>&quot;ab&quot;</code>；</li>
+<li>舍弃 text2 末尾的 <code>b</code>（留着 <code>c</code> 也没用），问题退化成 <code>&quot;abc&quot;</code> 对 <code>&quot;a&quot;</code> → 长度 <strong>1</strong>。</li>
+</ul>
+<p>如果只看&quot;舍弃 text2 末尾&quot;这一支，就会得到 1，把真正的 2 漏掉。反过来把两个串调换一下（<code>text1 = &quot;ab&quot;</code>、<code>text2 = &quot;abc&quot;</code>），该走的就变成&quot;舍弃 text2 末尾&quot;那一支了。所以两个方向都得算，取更大的那个：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">dp[i][j] = max(dp[i-1][j], dp[i][j-1])</span><br></pre></td></tr></table></figure>
+
+<p>（两边末尾都不用的情况，会被这两种方案同时覆盖，不影响结果。）</p>
+<p><strong>把两步合起来</strong>，就是这份转移方程。可以看到，它并不是凭空冒出来的公式，而是&quot;盯着两个字符串各自的末尾字符&quot;这一件事，按相等&#x2F;不等两种情况自然推导出来的。<strong>比较两个字往往只要盯着末端想，别想着从头到尾捋一遍</strong>——这是这题最核心的直觉。</p>
+<p><strong>第三步：解决初值——空串怎么办？</strong></p>
+<p><code>dp[0][j]</code>：text1 一个字符都不取（空串），和 text2 不存在任何公共子序列，恒 0。同理 <code>dp[i][0]</code> 恒 0。Java 数组默认初始化为 0，所以连显式赋值都不用，直接让循环从 <code>i=1, j=1</code> 开始即可。</p>
+<p><strong>第四步：完整执行过程</strong></p>
+<p>以示例 1，<code>text1 = &quot;abcde&quot;</code>、<code>text2 = &quot;ace&quot;</code>（答案是 3）为例。表里 <code>dp[i][j]</code> 用&quot;text1 前 i 个 x text2 前 j 个&quot;来标：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">            text2</span><br><span class="line">      &quot;&quot;  a   c   e</span><br><span class="line">&quot;&quot;    0   0   0   0</span><br><span class="line"> a    0   1   1   1      ← a==a 匹配，dp[1][1]=dp[0][0]+1=1</span><br><span class="line"> b    0   1   1   1      ← b 谁都配不上，整行一直取 max 维持 1</span><br><span class="line"> c    0   1   2   2      ← c==c 匹配，dp[3][2]=dp[2][1]+1=2</span><br><span class="line"> d    0   1   2   2      ← d 谁都配不上，维持 2</span><br><span class="line"> e    0   1   2   3      ← e==e 匹配，dp[5][3]=dp[4][2]+1=3</span><br></pre></td></tr></table></figure>
+
+<p>一步步看：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line">i=1 (text1[0]=&#x27;a&#x27;):</span><br><span class="line">  j=1 (a): a==a → dp[1][1] = dp[0][0]+1 = 1</span><br><span class="line">  j=2 (c): a!=c → max(dp[0][2], dp[1][1]) = max(0,1) = 1</span><br><span class="line">  j=3 (e): a!=e → max(dp[0][3], dp[1][2]) = max(0,1) = 1</span><br><span class="line"></span><br><span class="line">i=2 (text1[1]=&#x27;b&#x27;):</span><br><span class="line">  j=1 (a): b!=a → max(dp[1][1], dp[2][0]) = max(1,0) = 1</span><br><span class="line">  j=2 (c): b!=c → max(dp[1][2], dp[2][1]) = max(1,1) = 1</span><br><span class="line">  j=3 (e): b!=e → max(dp[1][3], dp[2][2]) = max(1,1) = 1   ← &#x27;b&#x27; 全程没贡献</span><br><span class="line"></span><br><span class="line">i=3 (text1[2]=&#x27;c&#x27;):</span><br><span class="line">  j=1 (a): c!=a → max(dp[2][1], dp[3][0]) = max(1,0) = 1</span><br><span class="line">  j=2 (c): c==c → dp[3][2] = dp[2][1]+1 = 2    ← &#x27;c&#x27; 对上，长度涨到 2</span><br><span class="line">  j=3 (e): c!=e → max(dp[2][3], dp[3][2]) = max(1,2) = 2</span><br><span class="line"></span><br><span class="line">i=4 (text1[3]=&#x27;d&#x27;):</span><br><span class="line">  j=1 (a): max(dp[3][1], dp[4][0]) = max(1,0) = 1</span><br><span class="line">  j=2 (c): max(dp[3][2], dp[4][1]) = max(2,1) = 2</span><br><span class="line">  j=3 (e): max(dp[3][3], dp[4][2]) = max(2,2) = 2   ← &#x27;d&#x27; 也没贡献</span><br><span class="line"></span><br><span class="line">i=5 (text1[4]=&#x27;e&#x27;):</span><br><span class="line">  j=1 (a): max(dp[4][1], dp[5][0]) = max(1,0) = 1</span><br><span class="line">  j=2 (c): max(dp[4][2], dp[5][1]) = max(2,1) = 2</span><br><span class="line">  j=3 (e): e==e → dp[5][3] = dp[4][2]+1 = 3   ← &#x27;e&#x27; 对上，长度涨到 3</span><br><span class="line"></span><br><span class="line">返回 dp[5][3] = 3 ✓</span><br></pre></td></tr></table></figure>
+
+<p>注意 <code>&#39;b&#39;</code> 和 <code>&#39;d&#39;</code> 两个字符从头到尾都在复制上一行的 1 和 2——它们没有贡献任何新的匹配，只靠 <code>max</code> 把已有最优值&quot;传递&quot;了下来。这正好呼应转移方程里&quot;不等取 max&quot;那一支：<strong>一个用不上的字符，最优解就把它丢掉，长度不降。</strong></p>
+<h4 id="3-复杂度分析"><a href="#3-复杂度分析" class="headerlink" title="3. 复杂度分析"></a>3. 复杂度分析</h4><p>**时间复杂度 O(m x n)**：两层循环，每个格子常数次比较。</p>
+<p>**空间复杂度 O(m x n)**：完整二维表。</p>
+<hr>
+<h3 id="四、二维表里其实只用到-上一行"><a href="#四、二维表里其实只用到-上一行" class="headerlink" title="四、二维表里其实只用到&quot;上一行&quot;"></a>四、二维表里其实只用到&quot;上一行&quot;</h3><p>回到转移方程，<code>dp[i][j]</code> 只依赖三个&quot;邻居&quot;。把表按行列摆好，<code>i</code> 是行、<code>j</code> 是列，它们的位置关系是：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">               列 j-1              列 j</span><br><span class="line">行 i-1    dp[i-1][j-1]        dp[i-1][j]</span><br><span class="line">行 i      dp[i][j-1]          dp[i][j]     ← 当前要算的</span><br></pre></td></tr></table></figure>
+
+<p>对照着看这三个依赖：</p>
+<ul>
+<li><code>dp[i-1][j]</code>：同一列、上一行 → <strong>正上方</strong></li>
+<li><code>dp[i][j-1]</code>：同一行、上一列 → <strong>正左方</strong></li>
+<li><code>dp[i-1][j-1]</code>：上一行、上一列 → <strong>左上方（对角线）</strong></li>
+</ul>
+<p>也就是说，算第 <code>i</code> 行的时候，用到的是<strong>上一行（第 <code>i-1</code> 行）的整行</strong>，加上<strong>当前行刚算好的左边一个值</strong>。第 <code>i-2</code> 行及其更早的行，从此再也不会被用到。这和之前《不同路径》滚动的道理一样——把&quot;上一行&quot;和&quot;当前行&quot;挤进同一个一维数组，边算边原地覆盖，就能从 O(m x n) 省到 O(n)。</p>
+<p>但这题比《不同路径》多一个坑：它要看<strong>对角线</strong> <code>dp[i-1][j-1]</code>。滚动时这一格特别容易被先覆盖掉，得单独把它救下来。下面看怎么处理。</p>
+<hr>
+<h3 id="五、方法二：一维滚动数组，O-n-空间"><a href="#五、方法二：一维滚动数组，O-n-空间" class="headerlink" title="五、方法二：一维滚动数组，O(n) 空间"></a>五、方法二：一维滚动数组，O(n) 空间</h3><h4 id="1-思路概览-1"><a href="#1-思路概览-1" class="headerlink" title="1. 思路概览"></a>1. 思路概览</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="type">int</span> <span class="title function_">longestCommonSubsequence</span><span class="params">(String text1, String text2)</span> &#123;</span><br><span class="line">    <span class="type">int</span> <span class="variable">n</span> <span class="operator">=</span> text1.length(), m = text2.length();</span><br><span class="line">    <span class="type">int</span>[] dp = <span class="keyword">new</span> <span class="title class_">int</span>[m + <span class="number">1</span>];          <span class="comment">// dp[j] 表示当前行第 j 列</span></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> <span class="variable">i</span> <span class="operator">=</span> <span class="number">1</span>; i &lt;= n; i++) &#123;</span><br><span class="line">        <span class="type">int</span> <span class="variable">prev</span> <span class="operator">=</span> <span class="number">0</span>;                    <span class="comment">// dp[i-1][j-1]，每一行开头是 0</span></span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> <span class="variable">j</span> <span class="operator">=</span> <span class="number">1</span>; j &lt;= m; j++) &#123;</span><br><span class="line">            <span class="type">int</span> <span class="variable">temp</span> <span class="operator">=</span> dp[j];            <span class="comment">// 先存下旧值 dp[i-1][j]</span></span><br><span class="line">            <span class="keyword">if</span> (text1.charAt(i - <span class="number">1</span>) == text2.charAt(j - <span class="number">1</span>)) &#123;</span><br><span class="line">                dp[j] = prev + <span class="number">1</span>;        <span class="comment">// 用对角线的旧值</span></span><br><span class="line">            &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                dp[j] = Math.max(dp[j], dp[j - <span class="number">1</span>]); <span class="comment">// dp[j]旧=上方, dp[j-1]新=左方</span></span><br><span class="line">            &#125;</span><br><span class="line">            prev = temp;                 <span class="comment">// 把 dp[i-1][j] 留给下一个 j 当对角线</span></span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> dp[m];</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>思路简要说明：</p>
+<ol>
+<li><strong>状态定义</strong>：<code>dp[j]</code> 表示当前行第 <code>j</code> 列的值，随 i 行逐行滚动</li>
+<li><strong>核心难点是对角线</strong>：<code>dp[i-1][j-1]</code> 会在算 <code>dp[j-1]</code> 时就被覆盖，所以用 <code>prev</code> 提前存下它</li>
+<li><strong>转移</strong>：匹配用 <code>prev+1</code>；不匹配用旧 <code>dp[j]</code>（上方）和 <code>dp[j-1]</code>（左方）取 max</li>
+<li>**时间复杂度 O(m x n)**，空间 O(n)</li>
+</ol>
+<h4 id="2-思路详解-1"><a href="#2-思路详解-1" class="headerlink" title="2. 思路详解"></a>2. 思路详解</h4><p><strong>第一步：每次滚动前，dp[] 里装的是什么？</strong></p>
+<p>进入第 <code>i</code> 行遍历时，<code>dp[j]</code> 还留着<strong>上一行</strong>（<code>i-1</code> 行）第 <code>j</code> 列的值 <code>dp[i-1][j]</code>。我们要在遍历 <code>j</code> 的过程中，把它逐一改成<strong>本行</strong>的值 <code>dp[i][j]</code>。改完的这一行，正好就是下一行要用的&quot;上一行&quot;。</p>
+<p><strong>第二步：为什么必须用 prev 救对角线？</strong></p>
+<p>这是整份代码最关键的地方。回想转移方程，匹配分支要读 <code>dp[i-1][j-1]</code>——<strong>上一行、上一列</strong>的值。</p>
+<p>但在滚动数组里，<code>dp[j-1]</code> 在前一个 <code>j</code> 的迭代里<strong>已经被覆盖成本行的值 <code>dp[i][j-1]</code></strong> 了。也就是说，走到 <code>j</code> 这一步时，&quot;对角线&quot; <code>dp[i-1][j-1]</code> 在数组里已经找不到了——它被 <code>dp[i][j-1]</code> 顶掉了。</p>
+<p>所以要在覆盖发生前，把对角线旧值留下来。看 <code>j-1</code> 那一步：<code>dp[j-1]</code> 覆盖前，它装的是 <code>dp[i-1][j-1]</code>。于是我们在 <code>j-1</code> 更新前记下它（<code>temp</code>），进入 <code>j</code> 时它就是 <code>prev</code>。循环里正是：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="variable">temp</span> <span class="operator">=</span> dp[j];        <span class="comment">// 这是 dp[i-1][j]</span></span><br><span class="line">...                       <span class="comment">// 用 dp[j] / prev / dp[j-1] 算出本行 dp[i][j]</span></span><br><span class="line">prev = temp;              <span class="comment">// 把 dp[i-1][j] 保存，下一轮 j+1 把它当对角线用</span></span><br></pre></td></tr></table></figure>
+
+<p>一句话：**<code>prev</code> 装的是&quot;上一行、上一列&quot;<code>dp[i-1][j-1]</code>，专门喂给匹配分支，因为它在数组里被左方新值覆盖前必须被救下来。** 这和之前《乘积最大子数组》里 <code>tempMax</code>、《不同路径（一维）》里&quot;别让旧值提前被覆盖&quot;是同一个问题的两种装法——都是&quot;算新值要用旧值，旧值却在原地被覆盖&quot;。</p>
+<p><strong>第三步：完整执行过程</strong></p>
+<p>延续示例 1（<code>text1 = &quot;abcde&quot;</code>，<code>text2 = &quot;ace&quot;</code>，m&#x3D;3）。初始 <code>dp = [0, 0, 0, 0]</code>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line">i=1 (text1[0]=&#x27;a&#x27;)，prev=0：</span><br><span class="line">  j=1: temp=dp[1]=0；a==a → dp[1]=prev+1=1；prev=0 → [0,1,0,0]</span><br><span class="line">  j=2: temp=dp[2]=0；a!=c → max(dp[2]=0, dp[1]=1)=1；prev=0 → [0,1,1,0]</span><br><span class="line">  j=3: temp=dp[3]=0；a!=e → max(dp[3]=0, dp[2]=1)=1；prev=0 → [0,1,1,1]</span><br><span class="line"></span><br><span class="line">i=2 (text1[1]=&#x27;b&#x27;)，prev=0：</span><br><span class="line">  j=1: temp=1；b!=a → max(dp[1]=1, dp[0]=0)=1；prev=1 → [0,1,1,1]</span><br><span class="line">  j=2: temp=1；b!=c → max(dp[2]=1, dp[1]=1)=1；prev=1 → [0,1,1,1]</span><br><span class="line">  j=3: temp=1；b!=e → max(dp[3]=1, dp[2]=1)=1；prev=1 → [0,1,1,1]</span><br><span class="line"></span><br><span class="line">i=3 (text1[2]=&#x27;c&#x27;)，prev=0：</span><br><span class="line">  j=1: temp=1；c!=a → max(dp[1]=1, dp[0]=0)=1；prev=1 → [0,1,1,1]</span><br><span class="line">  j=2: temp=1；c==c → dp[2]=prev+1=1+1=2；prev=1 → [0,1,2,1]   ← 用对角线 prev=1</span><br><span class="line">  j=3: temp=1；c!=e → max(dp[3]=1, dp[2]=2)=2；prev=1 → [0,1,2,2]</span><br><span class="line"></span><br><span class="line">i=4 (text1[3]=&#x27;d&#x27;)，prev=0：</span><br><span class="line">  j=1: temp=1；d!=a → max(1, 0)=1；prev=1 → [0,1,2,2]</span><br><span class="line">  j=2: temp=2；d!=c → max(dp[2]=2, dp[1]=1)=2；prev=2 → [0,1,2,2]</span><br><span class="line">  j=3: temp=2；d!=e → max(dp[3]=2, dp[2]=2)=2；prev=2 → [0,1,2,2]</span><br><span class="line"></span><br><span class="line">i=5 (text1[4]=&#x27;e&#x27;)，prev=0：</span><br><span class="line">  j=1: temp=1；e!=a → max(1, 0)=1；prev=1 → [0,1,2,2]</span><br><span class="line">  j=2: temp=2；e!=c → max(dp[2]=2, dp[1]=1)=2；prev=2 → [0,1,2,2]</span><br><span class="line">  j=3: temp=2；e==e → dp[3]=prev+1=2+1=3；prev=2 → [0,1,2,3]   ← 用对角线 prev=2</span><br><span class="line"></span><br><span class="line">返回 dp[3] = 3 ✓</span><br></pre></td></tr></table></figure>
+
+<p>看 <code>i=3</code> 的 <code>j=2</code> 和 <code>i=5</code> 的 <code>j=3</code> 两处匹配：都用的是 <code>prev</code>（对角线旧值 1 和 2），加 1 得到 2 和 3。如果不用 <code>prev</code> 而去读已经被覆盖的 <code>dp[j-1]</code>，就会用错值，<code>2</code> 和 <code>3</code> 都算不出来。对比方法一的二维表，每一行结束时 <code>dp[]</code> 的内容正好等于二维表里那一行，滚到最后就是完整答案。</p>
+<p><code>dp[0]</code> 从头到尾都是 0 不参与内层循环（<code>j</code> 从 1 开始），它正好对应&quot;text1 前 i 个 x 空字符串 &#x3D; 0&quot;这条边界。</p>
+<h4 id="3-复杂度分析-1"><a href="#3-复杂度分析-1" class="headerlink" title="3. 复杂度分析"></a>3. 复杂度分析</h4><p>**时间复杂度 O(m x n)**：循环规模没变。</p>
+<p>**空间复杂度 O(m)**：只留一行，从 O(m x n) 降到 O(m)。想让 m 取较小字符串长度可进一步减空间（两层循环里让内层对齐较短串）。</p>
+<hr>
+<h3 id="六、总结"><a href="#六、总结" class="headerlink" title="六、总结"></a>六、总结</h3><table>
+<thead>
+<tr>
+<th>维度</th>
+<th>方法一 二维 DP</th>
+<th>方法二 一维滚动</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>状态</td>
+<td><code>dp[i][j]</code> 两个前缀</td>
+<td><code>dp[j]</code> 只保留当前行</td>
+</tr>
+<tr>
+<td>关键依赖</td>
+<td>上方、左方、对角线</td>
+<td>对角线旧值靠 <code>prev</code> 保存</td>
+</tr>
+<tr>
+<td>空间</td>
+<td>O(m x n)</td>
+<td>O(m)</td>
+</tr>
+<tr>
+<td>时间</td>
+<td>O(m x n)</td>
+<td>O(m x n)</td>
+</tr>
+<tr>
+<td>难点</td>
+<td>想通转移方程</td>
+<td>别让对角线旧值被覆盖</td>
+</tr>
+</tbody></table>
+<p>解这题真正要跨过的一道坎是<strong>理解转移方程</strong>，而不是记住公式。整条思路就一句话：<strong>盯着两个字符串的最后一个字符</strong>。</p>
+<ul>
+<li>末尾相等 → 这对字符一定进最优解，长度 &#x3D; 去掉它俩后的最优值 + 1；</li>
+<li>末尾不等 → 这对字符进不去，最优解要么丢掉前者、要么丢掉后者，取两者更大值。</li>
+</ul>
+<p>把这个落成 <code>dp[i][j]</code>（两个前缀之间）的递推，再从二维表发现&quot;只用得到上一行&quot;，顺手把对角线用 <code>prev</code> 救下来压成一维——空间从 O(m x n) 降到 O(m)。这套&quot;先想透状态与转移，再优化空间&quot;的节奏，也适合后面更复杂的二维 DP 题。</p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://LI-S-H.github.io">青山木</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://li-s-h.github.io/2026/09/24/Hot%20100%20---%20%E6%9C%80%E9%95%BF%E5%85%AC%E5%85%B1%E5%AD%90%E5%BA%8F%E5%88%97/">https://li-s-h.github.io/2026/09/24/Hot%20100%20---%20%E6%9C%80%E9%95%BF%E5%85%AC%E5%85%B1%E5%AD%90%E5%BA%8F%E5%88%97/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://LI-S-H.github.io" target="_blank">青山木</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E7%AE%97%E6%B3%95/">算法</a><a class="post-meta__tags" href="/tags/leetcode/">leetcode</a><a class="post-meta__tags" href="/tags/%E5%8A%A8%E6%80%81%E8%A7%84%E5%88%92/">动态规划</a><a class="post-meta__tags" href="/tags/DP/">DP</a><a class="post-meta__tags" href="/tags/%E5%AD%97%E7%AC%A6%E4%B8%B2/">字符串</a><a class="post-meta__tags" href="/tags/%E4%BA%8C%E7%BB%B4DP/">二维DP</a></div><div class="post-share"><div class="social-share" data-image="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/2026/09/26/Hot%20100%20---%20%E5%A4%9A%E6%95%B0%E5%85%83%E7%B4%A0/" title="Hot 100 --- 多数元素"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="onerror=null;src='/img/404.jpg'" alt="cover of previous post"><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">Hot 100 --- 多数元素</div></div><div class="info-2"><div class="info-item-1">本文讲解多数元素：多数元素出现次数超过 n/2，所以排序后下标 n/2 的位置一定是它；更优的摩尔投票法把问题看成"两两抵消"，因为多数元素的总数超过其余元素之和，抵消到最后剩下的就是它，O(n) 时间、O(1) 空间</div></div></div></a><a class="pagination-related" href="/2026/09/21/Hot%20100%20---%20%E6%9C%80%E9%95%BF%E5%9B%9E%E6%96%87%E5%AD%90%E4%B8%B2/" title="Hot 100 --- 最长回文子串"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="onerror=null;src='/img/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">Hot 100 --- 最长回文子串</div></div><div class="info-2"><div class="info-item-1">本文讲解最长回文子串的两种经典思路：方法一是中心拓展，遍历每个字符，以它为中心向两边扩展判断回文，注意中心有两种（奇数长度和偶数长度）；方法二是动态规划，判断一段字符串是不是回文只需看首尾字符相等且内部子串是回文，但必须先按长度从小到大递推</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/2026/09/26/Hot%20100%20---%20%E7%BC%96%E8%BE%91%E8%B7%9D%E7%A6%BB/" title="Hot 100 --- 编辑距离"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-09-26</div><div class="info-item-2">Hot 100 --- 编辑距离</div></div><div class="info-2"><div class="info-item-1">本文讲解编辑距离的核心思路：dp[i][j] 表示 word1 前 i 个字符转成 word2 前 j 个字符的最少操作数；两个字符相等就跳过（不花操作），不相等就在删除、插入、替换三种手段里选最省的；方法一是二维 DP，方法二只保留上一行把空间降到 O(m)</div></div></div></a><a class="pagination-related" href="/2026/09/21/Hot%20100%20---%20%E6%9C%80%E9%95%BF%E5%9B%9E%E6%96%87%E5%AD%90%E4%B8%B2/" title="Hot 100 --- 最长回文子串"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-09-21</div><div class="info-item-2">Hot 100 --- 最长回文子串</div></div><div class="info-2"><div class="info-item-1">本文讲解最长回文子串的两种经典思路：方法一是中心拓展，遍历每个字符，以它为中心向两边扩展判断回文，注意中心有两种（奇数长度和偶数长度）；方法二是动态规划，判断一段字符串是不是回文只需看首尾字符相等且内部子串是回文，但必须先按长度从小到大递推</div></div></div></a><a class="pagination-related" href="/2026/09/14/Hot%20100%20---%20%E5%8D%95%E8%AF%8D%E6%8B%86%E5%88%86/" title="Hot 100 --- 单词拆分"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-09-14</div><div class="info-item-2">Hot 100 --- 单词拆分</div></div><div class="info-2"><div class="info-item-1">本文讲解单词拆分的核心思路：dp[i] 表示 s 的前 i 个字符能否拆成字典单词，枚举切割点 j，dp[j] 且 [j,i) 是单词则 dp[i] 为 true，从暴力 DFS 优化到 O(n²) 的 DP 判定</div></div></div></a><a class="pagination-related" href="/2026/09/15/Hot%20100%20---%20%E5%88%86%E5%89%B2%E7%AD%89%E5%92%8C%E5%AD%90%E9%9B%86/" title="Hot 100 --- 分割等和子集"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-09-15</div><div class="info-item-2">Hot 100 --- 分割等和子集</div></div><div class="info-2"><div class="info-item-1">本文讲解分割等和子集的核心思路：能否分割等价于能否从数组中选出和为 sum/2 的子集，转化成 0/1 背包，dp[i] 表示能否凑出 i，内层必须从 target 往下遍历防重复选取</div></div></div></a><a class="pagination-related" href="/2026/09/13/Hot%20100%20---%20%E6%89%93%E5%AE%B6%E5%8A%AB%E8%88%8D/" title="Hot 100 --- 打家劫舍"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-09-13</div><div class="info-item-2">Hot 100 --- 打家劫舍</div></div><div class="info-2"><div class="info-item-1">本文讲解打家劫舍的核心思路：dp[i] 表示偷到第 i 房的最大金额，偷或不偷第 i 房两种情况取最大，滚动变量优化到 O(1) 空间</div></div></div></a><a class="pagination-related" href="/2026/09/21/Hot%20100%20---%20%E4%B8%8D%E5%90%8C%E8%B7%AF%E5%BE%84/" title="Hot 100 --- 不同路径"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-09-21</div><div class="info-item-2">Hot 100 --- 不同路径</div></div><div class="info-2"><div class="info-item-1">本文讲解不同路径的核心思路：只能向下或向右移动时，到达每个格子的路径数等于其上方和左方路径数之和，用动态规划递推；方法一是二维 dp 数组，方法二是只保留上一行的一维数组把空间降到 O(n)</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/%E5%A4%B4%E5%83%8F.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">青山木</div><div class="author-info-description">正在学习Java后端开发＋智能体开发，希望能与大家多多交流</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">108</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">220</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">6</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/LI-S-H"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/LI-S-H" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">欢迎来到我的博客，记录学习与成长的点滴。</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%80%E3%80%81%E9%A2%98%E7%9B%AE"><span class="toc-number">1.</span> <span class="toc-text">一、题目</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BA%8C%E3%80%81%E9%A2%98%E7%9B%AE%E5%88%86%E6%9E%90"><span class="toc-number">2.</span> <span class="toc-text">二、题目分析</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#1-%E9%A2%98%E7%9B%AE%E8%A6%81%E6%B1%82"><span class="toc-number">2.1.</span> <span class="toc-text">1. 题目要求</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#2-%E6%80%8E%E4%B9%88%E6%83%B3%E8%BF%99%E9%A2%98%EF%BC%9F"><span class="toc-number">2.2.</span> <span class="toc-text">2. 怎么想这题？</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#3-%E9%9C%80%E8%A6%81%E8%A7%A3%E5%86%B3%E5%93%AA%E5%87%A0%E4%B8%AA%E9%97%AE%E9%A2%98%EF%BC%9F"><span class="toc-number">2.3.</span> <span class="toc-text">3. 需要解决哪几个问题？</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%89%E3%80%81%E6%96%B9%E6%B3%95%E4%B8%80%EF%BC%9A%E4%BA%8C%E7%BB%B4-DP%EF%BC%8CO-m-x-n-%E7%A9%BA%E9%97%B4"><span class="toc-number">3.</span> <span class="toc-text">三、方法一：二维 DP，O(m x n) 空间</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#1-%E6%80%9D%E8%B7%AF%E6%A6%82%E8%A7%88"><span class="toc-number">3.1.</span> <span class="toc-text">1. 思路概览</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#2-%E6%80%9D%E8%B7%AF%E8%AF%A6%E8%A7%A3"><span class="toc-number">3.2.</span> <span class="toc-text">2. 思路详解</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#3-%E5%A4%8D%E6%9D%82%E5%BA%A6%E5%88%86%E6%9E%90"><span class="toc-number">3.3.</span> <span class="toc-text">3. 复杂度分析</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9B%9B%E3%80%81%E4%BA%8C%E7%BB%B4%E8%A1%A8%E9%87%8C%E5%85%B6%E5%AE%9E%E5%8F%AA%E7%94%A8%E5%88%B0-%E4%B8%8A%E4%B8%80%E8%A1%8C"><span class="toc-number">4.</span> <span class="toc-text">四、二维表里其实只用到&quot;上一行&quot;</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BA%94%E3%80%81%E6%96%B9%E6%B3%95%E4%BA%8C%EF%BC%9A%E4%B8%80%E7%BB%B4%E6%BB%9A%E5%8A%A8%E6%95%B0%E7%BB%84%EF%BC%8CO-n-%E7%A9%BA%E9%97%B4"><span class="toc-number">5.</span> <span class="toc-text">五、方法二：一维滚动数组，O(n) 空间</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#1-%E6%80%9D%E8%B7%AF%E6%A6%82%E8%A7%88-1"><span class="toc-number">5.1.</span> <span class="toc-text">1. 思路概览</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#2-%E6%80%9D%E8%B7%AF%E8%AF%A6%E8%A7%A3-1"><span class="toc-number">5.2.</span> <span class="toc-text">2. 思路详解</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#3-%E5%A4%8D%E6%9D%82%E5%BA%A6%E5%88%86%E6%9E%90-1"><span class="toc-number">5.3.</span> <span class="toc-text">3. 复杂度分析</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%85%AD%E3%80%81%E6%80%BB%E7%BB%93"><span class="toc-number">6.</span> <span class="toc-text">六、总结</span></a></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/2026/09/26/Hot%20100%20---%20%E5%8F%AA%E5%87%BA%E7%8E%B0%E4%B8%80%E6%AC%A1%E7%9A%84%E6%95%B0%E5%AD%97/" title="Hot 100 --- 只出现一次的数字"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 只出现一次的数字"/></a><div class="content"><a class="title" href="/2026/09/26/Hot%20100%20---%20%E5%8F%AA%E5%87%BA%E7%8E%B0%E4%B8%80%E6%AC%A1%E7%9A%84%E6%95%B0%E5%AD%97/" title="Hot 100 --- 只出现一次的数字">Hot 100 --- 只出现一次的数字</a><time datetime="2026-09-26T15:30:00.000Z" title="发表于 2026-09-26 23:30:00">2026-09-26</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/09/26/Hot%20100%20---%20%E7%BC%96%E8%BE%91%E8%B7%9D%E7%A6%BB/" title="Hot 100 --- 编辑距离"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 编辑距离"/></a><div class="content"><a class="title" href="/2026/09/26/Hot%20100%20---%20%E7%BC%96%E8%BE%91%E8%B7%9D%E7%A6%BB/" title="Hot 100 --- 编辑距离">Hot 100 --- 编辑距离</a><time datetime="2026-09-26T15:30:00.000Z" title="发表于 2026-09-26 23:30:00">2026-09-26</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/09/26/Hot%20100%20---%20%E5%A4%9A%E6%95%B0%E5%85%83%E7%B4%A0/" title="Hot 100 --- 多数元素"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 多数元素"/></a><div class="content"><a class="title" href="/2026/09/26/Hot%20100%20---%20%E5%A4%9A%E6%95%B0%E5%85%83%E7%B4%A0/" title="Hot 100 --- 多数元素">Hot 100 --- 多数元素</a><time datetime="2026-09-26T15:00:00.000Z" title="发表于 2026-09-26 23:00:00">2026-09-26</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/09/24/Hot%20100%20---%20%E6%9C%80%E9%95%BF%E5%85%AC%E5%85%B1%E5%AD%90%E5%BA%8F%E5%88%97/" title="Hot 100 --- 最长公共子序列"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 最长公共子序列"/></a><div class="content"><a class="title" href="/2026/09/24/Hot%20100%20---%20%E6%9C%80%E9%95%BF%E5%85%AC%E5%85%B1%E5%AD%90%E5%BA%8F%E5%88%97/" title="Hot 100 --- 最长公共子序列">Hot 100 --- 最长公共子序列</a><time datetime="2026-09-24T15:00:00.000Z" title="发表于 2026-09-24 23:00:00">2026-09-24</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/09/21/Hot%20100%20---%20%E6%9C%80%E9%95%BF%E5%9B%9E%E6%96%87%E5%AD%90%E4%B8%B2/" title="Hot 100 --- 最长回文子串"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 最长回文子串"/></a><div class="content"><a class="title" href="/2026/09/21/Hot%20100%20---%20%E6%9C%80%E9%95%BF%E5%9B%9E%E6%96%87%E5%AD%90%E4%B8%B2/" title="Hot 100 --- 最长回文子串">Hot 100 --- 最长回文子串</a><time datetime="2026-09-21T02:30:00.000Z" title="发表于 2026-09-21 10:30:00">2026-09-21</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By 青山木</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.5.4"></script><script src="/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script>
+(function() {
+  /* 仅在首页标题上方插入头像 */
+  if (window.location.pathname !== '/' && !window.location.pathname.endsWith('/index.html')) return;
+  var siteTitle = document.getElementById('site-title');
+  if (siteTitle) {
+    var avatar = document.createElement('img');
+    avatar.src = '/img/头像.jpg';
+    avatar.alt = 'avatar';
+    avatar.className = 'avatar-img';
+    siteTitle.parentNode.insertBefore(avatar, siteTitle);
+  }
+})();
+</script>
+<script>
+(function() {
+  function initMermaid() {
+    if (window.mermaid) return Promise.resolve();
+    return new Promise(function(resolve, reject) {
+      var script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/mermaid@11.12.2/dist/mermaid.min.js';
+      script.onload = function() {
+        mermaid.initialize({
+          startOnLoad: false,
+          // 图表主题固定，避免站点深浅色切换时重新解析整篇文章的所有 Mermaid 图。
+          theme: 'dark',
+          securityLevel: 'loose'
+        });
+        resolve();
+      };
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  }
+
+  // Mermaid 会异步改变文章高度；目录跳转必须等所有图表完成布局后再读取标题位置。
+  window.mermaidReady = Promise.resolve();
+  var renderSequence = 0;
+
+  function waitForStableLayout() {
+    return new Promise(function(resolve) {
+      requestAnimationFrame(function() {
+        requestAnimationFrame(function() {
+          // 让 SVG 内的 foreignObject 完成一次实际布局，再刷新 Butterfly 的标题位置缓存。
+          setTimeout(resolve, 50);
+        });
+      });
+    });
+  }
+
+  function showMermaidSource(pre) {
+    pre.hidden = false;
+    pre.style.display = 'block';
+    pre.style.color = '#d32f2f';
+    pre.style.whiteSpace = 'pre-wrap';
+    pre.style.fontSize = '13px';
+  }
+
+  function refreshTocPositions() {
+    // Butterfly 只在 resize 时重新缓存标题坐标。
+    window.dispatchEvent(new Event('resize'));
+    document.dispatchEvent(new CustomEvent('mermaid:rendered'));
+  }
+
+  function renderMermaidDiagrams() {
+    var wraps = document.querySelectorAll('#article-container .mermaid-wrap');
+    if (wraps.length === 0) {
+      window.mermaidReady = Promise.resolve();
+      return window.mermaidReady;
+    }
+
+    var renderTask = initMermaid().then(function() {
+      return Promise.all(Array.prototype.map.call(wraps, function(wrap, index) {
+        var pre = wrap.querySelector('pre.mermaid-src');
+        if (!pre || pre.dataset.rendered === 'true') return Promise.resolve();
+
+        var code = pre.textContent;
+        var id = 'mermaid-' + index + '-' + (++renderSequence);
+        return Promise.resolve().then(function() {
+          return mermaid.render(id, code);
+        }).then(function(result) {
+          pre.dataset.rendered = 'true';
+          pre.style.display = 'none';
+          var div = document.createElement('div');
+          div.innerHTML = result.svg;
+          wrap.insertBefore(div.firstChild, pre.nextSibling);
+        }).catch(function(err) {
+          console.error('[Mermaid] Block #' + index + ' render failed:', err);
+          showMermaidSource(pre);
+        });
+      }));
+    }).then(function() {
+      return waitForStableLayout();
+    }).then(function() {
+      refreshTocPositions();
+    }).catch(function(err) {
+      console.error('[Mermaid] Failed to load mermaid.js:', err);
+      wraps.forEach(function(wrap) {
+        var pre = wrap.querySelector('pre.mermaid-src');
+        if (pre) showMermaidSource(pre);
+      });
+    });
+
+    window.mermaidReady = renderTask;
+    return renderTask;
+  }
+
+  // 页面加载完成后渲染
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', renderMermaidDiagrams);
+  } else {
+    renderMermaidDiagrams();
+  }
+
+  // 拦截目录点击：若图表仍在渲染，等待布局稳定后按实时坐标滚动。
+  // 使用捕获阶段，避免 Butterfly 先按渲染前的坐标启动平滑滚动。
+  var tocNavigationSequence = 0;
+  document.addEventListener('click', function(e) {
+    var link = e.target.closest('#card-toc .toc-link');
+    if (!link) return;
+
+    var href = link.getAttribute('href') || '';
+    var hashIndex = href.indexOf('#');
+    if (hashIndex < 0) return;
+
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    var navigationSequence = ++tocNavigationSequence;
+    var headingId = decodeURI(href.slice(hashIndex + 1));
+
+    (window.mermaidReady || Promise.resolve()).then(function() {
+      return waitForStableLayout();
+    }).then(function() {
+      if (navigationSequence !== tocNavigationSequence) return;
+      var heading = document.getElementById(headingId);
+      if (!heading) return;
+
+      // 使用点击时的实际位置，避免异步 SVG 插入改变标题高度后跳错章节。
+      var top = heading.getBoundingClientRect().top + window.scrollY;
+      if (window.btf && window.btf.scrollToDest) {
+        window.btf.scrollToDest(top, 300);
+      } else {
+        window.scrollTo({ top: top, behavior: 'smooth' });
+      }
+    });
+  }, true);
+
+})();
+</script>
+<script id="canvas_nest" defer="defer" color="107,159,255" opacity="0.6" zIndex="-1" count="99" mobile="false" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/dist/canvas-nest.min.js"></script></div></body></html>
