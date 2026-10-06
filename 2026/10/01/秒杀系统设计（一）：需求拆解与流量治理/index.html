@@ -1,0 +1,1367 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="dark"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>秒杀系统设计（一）：需求拆解与流量治理 | 青山木</title><meta name="author" content="青山木"><meta name="copyright" content="青山木"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#0d1117"><meta name="description" content="秒杀的本质是漏斗，不是堆机器。作为系列第一篇，本文先拆解秒杀的功能与非功能需求（一人一单、防超卖、支持海量用户抢购），再用一段朴素代码暴露三类高并发问题，然后按&quot;由外到内&quot;的顺序逐层削流量：接入层的架构层次设计（单机 Nginx → 集群 → LVS&#x2F;F5 → DNS 轮询）、Nginx 限流与 OpenResty、应用层令牌桶、Redis 挡量与 MQ 削峰，并给出 MQ 选型建议与每一层的坑点">
+<meta property="og:type" content="article">
+<meta property="og:title" content="秒杀系统设计（一）：需求拆解与流量治理">
+<meta property="og:url" content="https://li-s-h.github.io/2026/10/01/%E7%A7%92%E6%9D%80%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9A%E9%9C%80%E6%B1%82%E6%8B%86%E8%A7%A3%E4%B8%8E%E6%B5%81%E9%87%8F%E6%B2%BB%E7%90%86/index.html">
+<meta property="og:site_name" content="青山木">
+<meta property="og:description" content="秒杀的本质是漏斗，不是堆机器。作为系列第一篇，本文先拆解秒杀的功能与非功能需求（一人一单、防超卖、支持海量用户抢购），再用一段朴素代码暴露三类高并发问题，然后按&quot;由外到内&quot;的顺序逐层削流量：接入层的架构层次设计（单机 Nginx → 集群 → LVS&#x2F;F5 → DNS 轮询）、Nginx 限流与 OpenResty、应用层令牌桶、Redis 挡量与 MQ 削峰，并给出 MQ 选型建议与每一层的坑点">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://li-s-h.github.io/img/title-picture/%E7%A7%92%E6%9D%80%E8%AE%BE%E8%AE%A1%E4%B8%80.jpg">
+<meta property="article:published_time" content="2026-10-01T02:00:00.000Z">
+<meta property="article:modified_time" content="2026-10-01T12:40:47.815Z">
+<meta property="article:author" content="青山木">
+<meta property="article:tag" content="Redis">
+<meta property="article:tag" content="MQ">
+<meta property="article:tag" content="RocketMQ">
+<meta property="article:tag" content="Lua">
+<meta property="article:tag" content="秒杀">
+<meta property="article:tag" content="高并发">
+<meta property="article:tag" content="负载均衡">
+<meta property="article:tag" content="漏斗模型">
+<meta property="article:tag" content="分层防御">
+<meta property="article:tag" content="Nginx">
+<meta property="article:tag" content="OpenResty">
+<meta property="article:tag" content="令牌桶">
+<meta property="article:tag" content="限流">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://li-s-h.github.io/img/title-picture/%E7%A7%92%E6%9D%80%E8%AE%BE%E8%AE%A1%E4%B8%80.jpg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "秒杀系统设计（一）：需求拆解与流量治理",
+  "url": "https://li-s-h.github.io/2026/10/01/%E7%A7%92%E6%9D%80%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9A%E9%9C%80%E6%B1%82%E6%8B%86%E8%A7%A3%E4%B8%8E%E6%B5%81%E9%87%8F%E6%B2%BB%E7%90%86/",
+  "image": "https://li-s-h.github.io/img/title-picture/%E7%A7%92%E6%9D%80%E8%AE%BE%E8%AE%A1%E4%B8%80.jpg",
+  "datePublished": "2026-10-01T02:00:00.000Z",
+  "dateModified": "2026-10-01T12:40:47.815Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "青山木",
+      "url": "https://LI-S-H.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/%E5%A4%B4%E5%83%8F.jpg"><link rel="canonical" href="https://li-s-h.github.io/2026/10/01/%E7%A7%92%E6%9D%80%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9A%E9%9C%80%E6%B1%82%E6%8B%86%E8%A7%A3%E4%B8%8E%E6%B5%81%E9%87%8F%E6%B2%BB%E7%90%86/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="stylesheet" href="/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d1117')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', 'ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '秒杀系统设计（一）：需求拆解与流量治理',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><style>
+  #site-title { font-size: 1.76em !important; }
+  #subtitle { font-size: 0.88em !important; }
+
+  /* 卡片悬停放大 + 辉光 */
+  #recent-posts .recent-post-item {
+    transition: transform .3s ease, box-shadow .3s ease, border-color .3s ease;
+  }
+  #recent-posts .recent-post-item:hover {
+    transform: scale(1.025) !important;
+    border-color: rgba(107,159,255,0.5) !important;
+    box-shadow: 0 0 0 1px rgba(107,159,255,0.15),
+                0 0 45px rgba(107,159,255,0.12),
+                0 8px 30px rgba(0,0,0,0.4) !important;
+  }
+
+  /* 首页标题上方头像 */
+  #site-info .avatar-img {
+    display: block;
+    width: 144px;
+    height: 144px;
+    border-radius: 50%;
+    margin: 0 auto 20px;
+    border: 3px solid rgba(107,159,255,0.6);
+    box-shadow: 0 0 30px rgba(107,159,255,0.35),
+                0 0 60px rgba(107,159,255,0.15),
+                0 4px 20px rgba(0,0,0,0.25);
+    object-fit: cover;
+    transition: box-shadow .4s ease, border-color .4s ease;
+  }
+  #site-info .avatar-img:hover {
+    border-color: rgba(107,159,255,0.9);
+    box-shadow: 0 0 40px rgba(107,159,255,0.5),
+                0 0 80px rgba(107,159,255,0.25),
+                0 4px 20px rgba(0,0,0,0.25);
+  }
+
+  /* Mermaid 图表容器样式 */
+  .mermaid-wrap {
+    position: relative;
+    /* 图表固定使用深色画布，主题切换无需销毁并重绘所有 SVG。 */
+    background: #1e1e1e !important;
+    padding: 12px !important;
+    border-radius: 8px !important;
+    border: 1px solid #444 !important;
+    text-align: center;
+    margin: 0 0 20px 0;
+    overflow-x: auto;
+  }
+  .mermaid-wrap > svg {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+  }
+  /* 深色图表画布在两种站点主题下保持一致，避免切换时重排。 */
+  [data-theme="dark"] .mermaid-wrap {
+    background: #1e1e1e !important;
+    border-color: #444 !important;
+  }
+</style>
+<meta name="generator" content="Hexo 7.3.0"></head><body><div class="bg-animation" id="web_bg" style="background-image: url(/img/%E8%83%8C%E6%99%AF%E5%9B%BE2.webp);"></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(/img/title-picture/%E7%A7%92%E6%9D%80%E8%AE%BE%E8%AE%A1%E4%B8%80.jpg);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">青山木</span></a><a class="nav-page-title" href="/"><span class="site-name">秒杀系统设计（一）：需求拆解与流量治理</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">秒杀系统设计（一）：需求拆解与流量治理</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-10-01T02:00:00.000Z" title="发表于 2026-10-01 10:00:00">2026-10-01</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-10-01T12:40:47.815Z" title="更新于 2026-10-01 20:40:47">2026-10-01</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/%E5%90%8E%E7%AB%AF%E5%BC%80%E5%8F%91/">后端开发</a></span></div><div class="meta-secondline"></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><blockquote>
+<p><strong>【系列说明】</strong> 本文是《秒杀系统设计》系列的第 1 篇，共 3 篇。系列主线只有一句话：<strong>秒杀的本质是漏斗，不是堆机器</strong>——让 99.99% 的流量在到达数据库之前就被挡掉。</p>
+<ul>
+<li><strong>第 1 篇（本文）</strong>：需求拆解与流量治理——先想清楚要满足什么需求，再解决&quot;数据库被打爆&quot;</li>
+<li><strong>第 2 篇</strong>：数据正确性——解决&quot;库存超卖&quot;与&quot;一人多单&quot;</li>
+<li><strong>第 3 篇</strong>：规模扩展——大库存、多商品的分片方案，以及到底要几台机器</li>
+</ul>
+<p>建议按顺序阅读，因为<strong>每一章都是被上一章的问题&quot;逼&quot;出来的</strong>。</p>
+</blockquote>
+<blockquote>
+<p><strong>【本篇导读】</strong> 秒杀系统看起来只是&quot;扣个库存&quot;，但它考验的不是&quot;堆多少台机器扛住峰值&quot;，而是&quot;<strong>能不能逐层把流量削下去</strong>&quot;。本篇先把需求和问题讲清楚（第一 ~ 三章：需求与难点、朴素实现暴露的三个问题、漏斗模型与分层架构），再完整展开流量治理的三道闸门（第四 ~ 六章：接入层、应用层令牌桶、Redis 挡量 + MQ 削峰）。<strong>这一篇的目标只有一个：让系统先活下来。</strong></p>
+</blockquote>
+<h2 id="一、需求与难点"><a href="#一、需求与难点" class="headerlink" title="一、需求与难点"></a>一、需求与难点</h2><p>任何架构设计都应该从需求出发。秒杀系统看起来只是&quot;扣个库存&quot;，但真正落地要满足的需求比想象中多，而且每一条需求背后都对应一个技术难点。先把它们列清楚，后面所有设计才有依据。</p>
+<h3 id="1-1-业务场景"><a href="#1-1-业务场景" class="headerlink" title="1.1 业务场景"></a>1.1 业务场景</h3><p>先把场景量化，问题才有体感。假设一次活动：</p>
+<ul>
+<li>商品库存：<strong>100 件</strong></li>
+<li>参与人数：<strong>100 万人</strong></li>
+<li>活动开始瞬间的峰值流量：<strong>50 万 QPS</strong></li>
+</ul>
+<p>这组数字说明一件事：<strong>绝大多数请求注定是失败的</strong>。100 万个人去抢 100 件商品，最终只有 100 个请求是&quot;有效&quot;的，其余 999900 个请求都应该被快速拒绝掉。</p>
+<p>所以秒杀系统的核心目标不是&quot;如何把 100 万请求都处理成功&quot;，而是&quot;<strong>如何用最小的成本，把 999900 个无效请求挡在数据库之外，同时保证那 100 个有效请求绝对不出错</strong>&quot;。</p>
+<h3 id="1-2-功能需求"><a href="#1-2-功能需求" class="headerlink" title="1.2 功能需求"></a>1.2 功能需求</h3><p>从业务视角看，一个合格的秒杀系统必须满足以下需求：</p>
+<table>
+<thead>
+<tr>
+<th>编号</th>
+<th>功能需求</th>
+<th>具体含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>F1</td>
+<td><strong>一人一单</strong></td>
+<td>同一用户对同一商品，只能成功抢购一次，无论他提交多少次请求</td>
+</tr>
+<tr>
+<td>F2</td>
+<td><strong>不超卖</strong></td>
+<td>库存 100 件，绝不能卖出 101 件，这是最硬的红线</td>
+</tr>
+<tr>
+<td>F3</td>
+<td><strong>不少卖</strong></td>
+<td>库存 100 件，在有人抢的情况下应尽量卖出 100 件，不能无故少卖</td>
+</tr>
+<tr>
+<td>F4</td>
+<td><strong>支持海量用户抢购</strong></td>
+<td>几十万甚至上百万人同时抢购，系统不能被冲垮</td>
+</tr>
+<tr>
+<td>F5</td>
+<td><strong>快速失败</strong></td>
+<td>抢不到的用户要在毫秒级收到&quot;已售罄&quot;，而不是超时等待</td>
+</tr>
+<tr>
+<td>F6</td>
+<td><strong>活动时间严格</strong></td>
+<td>活动开始前一秒不能下单，结束后的请求要准确拒绝</td>
+</tr>
+<tr>
+<td>F7</td>
+<td><strong>超时未支付回补库存</strong></td>
+<td>抢到名额但超时未付款，库存要还给其他用户</td>
+</tr>
+<tr>
+<td>F8</td>
+<td><strong>防刷</strong></td>
+<td>脚本和机器人不能把库存刷走，保证普通用户公平参与</td>
+</tr>
+</tbody></table>
+<p>其中 <strong>F1（一人一单）和 F2（不超卖）是正确性需求</strong>，一旦违反就是线上事故；<strong>F4（海量用户抢购）是性能需求</strong>，做不到就整个系统崩溃。这两类需求恰好对应后文的两个解决主线。</p>
+<h3 id="1-3-非功能需求"><a href="#1-3-非功能需求" class="headerlink" title="1.3 非功能需求"></a>1.3 非功能需求</h3><table>
+<thead>
+<tr>
+<th>编号</th>
+<th>非功能需求</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>N1</td>
+<td><strong>高并发</strong></td>
+<td>峰值 QPS 可达几十万，是普通业务接口的数百倍</td>
+</tr>
+<tr>
+<td>N2</td>
+<td><strong>高可用</strong></td>
+<td>秒杀期间系统不可用，会造成严重的品牌和资损问题</td>
+</tr>
+<tr>
+<td>N3</td>
+<td><strong>低延迟</strong></td>
+<td>接口 RT 直接决定吞吐能力，必须尽可能短</td>
+</tr>
+<tr>
+<td>N4</td>
+<td><strong>最终一致</strong></td>
+<td>允许短暂中间状态（如&quot;排队中&quot;），但最终数据必须正确</td>
+</tr>
+<tr>
+<td>N5</td>
+<td><strong>可扩展</strong></td>
+<td>能通过加机器线性提升接入能力</td>
+</tr>
+</tbody></table>
+<p>这里有一个容易被忽略的点：<strong>N3 低延迟和 N1 高并发是强相关的</strong>。根据利特尔法则（并发数 &#x3D; QPS × RT），在服务器线程数固定的情况下，RT 越长，能支撑的 QPS 越低。所以&quot;缩短 RT&quot;不只是体验问题，更是<strong>吞吐量问题</strong>——这也是后面要引入 MQ 异步的原因之一。</p>
+<h3 id="1-4-技术难点：需求背后的四个核心矛盾"><a href="#1-4-技术难点：需求背后的四个核心矛盾" class="headerlink" title="1.4 技术难点：需求背后的四个核心矛盾"></a>1.4 技术难点：需求背后的四个核心矛盾</h3><p>把上面这些需求翻译成技术语言，就归结为四个核心矛盾：</p>
+<table>
+<thead>
+<tr>
+<th>矛盾</th>
+<th>对应的需求</th>
+<th>表现</th>
+<th>后果</th>
+<th>优先级</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>系统雪崩</strong></td>
+<td>F4、N2</td>
+<td>数据库被打爆，链路连锁崩溃</td>
+<td>全站不可用</td>
+<td>★★★★★</td>
+</tr>
+<tr>
+<td><strong>超卖</strong></td>
+<td>F2</td>
+<td>库存 100，卖出 120 件</td>
+<td>资损，最严重</td>
+<td>★★★★★</td>
+</tr>
+<tr>
+<td><strong>少卖</strong></td>
+<td>F3、F7</td>
+<td>库存 100，只卖出 80 件</td>
+<td>流量浪费，业务不满</td>
+<td>★★★</td>
+</tr>
+<tr>
+<td><strong>刷单 &#x2F; 一人多单</strong></td>
+<td>F1、F8</td>
+<td>一人抢到 10 件，脚本刷走库存</td>
+<td>活动失去公平性</td>
+<td>★★★</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>说明：这张表列的是<strong>需求背后的技术矛盾</strong>，所以每一项都能对应到 1.2 里的需求编号。同一个问题（比如超卖）在&quot;需求&quot;和&quot;难点&quot;里各出现一次，是刻意的映射，不是写重了。</p>
+</blockquote>
+<p><strong>优先级排序是：雪崩 &gt; 超卖 &gt; 少卖 &gt; 刷单。</strong></p>
+<p>这个排序很重要，它直接决定了后面的解决顺序：</p>
+<ol>
+<li><strong>雪崩（流量问题）必须最先解决</strong>——它是&quot;能不能活&quot;的问题。数据库被打爆，系统直接就没了，这时候讨论超卖不超卖毫无意义。所以本篇第四 ~ 六章先讲怎么削流量。</li>
+<li><strong>其次是超卖</strong>——它是&quot;数据正不正确&quot;的问题。系统先活下来，才有资格谈数据正确性，对应第二篇的 Redis 侧与数据库侧。</li>
+<li><strong>最后是少卖和刷单</strong>——属于体验与公平性问题，放在第二篇一起处理。</li>
+</ol>
+<p>本篇第三章之后，正是严格按这个优先级展开的。</p>
+<hr>
+<h2 id="二、朴素实现暴露的三个问题"><a href="#二、朴素实现暴露的三个问题" class="headerlink" title="二、朴素实现暴露的三个问题"></a>二、朴素实现暴露的三个问题</h2><p>有了需求，接下来看最直接的实现。<strong>先不要急着优化</strong>，而是把&quot;正常人会怎么写&quot;写出来，然后逐一暴露它在高并发下的问题。这些问题就是后面每一章要攻克的靶子。</p>
+<h3 id="2-1-先描述一下业务逻辑"><a href="#2-1-先描述一下业务逻辑" class="headerlink" title="2.1 先描述一下业务逻辑"></a>2.1 先描述一下业务逻辑</h3><p>抛开所有分布式、高并发的东西，秒杀下单这件事本身的业务逻辑其实很朴素。用大白话讲一遍：</p>
+<ol>
+<li>用户点击&quot;<strong>立即抢购</strong>&quot;，请求打到下单接口，带上用户 ID 和商品 ID</li>
+<li><strong>校验活动状态</strong>：活动是否已开始、是否已结束？没开始或已结束都直接拒绝</li>
+<li><strong>校验购买资格（一人一单）</strong>：这个用户是不是已经抢过了？抢过就直接拒绝</li>
+<li><strong>查询库存</strong>：读取当前商品的剩余库存</li>
+<li><strong>判断库存</strong>：如果库存小于等于 0，说明已售罄，直接拒绝</li>
+<li><strong>扣减库存</strong>：库存减 1</li>
+<li><strong>创建订单</strong>：生成一条待支付订单，记录用户和商品</li>
+<li><strong>返回结果</strong>：告诉用户&quot;抢购成功，请尽快支付&quot;</li>
+</ol>
+<p>再配上&quot;用户支付 &#x2F; 超时未支付&quot;的后续动作，完整流程如下：</p>
+<div class="mermaid-wrap"><pre class="mermaid-src" hidden>flowchart TD
+    S[&quot;用户点击抢购&quot;] --&gt; A1{&quot;活动是否开始?&quot;}
+    A1 --&gt;|未开始 &#x2F; 已结束| R1[&quot;拒绝：活动未开始或已结束&quot;]
+    A1 --&gt;|进行中| A2{&quot;该用户是否已抢过?&quot;}
+    A2 --&gt;|已抢过| R2[&quot;拒绝：请勿重复提交&quot;]
+    A2 --&gt;|未抢过| A3[&quot;查询商品库存&quot;]
+    A3 --&gt; A4{&quot;库存 &gt; 0 ?&quot;}
+    A4 --&gt;|否| R3[&quot;拒绝：已售罄&quot;]
+    A4 --&gt;|是| A5[&quot;扣减库存&quot;]
+    A5 --&gt; A6[&quot;创建待支付订单&quot;]
+    A6 --&gt; A7[&quot;返回：抢购成功&quot;]
+    A7 --&gt; P1{&quot;用户是否支付?&quot;}
+    P1 --&gt;|支付| P2[&quot;订单状态：已支付&quot;]
+    P1 --&gt;|超时未支付| P3[&quot;取消订单 + 回补库存&quot;]
+
+    style A5 fill:#fff3cd
+    style A6 fill:#fff3cd
+    style P3 fill:#ffe0e0</pre></div>
+
+<p>这张图是&quot;理想状态&quot;下的流程，每一步都按顺序执行、互不干扰。<strong>在单机、低并发下，它完全正确。</strong> 问题出在——秒杀场景下，这些步骤会被几十万个请求<strong>同时</strong>执行。</p>
+<h3 id="2-2-朴素实现的代码"><a href="#2-2-朴素实现的代码" class="headerlink" title="2.2 朴素实现的代码"></a>2.2 朴素实现的代码</h3><p>把上面的流程翻译成代码，就是最常见的写法：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Transactional(rollbackFor = Exception.class)</span></span><br><span class="line"><span class="keyword">public</span> SeckillResult <span class="title function_">seckill</span><span class="params">(Long userId, Long goodsId)</span> &#123;</span><br><span class="line">    <span class="comment">// 1. 校验活动状态</span></span><br><span class="line">    <span class="type">SeckillActivity</span> <span class="variable">activity</span> <span class="operator">=</span> activityMapper.selectById(goodsId);</span><br><span class="line">    <span class="keyword">if</span> (activity == <span class="literal">null</span> || !activity.isOngoing()) &#123;</span><br><span class="line">        <span class="keyword">return</span> SeckillResult.fail(<span class="string">&quot;活动已结束&quot;</span>);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 2. 校验一人一单</span></span><br><span class="line">    <span class="type">Long</span> <span class="variable">count</span> <span class="operator">=</span> orderMapper.countByUserAndGoods(userId, goodsId);</span><br><span class="line">    <span class="keyword">if</span> (count &gt; <span class="number">0</span>) &#123;</span><br><span class="line">        <span class="keyword">return</span> SeckillResult.fail(<span class="string">&quot;请勿重复提交&quot;</span>);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 3. 查询库存</span></span><br><span class="line">    <span class="type">Integer</span> <span class="variable">stock</span> <span class="operator">=</span> goodsMapper.selectStock(goodsId);</span><br><span class="line">    <span class="keyword">if</span> (stock == <span class="literal">null</span> || stock &lt;= <span class="number">0</span>) &#123;</span><br><span class="line">        <span class="keyword">return</span> SeckillResult.fail(<span class="string">&quot;已售罄&quot;</span>);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 4. 扣减库存</span></span><br><span class="line">    goodsMapper.updateStock(goodsId, stock - <span class="number">1</span>);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 5. 创建订单</span></span><br><span class="line">    orderMapper.insert(<span class="keyword">new</span> <span class="title class_">Order</span>(userId, goodsId, OrderStatus.UNPAID));</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> SeckillResult.success();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>对应的 SQL：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">-- 查库存</span></span><br><span class="line"><span class="keyword">SELECT</span> stock <span class="keyword">FROM</span> goods <span class="keyword">WHERE</span> id <span class="operator">=</span> <span class="number">1</span>;</span><br><span class="line"><span class="comment">-- 扣库存</span></span><br><span class="line"><span class="keyword">UPDATE</span> goods <span class="keyword">SET</span> stock <span class="operator">=</span> #&#123;stock&#125; <span class="keyword">WHERE</span> id <span class="operator">=</span> <span class="number">1</span>;</span><br><span class="line"><span class="comment">-- 查是否已下单</span></span><br><span class="line"><span class="keyword">SELECT</span> <span class="built_in">COUNT</span>(<span class="operator">*</span>) <span class="keyword">FROM</span> orders <span class="keyword">WHERE</span> user_id <span class="operator">=</span> #&#123;userId&#125; <span class="keyword">AND</span> goods_id <span class="operator">=</span> #&#123;goodsId&#125;;</span><br><span class="line"><span class="comment">-- 创建订单</span></span><br><span class="line"><span class="keyword">INSERT INTO</span> orders (user_id, goods_id, status) <span class="keyword">VALUES</span> (#&#123;userId&#125;, #&#123;goodsId&#125;, <span class="number">0</span>);</span><br></pre></td></tr></table></figure>
+
+<p>这段代码逻辑上完全正确，<strong>在单机、低并发环境下没有任何问题</strong>。但把它放到 50 万 QPS 的秒杀场景下，会暴露出三个高并发问题。</p>
+<h3 id="2-3-高并发问题一：数据库被打爆（流量问题）"><a href="#2-3-高并发问题一：数据库被打爆（流量问题）" class="headerlink" title="2.3 高并发问题一：数据库被打爆（流量问题）"></a>2.3 高并发问题一：数据库被打爆（流量问题）</h3><p>这是<strong>最紧迫</strong>的问题——它决定了系统能不能活下来。</p>
+<p>50 万 QPS 全部落到这段代码上，意味着：</p>
+<ul>
+<li><strong>50 万次查询活动</strong>：每次都要访问数据库</li>
+<li><strong>50 万次查询是否已下单</strong>：每次都要走一遍 <code>orders</code> 表的查询（这个表还是超大表）</li>
+<li><strong>50 万次查询库存 + 50 万次更新库存</strong>：全部打在同一行上</li>
+<li><strong>50 万次插入订单</strong>：写操作，还要维护索引</li>
+</ul>
+<p>而 MySQL 单机通常只能扛<strong>几千 QPS</strong>。50 万 QPS 打过来，直接被打爆。</p>
+<p>更严重的是<strong>连锁反应</strong>：</p>
+<div class="mermaid-wrap"><pre class="mermaid-src" hidden>flowchart LR
+    A[&quot;50 万 QPS 涌入应用&quot;] --&gt; B[&quot;应用线程池被占满&quot;]
+    B --&gt; C[&quot;数据库连接池耗尽&quot;]
+    C --&gt; D[&quot;SQL 全部排队等待&quot;]
+    D --&gt; E[&quot;接口 RT 从 10ms 涨到 10s&quot;]
+    E --&gt; F[&quot;前端大量超时重试&quot;]
+    F --&gt; A2[&quot;流量进一步放大&quot;]
+    A2 --&gt; B
+    E --&gt; G[&quot;数据库 CPU 打满 &#x2F; 慢查询堆积&quot;]
+    G --&gt; H[&quot;其它业务也查不了库&quot;]
+    H --&gt; I[&quot;全站雪崩&quot;]
+
+    style I fill:#ffe0e0</pre></div>
+
+<p><strong>这就是优先级最高的&quot;雪崩&quot;问题</strong>。注意它的特点：<strong>不是因为某段代码写错了，而是因为流量太大，把下游依赖（数据库）压垮了</strong>。所以它的解法不是&quot;改逻辑&quot;，而是&quot;<strong>削流量</strong>&quot;——在请求到达数据库之前，把它挡掉。</p>
+<h3 id="2-4-高并发问题二：超卖（数据一致性问题）"><a href="#2-4-高并发问题二：超卖（数据一致性问题）" class="headerlink" title="2.4 高并发问题二：超卖（数据一致性问题）"></a>2.4 高并发问题二：超卖（数据一致性问题）</h3><p>即使数据库扛得住，还有第二个问题：<strong>超卖</strong>。</p>
+<p>看第 3、4 步——&quot;查询库存&quot;和&quot;扣减库存&quot;是两条独立的 SQL，中间存在一个<strong>时间窗口</strong>。两个请求同时到达时：</p>
+<div class="mermaid-wrap"><pre class="mermaid-src" hidden>sequenceDiagram
+    participant A as 请求A
+    participant B as 请求B
+    participant DB as MySQL
+
+    Note over A,DB: 库存只剩 1 件
+    A-&gt;&gt;DB: 1. 查询库存 &#x3D; 1
+    B-&gt;&gt;DB: 2. 查询库存 &#x3D; 1
+    Note over A,B: 两个请求都判断 1 &gt; 0，都认为自己可以扣
+    A-&gt;&gt;DB: 3. UPDATE stock &#x3D; stock - 1
+    B-&gt;&gt;DB: 4. UPDATE stock &#x3D; stock - 1
+    Note over DB: ❌ 最终库存 &#x3D; -1，卖出了 2 件</pre></div>
+
+<p>问题出在第 1、2 步和第 3、4 步之间：&quot;<strong>读—判断—写</strong>&quot;三步不是原子的。两个请求都在窗口内读到了同一个库存值 <code>1</code>，都通过了 <code>stock &gt; 0</code> 的判断，于是都执行了扣减。</p>
+<blockquote>
+<p><strong>这是本文反复出现的核心规律：凡是&quot;读—判断—写&quot;不是原子的地方，在并发下就会出错。</strong> 后面 Redis 用 Lua、数据库用原子 SQL，本质都是在修复这个问题。</p>
+</blockquote>
+<h3 id="2-5-高并发问题三：一人多单（幂等性问题）"><a href="#2-5-高并发问题三：一人多单（幂等性问题）" class="headerlink" title="2.5 高并发问题三：一人多单（幂等性问题）"></a>2.5 高并发问题三：一人多单（幂等性问题）</h3><p>第 2 步的&quot;校验一人一单&quot;同样不可靠——它和创建订单之间也有窗口期。</p>
+<div class="mermaid-wrap"><pre class="mermaid-src" hidden>sequenceDiagram
+    participant U as 同一用户
+    participant APP as 应用
+    participant DB as MySQL
+
+    U-&gt;&gt;APP: 请求1
+    U-&gt;&gt;APP: 请求2（几乎同时）
+    APP-&gt;&gt;DB: 请求1：查询是否已下单 → 0 条
+    APP-&gt;&gt;DB: 请求2：查询是否已下单 → 0 条
+    Note over APP: 两个请求都认为&quot;没下过单&quot;
+    APP-&gt;&gt;DB: 请求1：INSERT 订单
+    APP-&gt;&gt;DB: 请求2：INSERT 订单
+    Note over DB: ❌ 同一用户生成了 2 条订单</pre></div>
+
+<p>用户用脚本刷、或者手速飞快，同时发出多个请求，就能绕过校验，抢到多件。这违反了 F1（一人一单）和 F8（防刷）。</p>
+<p><strong>根因和超卖完全一样</strong>：又是&quot;读—判断—写&quot;不原子。所以它们的解法也相通——要么用<strong>原子操作</strong>，要么用<strong>唯一约束</strong>兜底。</p>
+<h3 id="2-6-问题梳理与解决顺序"><a href="#2-6-问题梳理与解决顺序" class="headerlink" title="2.6 问题梳理与解决顺序"></a>2.6 问题梳理与解决顺序</h3><p>把三个问题排个序，就得到了整个系列的技术路线：</p>
+<table>
+<thead>
+<tr>
+<th>问题</th>
+<th>类型</th>
+<th>危害</th>
+<th>解法方向</th>
+<th>对应章节</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>问题一：数据库被打爆</strong></td>
+<td>流量 &#x2F; 可用性</td>
+<td>全站雪崩</td>
+<td><strong>削流量</strong>：分层拦截 + 异步化</td>
+<td>本篇第四 ~ 六章</td>
+</tr>
+<tr>
+<td><strong>问题二：超卖</strong></td>
+<td>数据一致性</td>
+<td>资损</td>
+<td><strong>保证原子性</strong>：Lua &#x2F; 原子 SQL &#x2F; 锁</td>
+<td>第二篇第一 ~ 二章</td>
+</tr>
+<tr>
+<td><strong>问题三：一人多单</strong></td>
+<td>幂等性</td>
+<td>不公平、资损</td>
+<td><strong>幂等 + 唯一约束</strong></td>
+<td>第二篇第三章</td>
+</tr>
+</tbody></table>
+<p><strong>为什么是这个顺序？</strong> 因为问题一是&quot;生死问题&quot;——数据库挂了，超卖不超卖都没意义了。所以必须<strong>先解决流量，再解决一致性</strong>。而问题二和问题三都属于&quot;数据要正确&quot;，可以放在一起解决。</p>
+<blockquote>
+<p><strong>拓展点：当&quot;单商品库存很大&quot;或&quot;同时秒杀大量商品&quot;时，需要做库存分片。</strong></p>
+<p>小结一下：上面三个问题的解法，都建立在&quot;<strong>一个商品、库存只有 100 件</strong>&quot;这个前提上。那么如果这个前提被打破了呢？</p>
+<ul>
+<li>如果<strong>单商品的库存很大</strong>（比如大促放量 10 万件），那么单个 Redis key、单行库存记录就会成为新的热点，扣减能力跟不上；</li>
+<li>如果<strong>同时秒杀大量商品</strong>（比如一次活动开抢几百个商品），那么所有订单都写进同一个库，单库的写入能力和连接数会先撑不住。</li>
+</ul>
+<p>这两种情况，都是在基础问题解决完之后才需要继续考虑的<strong>拓展场景</strong>，统一的解法方向是<strong>库存分片</strong>——把库存拆成多个桶、把不同商品拆到不同库，让热点分散开。这部分放在《秒杀系统设计（三）：规模扩展》展开。</p>
+</blockquote>
+<hr>
+<h2 id="三、全局设计：漏斗模型与分层架构"><a href="#三、全局设计：漏斗模型与分层架构" class="headerlink" title="三、全局设计：漏斗模型与分层架构"></a>三、全局设计：漏斗模型与分层架构</h2><p>先不要急着看具体方案。这一章先把全局看清楚，给出两样东西：<strong>一个是全文的核心认知——漏斗模型；一个是完整链路图与每层职责。</strong></p>
+<h3 id="3-1-核心认知：漏斗模型"><a href="#3-1-核心认知：漏斗模型" class="headerlink" title="3.1 核心认知：漏斗模型"></a>3.1 核心认知：漏斗模型</h3><p>这是全文最重要的一张图，后面的所有章节都可以回看它：</p>
+<div class="mermaid-wrap"><pre class="mermaid-src" hidden>flowchart TD
+    A[&quot;用户请求 50 万 QPS&quot;] --&gt; B[&quot;前端：静态化 &#x2F; 按钮置灰 &#x2F; 验证码&quot;]
+    B --&gt; C[&quot;LVS + Nginx：IP 限流、URL 限流&quot;]
+    C --&gt; D[&quot;应用层：令牌桶限流&quot;]
+    D --&gt; E[&quot;Redis：原子预减库存（Lua）&quot;]
+    E --&gt; F[&quot;MQ：异步削峰&quot;]
+    F --&gt; G[&quot;消费者：DB 扣减 + 创建订单&quot;]
+    G --&gt; H[&quot;DB：最终只有 100 次写入&quot;]
+
+    style A fill:#ffe0e0
+    style E fill:#fff3cd
+    style H fill:#d4edda</pre></div>
+
+<p>沿着这条链路，流量是一层层衰减的：</p>
+<ul>
+<li><strong>前端</strong>：把静态资源甩给 CDN，把无效点击干掉</li>
+<li><strong>接入层</strong>：用 Nginx 限流，从 50 万砍到 20 万</li>
+<li><strong>应用层</strong>：用令牌桶，从 20 万砍到 10 万</li>
+<li><strong>缓存层</strong>：Redis 里只有 100 个库存，<strong>最多只有 100 次扣减能成功</strong></li>
+<li><strong>存储层</strong>：MQ 缓冲后，DB 只需要处理 100 次写入</li>
+</ul>
+<p><strong>最终结论</strong>：数据库根本不需要扛 50 万 QPS，它只需要扛 100 次写入。真正需要扛住 50 万的，是<strong>最外层的接入能力</strong>。</p>
+<blockquote>
+<p>这就是为什么秒杀不靠堆机器：节点数是逐层算出来的结果，不是拍脑袋定的手段。《秒杀系统设计（三）：规模扩展》会给出具体算法。</p>
+</blockquote>
+<h3 id="3-2-完整链路与每层职责"><a href="#3-2-完整链路与每层职责" class="headerlink" title="3.2 完整链路与每层职责"></a>3.2 完整链路与每层职责</h3><p>看清楚漏斗之后，再给出完整链路图。本篇后四章，以及后面两篇的每一章，都对应这张图里的一个环节。</p>
+<div class="mermaid-wrap"><pre class="mermaid-src" hidden>flowchart LR
+    U[&quot;用户&quot;] --&gt; DNS[&quot;DNS 轮询&quot;]
+    DNS --&gt; CDN[&quot;CDN静态资源&quot;]
+    DNS --&gt; LVS[&quot;LVS &#x2F; F5四层负载均衡&quot;]
+    LVS --&gt; NG[&quot;Nginx &#x2F; OpenResty七层 + 限流&quot;]
+    NG --&gt; APP[&quot;应用集群令牌桶 + 业务&quot;]
+    APP --&gt; R[&quot;Redis 集群预减库存&quot;]
+    APP --&gt; MQ[&quot;MQ削峰缓冲&quot;]
+    MQ --&gt; CON[&quot;消费者下单&quot;]
+    CON --&gt; DB[(&quot;MySQL最终落库&quot;)]</pre></div>
+
+<p>各层的职责如下：</p>
+<table>
+<thead>
+<tr>
+<th>层级</th>
+<th>组件</th>
+<th>核心职责</th>
+<th>主要解决的问题</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>前端</td>
+<td>CDN + 浏览器</td>
+<td>静态化、按钮置灰、验证码</td>
+<td>干掉无效请求</td>
+</tr>
+<tr>
+<td>四层接入</td>
+<td>LVS &#x2F; F5</td>
+<td>超高并发转发，不做业务逻辑</td>
+<td>分摊全局流量</td>
+</tr>
+<tr>
+<td>七层接入</td>
+<td>Nginx &#x2F; OpenResty</td>
+<td>动静分离、限流、WAF</td>
+<td>从源头砍流量</td>
+</tr>
+<tr>
+<td>应用层</td>
+<td>Java 集群</td>
+<td>令牌桶、Redis 扣减、发 MQ</td>
+<td>业务级限流</td>
+</tr>
+<tr>
+<td>缓存层</td>
+<td>Redis</td>
+<td>预减库存，挡住 DB</td>
+<td><strong>挡流量 + 防超卖</strong></td>
+</tr>
+<tr>
+<td>消息层</td>
+<td>MQ</td>
+<td>削峰、解耦、异步</td>
+<td>保护 DB</td>
+</tr>
+<tr>
+<td>存储层</td>
+<td>MySQL</td>
+<td>最终一致落库</td>
+<td>只需处理少量写入</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p><strong>先解释一下表里的&quot;四层接入&quot;和&quot;七层接入&quot;是什么意思。</strong></p>
+<p>这里的&quot;四层 &#x2F; 七层&quot;指的是 <strong>OSI 网络模型的层级</strong>，说的是这个组件<strong>工作在哪一层、能不能看懂 HTTP 内容</strong>：</p>
+<ul>
+<li><strong>四层接入</strong>：工作在<strong>传输层</strong>，只看得到 TCP&#x2F;UDP 的 IP 和端口，<strong>看不懂 HTTP 内容</strong>。它干的事就是&quot;把连接转发给后面的服务器&quot;，所以速度极快（LVS 单机可扛几十万 QPS）。代表组件是 LVS、F5。</li>
+<li><strong>七层接入</strong>：工作在<strong>应用层</strong>，能<strong>看懂 HTTP 协议</strong>——知道用户请求的是哪个 URL、带了什么 Header、用的什么方法。正因为能看懂内容，它才能做动静分离、按 URL 精确限流、请求改写。代价是要解析协议，性能比四层低一个数量级（Nginx 单机几万 QPS）。</li>
+</ul>
+<p>一句话记忆：<strong>四层只转发连接，七层能看懂内容。</strong> 也正因如此，秒杀链路里通常是&quot;<strong>四层扛量、七层做业务</strong>&quot;的搭配——本篇第四章会完整推演这个结论是怎么来的。</p>
+</blockquote>
+<h3 id="3-3-分层防御的核心思想"><a href="#3-3-分层防御的核心思想" class="headerlink" title="3.3 分层防御的核心思想"></a>3.3 分层防御的核心思想</h3><p>很多人的第一反应是：&quot;加一层就多一个故障点，是不是过度设计？&quot;</p>
+<p>恰恰相反，<strong>分层的目的就是为了限制故障的扩散范围</strong>。每一层的设计逻辑都是同一句话：</p>
+<blockquote>
+<p>这一层的职责，是把上一层的流量削减到一个<strong>下一层能承受</strong>的量级。</p>
+</blockquote>
+<ul>
+<li>如果 Nginx 不砍流量，应用层会被打挂</li>
+<li>如果应用层不砍流量，Redis 会成热点</li>
+<li>如果 Redis 不挡库存，DB 会被打爆</li>
+<li>如果 DB 被打爆，整条链路雪崩</li>
+</ul>
+<p><strong>每一层都是下一层的保护伞</strong>，这就是&quot;分层防御&quot;。下面按&quot;先流量、后一致性&quot;的顺序，逐层展开。</p>
+<hr>
+<h2 id="四、接入层：从单机-Nginx-到多级负载均衡"><a href="#四、接入层：从单机-Nginx-到多级负载均衡" class="headerlink" title="四、接入层：从单机 Nginx 到多级负载均衡"></a>四、接入层：从单机 Nginx 到多级负载均衡</h2><p>问题一（数据库被打爆）的解法，核心思路是<strong>在请求到达数据库之前把它拦掉</strong>，而且拦截越靠前、成本越低。所以第一道防线就在接入层。</p>
+<p>这一章不直接罗列&quot;要上哪些组件&quot;，而是<strong>从一台机器开始，一层一层往上推</strong>：单机什么时候够用、什么时候必须集群、集群之后又引出什么新问题、这个问题该由谁来解决。推演出来的这套层次，就是接入层的架构设计。</p>
+<h3 id="4-1-层次一：动静分离——先把无效流量卸掉"><a href="#4-1-层次一：动静分离——先把无效流量卸掉" class="headerlink" title="4.1 层次一：动静分离——先把无效流量卸掉"></a>4.1 层次一：动静分离——先把无效流量卸掉</h3><p>秒杀页面通常是<strong>静态页面</strong>（商品信息、倒计时、按钮）。优化的第一步不是加机器，而是<strong>把根本不需要后端处理的请求摘出去</strong>：</p>
+<ul>
+<li>HTML、CSS、JS、图片全部走 CDN，Nginx 不参与</li>
+<li>页面数据（库存、开始时间）在活动开始前<strong>静态化</strong>写入，避免每次请求都查库</li>
+<li>动态请求只保留&quot;点击下单&quot;这一个接口</li>
+</ul>
+<p><strong>这一步的收益</strong>：原本 50 万 QPS 里可能有 90% 是刷新页面、加载资源，现在这部分完全不落到后端。</p>
+<p><strong>这就是架构设计的第一原则：能不在后端做的，就不在后端做。</strong></p>
+<h3 id="4-2-层次二：一台-Nginx-能扛多少-QPS"><a href="#4-2-层次二：一台-Nginx-能扛多少-QPS" class="headerlink" title="4.2 层次二：一台 Nginx 能扛多少 QPS"></a>4.2 层次二：一台 Nginx 能扛多少 QPS</h3><p>卸掉静态流量后，剩下的动态请求由 Nginx 承接。但<strong>要不要集群，取决于单机能扛多少</strong>——所以先给出一个基线（参考值，实际必须压测）：</p>
+<table>
+<thead>
+<tr>
+<th>场景</th>
+<th>单机能力（4C8G 云服务器，参考值）</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>纯 HTTP 反向代理</td>
+<td>3 万 ~ 5 万 QPS</td>
+</tr>
+<tr>
+<td>反向代理 + HTTPS 卸载</td>
+<td>1 万 ~ 2 万 QPS</td>
+</tr>
+<tr>
+<td>叠加 Lua 业务逻辑（OpenResty）</td>
+<td>几千 ~ 1 万 QPS</td>
+</tr>
+</tbody></table>
+<p>有了这个基线，就能判断该用几台：</p>
+<ul>
+<li><strong>峰值 1 万 QPS</strong> → 一台 Nginx 就够，<strong>不需要集群</strong>，架构极简</li>
+<li><strong>峰值 10 万 QPS</strong> → 至少 2~3 台，还要考虑高可用，<strong>开始需要集群</strong></li>
+<li><strong>峰值 50 万 QPS</strong> → 按 5 万单机能力算也要 10 台以上，<strong>必须集群</strong></li>
+</ul>
+<p><strong>关键认知：架构不是一开始就上集群的，要不要集群要根据 QPS 来判断。</strong> 具体做法是：先压测出单机 Nginx 的实际 QPS 上限，再拿业务峰值 QPS 和它对比——峰值没有超过单机能力，一台 Nginx 就是整个接入层；超过了单机能力，才需要考虑集群。前面那张单机能力表，就是做这个判断的依据。</p>
+<h3 id="4-3-层次三：Nginx-集群——集群之后，谁来做负载均衡"><a href="#4-3-层次三：Nginx-集群——集群之后，谁来做负载均衡" class="headerlink" title="4.3 层次三：Nginx 集群——集群之后，谁来做负载均衡"></a>4.3 层次三：Nginx 集群——集群之后，谁来做负载均衡</h3><p>单机不够，最自然的做法是<strong>横向扩展到 N 台 Nginx</strong>，每台都完整部署一份限流规则和转发配置。</p>
+<p>但立刻出现一个新问题：<strong>这 N 台 Nginx，客户端该访问哪一台？</strong></p>
+<p>Nginx 是被访问的一方，它没法给自己分配流量。所以集群之后，必然需要一个<strong>上游的、专门做流量分发</strong>的角色——负载均衡器。</p>
+<p>最直觉的想法是&quot;从原来的机器里挑一台出来，专门做负载均衡&quot;。但这会带来两个致命问题：</p>
+<ul>
+<li><strong>它成了单点</strong>：这台机器挂了，整个 Nginx 集群就全部不可用</li>
+<li><strong>它成了瓶颈</strong>：所有流量都要先经过它，它的处理能力就是<strong>整个系统的天花板</strong>。而 Nginx 本身是<strong>七层</strong>组件，要解析 HTTP 协议，单机也就几万 QPS，根本承接不了 50 万 QPS</li>
+</ul>
+<p>也就是说：<strong>Nginx 集群之后，它自己无法承担给自己的负载均衡——必须引入一个更底层、性能更强的组件。</strong> 这就引出了四层负载均衡。</p>
+<h3 id="4-4-层次四：引入四层负载均衡-LVS-F5"><a href="#4-4-层次四：引入四层负载均衡-LVS-F5" class="headerlink" title="4.4 层次四：引入四层负载均衡 LVS &#x2F; F5"></a>4.4 层次四：引入四层负载均衡 LVS &#x2F; F5</h3><p>四层负载均衡工作在<strong>传输层</strong>，它<strong>不解析 HTTP</strong>，只做 TCP 连接的转发，因此性能比 Nginx 高一个数量级。</p>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>四层负载均衡（LVS &#x2F; F5）</th>
+<th>七层负载均衡（Nginx）</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>工作层次</td>
+<td>传输层（TCP&#x2F;UDP）</td>
+<td>应用层（HTTP）</td>
+</tr>
+<tr>
+<td>是否解析 HTTP</td>
+<td>不解析，只转发连接</td>
+<td>解析，可改包、可重写</td>
+</tr>
+<tr>
+<td>性能</td>
+<td>极高（LVS 单机几十万 QPS，F5 可达百万级）</td>
+<td>较高（单机几万 QPS）</td>
+</tr>
+<tr>
+<td>能否做限流&#x2F;路由</td>
+<td>基本不能</td>
+<td>可以，且能按 URL &#x2F; Header</td>
+</tr>
+<tr>
+<td>典型用途</td>
+<td>最外层承接海量流量</td>
+<td>内层做业务路由与限流</td>
+</tr>
+</tbody></table>
+<p>常见的两种落地形态：</p>
+<ul>
+<li><strong>LVS</strong>：开源的软件四层负载均衡，部署在普通服务器上，成本低，单机可扛几十万 QPS</li>
+<li><strong>F5</strong>：硬件负载均衡设备，性能更强（百万级）、功能更全（SSL 卸载、防护等），但价格昂贵，一般用在超大规模或金融级场景</li>
+</ul>
+<p><strong>于是接入层形成了第二级结构</strong>：最外层用 LVS &#x2F; F5 做四层分发，把流量打给下面的 Nginx 集群；Nginx 再做七层限流和业务路由。</p>
+<p><strong>这也回答了 4.3 的问题</strong>：给 Nginx 集群做负载均衡的，不是 Nginx 自己，而是更底层的 LVS &#x2F; F5。</p>
+<h3 id="4-5-层次五：LVS-也不能是单点——主备与多集群"><a href="#4-5-层次五：LVS-也不能是单点——主备与多集群" class="headerlink" title="4.5 层次五：LVS 也不能是单点——主备与多集群"></a>4.5 层次五：LVS 也不能是单点——主备与多集群</h3><p>问题还没完。这里有两个坑点必须处理：<strong>LVS 成了整个系统的唯一入口，一是它挂了整个系统就挂了（单点），二是它的处理能力就是整个系统的天花板（瓶颈）。</strong> 所以需要纵横两个方向同时做：</p>
+<ul>
+<li><strong>纵向（高可用）</strong>：用 <strong>keepalived + VIP</strong> 做 LVS 主备。对外只暴露一个虚拟 IP（VIP），请求实际由主节点处理；主节点宕机后，VIP 自动漂移到备节点，客户端无感知。</li>
+<li><strong>横向（扩容）</strong>：如果单组 LVS 也扛不住全部流量，就在最外层加 <strong>DNS 轮询</strong>，把用户解析到不同的 LVS 集群。比如 <code>seckill.example.com</code> 解析出多个 IP，用户被分散到 A、B 两个 LVS 集群，每个集群内部各自做主备。</li>
+</ul>
+<p><strong>至此，接入层的层次就成型了</strong>：DNS 轮询 → LVS（每组主备）→ Nginx 集群 → 应用集群。</p>
+<h3 id="4-6-接入层的完整层次图"><a href="#4-6-接入层的完整层次图" class="headerlink" title="4.6 接入层的完整层次图"></a>4.6 接入层的完整层次图</h3><p>把上面的推演结果画成一张图：</p>
+<div class="mermaid-wrap"><pre class="mermaid-src" hidden>flowchart TD
+    U[&quot;用户&quot;] --&gt; DNS[&quot;DNS 轮询&quot;]
+    DNS --&gt; A1[&quot;LVS 集群 A主 + 备（keepalived + VIP）&quot;]
+    DNS --&gt; A2[&quot;LVS 集群 B主 + 备&quot;]
+    A1 --&gt; NG1[&quot;Nginx 1&quot;]
+    A1 --&gt; NG2[&quot;Nginx 2&quot;]
+    A1 --&gt; NG3[&quot;Nginx N&quot;]
+    A2 --&gt; NG4[&quot;Nginx ...&quot;]
+    NG1 --&gt; APP[&quot;应用集群&quot;]
+    NG2 --&gt; APP
+    NG3 --&gt; APP
+    NG4 --&gt; APP
+
+    style A1 fill:#e7f1ff
+    style A2 fill:#e7f1ff
+    style NG1 fill:#d4edda
+    style NG2 fill:#d4edda
+    style NG3 fill:#d4edda</pre></div>
+
+<p>回顾一下这条推演链：</p>
+<table>
+<thead>
+<tr>
+<th>层次</th>
+<th>解决的问题</th>
+<th>为什么需要它</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>静态化 &#x2F; CDN</td>
+<td>卸载静态流量</td>
+<td>从源头减少请求</td>
+</tr>
+<tr>
+<td>单机 Nginx</td>
+<td>承接动态流量</td>
+<td>流量小，单机够用</td>
+</tr>
+<tr>
+<td>Nginx 集群</td>
+<td>突破单机能力上限</td>
+<td>峰值超过单机几万 QPS</td>
+</tr>
+<tr>
+<td>LVS &#x2F; F5</td>
+<td>给 Nginx 集群做负载均衡</td>
+<td>集群后需要上游分发，而 Nginx 自己性能不够</td>
+</tr>
+<tr>
+<td>keepalived + VIP</td>
+<td>LVS 高可用</td>
+<td>LVS 成了唯一入口，不能挂</td>
+</tr>
+<tr>
+<td>DNS 轮询</td>
+<td>LVS 集群扩容</td>
+<td>单组 LVS 也扛不住全部流量</td>
+</tr>
+</tbody></table>
+<p><strong>这就是&quot;架构层次设计&quot;的思维方式</strong>：每一层都不是凭空出现的，而是被上一层的问题逼出来的。</p>
+<h3 id="4-7-层次六：在-Nginx-上做限流"><a href="#4-7-层次六：在-Nginx-上做限流" class="headerlink" title="4.7 层次六：在 Nginx 上做限流"></a>4.7 层次六：在 Nginx 上做限流</h3><p>光有层次还不够，还要<strong>主动砍流量</strong>。Nginx 提供两个现成的限流模块。</p>
+<p><strong>（1）<code>limit_req</code>：基于漏桶算法的速率限流</strong></p>
+<figure class="highlight nginx"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="section">http</span> &#123;</span><br><span class="line">    <span class="comment"># 定义限流区：按 IP 限流，共享内存 10MB，速率 10 次/秒</span></span><br><span class="line">    <span class="attribute">limit_req_zone</span> <span class="variable">$binary_remote_addr</span> zone=perip:<span class="number">10m</span> rate=10r/s;</span><br><span class="line"></span><br><span class="line">    <span class="section">server</span> &#123;</span><br><span class="line">        <span class="section">location</span> /seckill/order &#123;</span><br><span class="line">            <span class="comment"># burst=20：允许突发 20 个请求排队</span></span><br><span class="line">            <span class="comment"># nodelay：突发的请求立即处理，不排队延迟</span></span><br><span class="line">            <span class="attribute">limit_req</span> zone=perip burst=<span class="number">20</span> nodelay;</span><br><span class="line">            <span class="attribute">limit_req_status</span> <span class="number">429</span>;    <span class="comment"># 超限返回 429</span></span><br><span class="line">            <span class="attribute">proxy_pass</span> http://app_cluster;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><strong>rate</strong>：平均速率，比如 <code>10r/s</code> 表示每个 IP 每秒 10 个请求</li>
+<li><strong>burst</strong>：允许的突发队列长度。漏桶是&quot;恒定速率漏水&quot;，<code>burst</code> 相当于桶的容量</li>
+<li><strong>nodelay</strong>：这 20 个突发请求不排队等待，直接放行；不写则会延迟处理（对秒杀不友好，用户等不起）</li>
+</ul>
+<p><strong>（2）<code>limit_conn</code>：并发连接数限流</strong></p>
+<figure class="highlight nginx"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="attribute">limit_conn_zone</span> <span class="variable">$binary_remote_addr</span> zone=addr:<span class="number">10m</span>;</span><br><span class="line"></span><br><span class="line"><span class="section">server</span> &#123;</span><br><span class="line">    <span class="section">location</span> /seckill/ &#123;</span><br><span class="line">        <span class="attribute">limit_conn</span> addr <span class="number">5</span>;    <span class="comment"># 每个 IP 最多 5 个并发连接</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>坑点一：限流拿到的可能不是真实用户 IP。</strong><br><code>$binary_remote_addr</code> 取的是<strong>直接连到 Nginx 的那个 IP</strong>。但秒杀链路前面还有 LVS &#x2F; CDN，所以 Nginx 看到的 <code>remote_addr</code> 其实是代理的 IP——这会导致所有用户<strong>共用同一个限流桶</strong>：阈值很快被少数用户打满，其余用户被集体误伤，限流形同虚设。应该改成取 <code>X-Forwarded-For</code> 里的第一个真实 IP，并且<strong>严格校验</strong>这个头，否则它可以被客户端伪造，直接绕过限流。</p>
+<p><strong>坑点二：Nginx 限流是&quot;单机限流&quot;，不是&quot;集群限流&quot;。</strong><br><code>limit_req_zone</code> 的计数只存在<strong>每台 Nginx 自己的共享内存</strong>里。10 台 Nginx 各算各的，实际放行量就是配置值的 10 倍，限流等于没做。</p>
+<p><strong>这两个坑点，恰好暴露了 Nginx 原生限流的两个根本短板：</strong></p>
+<ol>
+<li><strong>计数是单机的</strong>——集群下无法做全局精确限流；</li>
+<li><strong>规则是静态的</strong>——<code>limit_req</code> &#x2F; <code>limit_conn</code> 只能按 IP、URL 这类<strong>已有字段</strong>限流，做不了那种&quot;必须查一次数据才能判断&quot;的业务逻辑。</li>
+</ol>
+<h3 id="4-8-层次七：OpenResty——让-Nginx-具备业务判断能力"><a href="#4-8-层次七：OpenResty——让-Nginx-具备业务判断能力" class="headerlink" title="4.8 层次七：OpenResty——让 Nginx 具备业务判断能力"></a>4.8 层次七：OpenResty——让 Nginx 具备业务判断能力</h3><p><strong>先说它是怎么来的。</strong></p>
+<p>上面那两个短板，其实指向了同一个诉求：<strong>能不能让 Nginx 自己也&quot;跑一点代码&quot;？</strong></p>
+<ul>
+<li>计数是单机的 → 那就让 Nginx 去读一个<strong>所有节点共享的计数器</strong>（比如 Redis）；</li>
+<li>规则是静态的 → 那就让 Nginx 能执行<strong>一段自定义逻辑</strong>，而不是只认配置文件里的固定指令。</li>
+</ul>
+<p>把这两个诉求合起来，就需要一个&quot;<strong>能在 Nginx 里编程、并且能访问外部存储</strong>&quot;的能力。这个能力，就来自 OpenResty。</p>
+<p><strong>再说它是什么。</strong></p>
+<p>OpenResty 是一个<strong>基于 Nginx 与 LuaJIT 的 Web 平台</strong>。它把一个 Lua 运行时<strong>嵌进了 Nginx</strong>，让 Nginx 不再只是一台&quot;靠配置文件驱动的代理&quot;，而是可以用 Lua 编写具体的处理逻辑，并把这段逻辑挂到 Nginx 的各个<strong>处理阶段</strong>上执行（最常用的是 <code>access</code> 阶段，也就是请求转发给后端之前那一刻）。</p>
+<p>一句话概括：<strong>OpenResty &#x3D; Nginx + Lua 编程能力。</strong></p>
+<p><strong>最后看它怎么补上那两个短板。</strong></p>
+<p>有了 Lua 编程能力，秒杀里那些&quot;必须查一次数据才能决定&quot;的判断，就可以直接写在 Nginx 里了：</p>
+<ul>
+<li>&quot;这个商品在 Redis 里的库存是不是已经空了？&quot;</li>
+<li>&quot;这个用户是不是已经抢过了？&quot;</li>
+<li>&quot;令牌桶的全局计数超了没有？&quot;</li>
+</ul>
+<p>这些判断如果放到 Java 应用里去做，请求就已经<strong>穿过 Nginx 了</strong>，Nginx 的拦截价值也就没了。而现在，请求连 Java 应用都不用进，在 Nginx 里查一次 Redis 就能直接返回&quot;已售罄&quot;：</p>
+<figure class="highlight nginx"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="section">location</span> /seckill/order &#123;</span><br><span class="line">    <span class="section">access_by_lua_block</span> &#123;</span><br><span class="line">        <span class="attribute">local</span> limit = require <span class="string">&quot;resty.limit.req&quot;</span></span><br><span class="line">        -- 用 Redis 做集中式计数，实现集群级限流（解决坑点二）</span><br><span class="line">        local lim, err = limit.new(<span class="string">&quot;redis_cluster&quot;</span>, <span class="string">&quot;seckill_limit&quot;</span>, <span class="number">10000</span>, <span class="number">5000</span>)</span><br><span class="line">        if not lim then</span><br><span class="line">            ngx.log(ngx.ERR, <span class="string">&quot;failed to instantiate: &quot;</span>, err)</span><br><span class="line">            return ngx.exit(<span class="number">500</span>)</span><br><span class="line">        end</span><br><span class="line">        local delay, err = lim:incoming(ngx.var.binary_remote_addr, <span class="literal">true</span>)</span><br><span class="line">        if not delay then</span><br><span class="line">            return ngx.exit(<span class="number">429</span>)</span><br><span class="line">        end</span><br><span class="line">    &#125;</span><br><span class="line">    proxy_pass http://app_cluster;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>对照着看，这段代码正好把两个短板都补上了：<strong>计数器放在 Redis 里</strong>（集群共享，不再是单机各自计数），<strong>判断逻辑用 Lua 写</strong>（不再局限于静态规则）。</p>
+<p><strong>坑点</strong>：OpenResty 里做 Redis 调用，一旦 Redis 慢查询或抖动，Nginx 的 worker 会被阻塞，<strong>接入层反而成为瓶颈</strong>。必须设置严格的 <code>timeout</code> 和降级策略（Redis 挂了就直接放行到应用层，而非拒绝所有请求）。</p>
+<h3 id="4-9-负载均衡算法怎么选"><a href="#4-9-负载均衡算法怎么选" class="headerlink" title="4.9 负载均衡算法怎么选"></a>4.9 负载均衡算法怎么选</h3><p>层次定了，接下来是&quot;流量按什么规则分给下游节点&quot;。</p>
+<ul>
+<li><strong>轮询 &#x2F; 加权轮询</strong>：最简单，适合节点配置一致的场景</li>
+<li><strong>最少连接</strong>：适合请求耗时差异大的场景</li>
+<li><strong>IP Hash &#x2F; 一致性 Hash</strong>：让同一用户固定落到同一节点。秒杀场景下<strong>慎用</strong>——秒杀流量高度集中，一致性 Hash 容易造成<strong>热点倾斜</strong>，把压力堆到某几个节点上</li>
+</ul>
+<p><strong>坑点：健康检查不能只看端口是否存活。</strong><br>秒杀场景下，应用可能&quot;进程还活着，但线程池已经满了&quot;，此时端口探测依然是通的，负载均衡器会认为这个节点健康，继续往里灌流量。必须用<strong>业务级健康检查</strong>（比如检查线程池水位、接口 RT 指标），才能及时把异常节点摘掉。</p>
+<hr>
+<h2 id="五、应用层：令牌桶限流"><a href="#五、应用层：令牌桶限流" class="headerlink" title="五、应用层：令牌桶限流"></a>五、应用层：令牌桶限流</h2><p>经过接入层，流量从 50 万降到了 20 万。但 20 万打到应用层依然扛不住，需要第二道闸门：<strong>令牌桶</strong>。</p>
+<h3 id="5-1-令牌桶原理"><a href="#5-1-令牌桶原理" class="headerlink" title="5.1 令牌桶原理"></a>5.1 令牌桶原理</h3><p>令牌桶的模型很直观：</p>
+<ul>
+<li>有一个固定容量的桶，按<strong>恒定速率</strong>往桶里放令牌（比如每秒放 1000 个）</li>
+<li>桶满了，新令牌就丢弃（这是和漏桶的关键区别）</li>
+<li>每个请求到来时，必须<strong>先拿到一个令牌</strong>才能被处理</li>
+<li>桶里没令牌了，请求就被拒绝或排队</li>
+</ul>
+<div class="mermaid-wrap"><pre class="mermaid-src" hidden>flowchart LR
+    T[&quot;令牌生成器恒定速率 1000&#x2F;s&quot;] --&gt;|放令牌| BK[&quot;令牌桶容量 2000&quot;]
+    BK --&gt;|消耗令牌| RQ[&quot;请求&quot;]
+    BK --&gt;|桶满溢出| D[&quot;丢弃&quot;]
+    RQ --&gt;|无令牌| RJ[&quot;拒绝 &#x2F; 排队&quot;]
+    RQ --&gt;|有令牌| OK[&quot;放行到业务&quot;]
+
+    style BK fill:#fff3cd</pre></div>
+
+<p><strong>两个参数很关键：</strong></p>
+<ul>
+<li><strong>速率（rate）</strong>：决定长期平均放行速度，也就是系统真正要承载的 QPS</li>
+<li><strong>容量（capacity）</strong>：决定能承受多大的<strong>瞬时突发</strong>。容量 2000、速率 1000&#x2F;s，意味着活动刚开始的那一瞬间可以放 2000 个请求进来，之后按 1000&#x2F;s 匀速放行</li>
+</ul>
+<h3 id="5-2-令牌桶-vs-漏桶"><a href="#5-2-令牌桶-vs-漏桶" class="headerlink" title="5.2 令牌桶 vs 漏桶"></a>5.2 令牌桶 vs 漏桶</h3><table>
+<thead>
+<tr>
+<th>维度</th>
+<th>令牌桶</th>
+<th>漏桶</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>出水&#x2F;放行速率</td>
+<td>允许突发（有桶容量缓冲）</td>
+<td><strong>恒定</strong>，严格平滑</td>
+</tr>
+<tr>
+<td>桶的作用</td>
+<td>存令牌，攒够了一次性放</td>
+<td>存请求，匀速漏出</td>
+</tr>
+<tr>
+<td>能否应对突发流量</td>
+<td>能（这是最大优势）</td>
+<td>不能，突发请求排队或被拒</td>
+</tr>
+<tr>
+<td>典型实现</td>
+<td>Redis + Lua、Guava RateLimiter</td>
+<td>Nginx <code>limit_req</code></td>
+</tr>
+</tbody></table>
+<p><strong>为什么秒杀选令牌桶</strong>：秒杀流量是典型的&quot;脉冲式&quot;——活动开始瞬间突然爆发，之后迅速回落。令牌桶允许&quot;攒一波令牌应对突发&quot;，比漏桶的机械匀速更贴合实际。</p>
+<h3 id="5-3-Redis-Lua-实现分布式令牌桶"><a href="#5-3-Redis-Lua-实现分布式令牌桶" class="headerlink" title="5.3 Redis + Lua 实现分布式令牌桶"></a>5.3 Redis + Lua 实现分布式令牌桶</h3><p>先讲清楚为什么要放到 Redis，以及每次请求是怎么算的，最后再看代码。</p>
+<p><strong>第一步：为什么单机令牌桶不行。</strong></p>
+<p>单机令牌桶（如 Guava <code>RateLimiter</code>）把令牌数存在<strong>本机内存</strong>里。应用部署成 10 台之后，每台机器各放各的令牌——配置的是 1000&#x2F;s，实际放行量变成了 10000&#x2F;s，<strong>限流直接失效</strong>。这和 4.7 讲的&quot;Nginx 单机限流&quot;是同一类问题。</p>
+<p><strong>第二步：把状态挪到所有节点都能看到的地方。</strong></p>
+<p>既然问题是&quot;状态各自持有&quot;，那就把令牌桶的状态集中放到 Redis 里，让所有应用节点共享同一份：</p>
+<ul>
+<li><strong>tokens</strong>：桶里当前还剩多少令牌</li>
+<li><strong>last_time</strong>：上一次刷新令牌的时间</li>
+</ul>
+<p>这样无论请求落到哪台机器上，操作的都是<strong>同一个桶</strong>。</p>
+<p><strong>第三步：每次请求到底怎么算？</strong></p>
+<p>令牌桶不能&quot;真的&quot;每秒往桶里丢令牌（那得跑一个定时任务），而是<strong>惰性计算</strong>——请求来了才根据&quot;距离上次请求过了多久&quot;补发令牌：</p>
+<ol>
+<li><strong>读状态</strong>：取出桶里的 <code>tokens</code> 和 <code>last_time</code></li>
+<li><strong>按时间补令牌</strong>：<code>(当前时间 - last_time) × 速率</code>，就是这段时间该补的令牌数</li>
+<li><strong>封顶</strong>：补完之后如果超过桶容量，砍到容量上限（多出来的直接丢弃）</li>
+<li><strong>判断</strong>：令牌数 ≥ 本次需求（一般是 1）就放行，否则拒绝</li>
+<li><strong>扣减并写回</strong>：够的话扣掉令牌，把新的 <code>tokens</code> 和当前时间写回 Redis</li>
+</ol>
+<div class="mermaid-wrap"><pre class="mermaid-src" hidden>flowchart TD
+    S[&quot;请求到来&quot;] --&gt; R[&quot;读取桶状态tokens &#x2F; last_time&quot;]
+    R --&gt; C[&quot;按时间补令牌(now - last_time) × rate&quot;]
+    C --&gt; M[&quot;令牌数封顶min(capacity, tokens + 补发量)&quot;]
+    M --&gt; J{&quot;tokens &gt;&#x3D; need ?&quot;}
+    J --&gt;|是| P[&quot;tokens &#x3D; tokens - need&quot;]
+    J --&gt;|否| RJ[&quot;拒绝请求（429）&quot;]
+    P --&gt; W[&quot;写回 tokens &#x2F; last_time&quot;]
+    W --&gt; OK[&quot;放行到业务&quot;]
+
+    style J fill:#fff3cd
+    style RJ fill:#ffe0e0</pre></div>
+
+<p><strong>注意第 1 步和第 5 步之间，又是一个&quot;读—判断—写&quot;<strong>——这正是并发下会出问题的地方，所以这五步必须</strong>一次性原子执行完</strong>，也就是下面这段 Lua 脚本。</p>
+<p><strong>第四步：Lua 脚本实现。</strong></p>
+<p>核心 Lua 脚本：</p>
+<figure class="highlight lua"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">-- KEYS[1]: 令牌桶 key</span></span><br><span class="line"><span class="comment">-- ARGV[1]: 桶容量 capacity</span></span><br><span class="line"><span class="comment">-- ARGV[2]: 令牌生成速率 rate（个/秒）</span></span><br><span class="line"><span class="comment">-- ARGV[3]: 当前时间戳（秒，含小数）</span></span><br><span class="line"><span class="comment">-- ARGV[4]: 本次请求需要的令牌数（一般为 1）</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">local</span> capacity = <span class="built_in">tonumber</span>(ARGV[<span class="number">1</span>])</span><br><span class="line"><span class="keyword">local</span> rate     = <span class="built_in">tonumber</span>(ARGV[<span class="number">2</span>])</span><br><span class="line"><span class="keyword">local</span> now      = <span class="built_in">tonumber</span>(ARGV[<span class="number">3</span>])</span><br><span class="line"><span class="keyword">local</span> need     = <span class="built_in">tonumber</span>(ARGV[<span class="number">4</span>])</span><br><span class="line"></span><br><span class="line"><span class="comment">-- 读取桶的当前状态：tokens 令牌数，last_time 上次刷新时间</span></span><br><span class="line"><span class="keyword">local</span> bucket     = redis.call(<span class="string">&#x27;HMGET&#x27;</span>, KEYS[<span class="number">1</span>], <span class="string">&#x27;tokens&#x27;</span>, <span class="string">&#x27;last_time&#x27;</span>)</span><br><span class="line"><span class="keyword">local</span> tokens     = <span class="built_in">tonumber</span>(bucket[<span class="number">1</span>]) <span class="keyword">or</span> capacity</span><br><span class="line"><span class="keyword">local</span> last_time  = <span class="built_in">tonumber</span>(bucket[<span class="number">2</span>]) <span class="keyword">or</span> now</span><br><span class="line"></span><br><span class="line"><span class="comment">-- 按时间差补充令牌</span></span><br><span class="line"><span class="keyword">local</span> delta = <span class="built_in">math</span>.<span class="built_in">max</span>(<span class="number">0</span>, now - last_time)</span><br><span class="line"><span class="keyword">local</span> filled = delta * rate</span><br><span class="line">tokens = <span class="built_in">math</span>.<span class="built_in">min</span>(capacity, tokens + filled)   <span class="comment">-- 桶满则丢弃多余令牌</span></span><br><span class="line"></span><br><span class="line"><span class="comment">-- 判断是否够用</span></span><br><span class="line"><span class="keyword">local</span> allowed = tokens &gt;= need</span><br><span class="line"><span class="keyword">if</span> allowed <span class="keyword">then</span></span><br><span class="line">    tokens = tokens - need</span><br><span class="line"><span class="keyword">end</span></span><br><span class="line"></span><br><span class="line"><span class="comment">-- 写回状态，并设置过期时间（避免冷 key 常驻内存）</span></span><br><span class="line">redis.call(<span class="string">&#x27;HMSET&#x27;</span>, KEYS[<span class="number">1</span>], <span class="string">&#x27;tokens&#x27;</span>, tokens, <span class="string">&#x27;last_time&#x27;</span>, now)</span><br><span class="line">redis.call(<span class="string">&#x27;EXPIRE&#x27;</span>, KEYS[<span class="number">1</span>], <span class="built_in">math</span>.<span class="built_in">ceil</span>(capacity / rate) * <span class="number">2</span>)</span><br><span class="line"></span><br><span class="line"><span class="keyword">if</span> allowed <span class="keyword">then</span></span><br><span class="line">    <span class="keyword">return</span> <span class="number">1</span></span><br><span class="line"><span class="keyword">end</span></span><br><span class="line"><span class="keyword">return</span> <span class="number">0</span></span><br></pre></td></tr></table></figure>
+
+<p>Java 侧调用：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="type">boolean</span> <span class="title function_">tryAcquire</span><span class="params">(String key, <span class="type">int</span> capacity, <span class="type">int</span> rate, <span class="type">int</span> need)</span> &#123;</span><br><span class="line">    <span class="type">String</span> <span class="variable">script</span> <span class="operator">=</span></span><br><span class="line">            <span class="string">&quot;local capacity = tonumber(ARGV[1]) &quot;</span> +</span><br><span class="line">            <span class="string">&quot;local rate     = tonumber(ARGV[2]) &quot;</span> +</span><br><span class="line">            <span class="string">&quot;local now      = tonumber(ARGV[3]) &quot;</span> +</span><br><span class="line">            <span class="string">&quot;local need     = tonumber(ARGV[4]) &quot;</span> +</span><br><span class="line">            <span class="string">&quot;local bucket    = redis.call(&#x27;HMGET&#x27;, KEYS[1], &#x27;tokens&#x27;, &#x27;last_time&#x27;) &quot;</span> +</span><br><span class="line">            <span class="string">&quot;local tokens    = tonumber(bucket[1]) or capacity &quot;</span> +</span><br><span class="line">            <span class="string">&quot;local last_time = tonumber(bucket[2]) or now &quot;</span> +</span><br><span class="line">            <span class="string">&quot;local delta  = math.max(0, now - last_time) &quot;</span> +</span><br><span class="line">            <span class="string">&quot;tokens = math.min(capacity, tokens + delta * rate) &quot;</span> +</span><br><span class="line">            <span class="string">&quot;local allowed = tokens &gt;= need &quot;</span> +</span><br><span class="line">            <span class="string">&quot;if allowed then tokens = tokens - need end &quot;</span> +</span><br><span class="line">            <span class="string">&quot;redis.call(&#x27;HMSET&#x27;, KEYS[1], &#x27;tokens&#x27;, tokens, &#x27;last_time&#x27;, now) &quot;</span> +</span><br><span class="line">            <span class="string">&quot;redis.call(&#x27;EXPIRE&#x27;, KEYS[1], math.ceil(capacity / rate) * 2) &quot;</span> +</span><br><span class="line">            <span class="string">&quot;if allowed then return 1 end &quot;</span> +</span><br><span class="line">            <span class="string">&quot;return 0&quot;</span>;</span><br><span class="line"></span><br><span class="line">    <span class="type">Long</span> <span class="variable">result</span> <span class="operator">=</span> redisTemplate.execute(</span><br><span class="line">            <span class="keyword">new</span> <span class="title class_">DefaultRedisScript</span>&lt;&gt;(script, Long.class),</span><br><span class="line">            Collections.singletonList(key),</span><br><span class="line">            String.valueOf(capacity),</span><br><span class="line">            String.valueOf(rate),</span><br><span class="line">            String.valueOf(System.currentTimeMillis() / <span class="number">1000.0</span>),</span><br><span class="line">            String.valueOf(need)</span><br><span class="line">    );</span><br><span class="line">    <span class="keyword">return</span> Long.valueOf(<span class="number">1L</span>).equals(result);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="5-4-为什么必须用-Lua"><a href="#5-4-为什么必须用-Lua" class="headerlink" title="5.4 为什么必须用 Lua"></a>5.4 为什么必须用 Lua</h3><p>这是理解 Redis 限流的关键一步。</p>
+<p>如果不用 Lua，把&quot;读令牌数 → 算补充 → 判断 → 写回&quot;分成四条命令：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">Integer</span> <span class="variable">tokens</span> <span class="operator">=</span> redis.get(<span class="string">&quot;tokens&quot;</span>);      <span class="comment">// 1. 读</span></span><br><span class="line"><span class="comment">// ... 应用层计算补充和判断 ...</span></span><br><span class="line">redis.set(<span class="string">&quot;tokens&quot;</span>, tokens - <span class="number">1</span>);           <span class="comment">// 4. 写回</span></span><br></pre></td></tr></table></figure>
+
+<p>在 1 和 4 之间存在<strong>时间窗口</strong>：两个线程可能同时读到 <code>tokens = 1</code>，都判断&quot;够用&quot;，然后都执行扣减，最终放行了 2 个请求，但实际只该放行 1 个。</p>
+<p>这和 2.4 的<strong>超卖本质上是同一个问题</strong>——&quot;读—判断—写&quot;不是原子的。</p>
+<blockquote>
+<p><strong>Lua 脚本在 Redis 中是原子执行的</strong>：Redis 执行 Lua 期间不会插入其他命令（命令处理本身是单线程的）。所以把&quot;读—判断—写&quot;整体塞进一个 Lua 脚本，就能彻底消除窗口期。</p>
+</blockquote>
+<p><strong>这条规律贯穿全文，请记住：凡是&quot;读—判断—写&quot;的复合操作，要么用 Lua，要么用锁。</strong></p>
+<h3 id="5-5-令牌桶的局限与坑点"><a href="#5-5-令牌桶的局限与坑点" class="headerlink" title="5.5 令牌桶的局限与坑点"></a>5.5 令牌桶的局限与坑点</h3><p><strong>（1）它防不了超卖——这是最重要的一点。</strong></p>
+<p>令牌桶限制的是&quot;<strong>速率</strong>&quot;，不是&quot;<strong>总量</strong>&quot;。它只能保证每秒只有 1000 个请求进入，但没法保证这 1000 个请求里只有 100 个能扣到库存。库存一致性必须在第二篇里解决。</p>
+<p><strong>（2）限流维度怎么选、怎么组合。</strong></p>
+<p>限流的本质就是&quot;按某个 key 去计数&quot;，所以<strong>选什么 key，就决定了你能拦住谁</strong>。秒杀里常用的四个维度：</p>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>key 示例</th>
+<th>能拦住什么</th>
+<th>拦不住什么</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>IP 维度</strong></td>
+<td><code>limit:ip:&#123;ip&#125;</code></td>
+<td>单机脚本狂刷</td>
+<td>代理 IP 池；NAT 出口（整栋楼共用一个 IP，会误伤）</td>
+</tr>
+<tr>
+<td><strong>用户维度</strong></td>
+<td><code>limit:user:&#123;userId&#125;</code></td>
+<td>单账号刷单</td>
+<td>未登录用户、批量注册的小号</td>
+</tr>
+<tr>
+<td><strong>设备维度</strong></td>
+<td><code>limit:device:&#123;deviceId&#125;</code></td>
+<td>同一台设备换号刷</td>
+<td>模拟器可以改设备号</td>
+</tr>
+<tr>
+<td><strong>接口全局维度</strong></td>
+<td><code>limit:api:seckill</code></td>
+<td>下游整体不被压垮</td>
+<td>拦不住&quot;是谁在刷&quot;，只保证总量</td>
+</tr>
+</tbody></table>
+<p><strong>单用任何一个维度都有漏洞，所以实际做法是&quot;多个维度叠加，各限各的量&quot;。</strong></p>
+<p>具体怎么落地？以一次秒杀请求为例，按&quot;由粗到细&quot;的顺序依次判断，<strong>任意一层拒绝就立即返回</strong>：</p>
+<ol>
+<li><strong>接口全局维度</strong>（粗粒度，先兜底）——保证打到下游的总量不超过系统容量，这是&quot;保命&quot;的一层</li>
+<li><strong>商品维度</strong>——限制同一商品被访问的总速率</li>
+<li><strong>IP 维度</strong>——限制单个 IP 的请求频率</li>
+<li><strong>用户维度</strong>（最细）——限制单个用户的请求频率</li>
+</ol>
+<p>代码上就是把前面写好的 <code>tryAcquire</code> 串起来，用短路与连接：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 多维度限流：任意一维超限即拒绝</span></span><br><span class="line"><span class="keyword">public</span> <span class="type">boolean</span> <span class="title function_">multiDimensionLimit</span><span class="params">(Long userId, Long goodsId, String ip)</span> &#123;</span><br><span class="line">    <span class="keyword">return</span> tryAcquire(<span class="string">&quot;limit:api:seckill&quot;</span>, <span class="number">10000</span>, <span class="number">5000</span>, <span class="number">1</span>)     <span class="comment">// 接口全局：5000/s</span></span><br><span class="line">        &amp;&amp; tryAcquire(<span class="string">&quot;limit:goods:&quot;</span> + goodsId, <span class="number">2000</span>, <span class="number">1000</span>, <span class="number">1</span>) <span class="comment">// 单商品：1000/s</span></span><br><span class="line">        &amp;&amp; tryAcquire(<span class="string">&quot;limit:ip:&quot;</span> + ip, <span class="number">20</span>, <span class="number">10</span>, <span class="number">1</span>)             <span class="comment">// 单 IP：10/s</span></span><br><span class="line">        &amp;&amp; tryAcquire(<span class="string">&quot;limit:user:&quot;</span> + userId, <span class="number">5</span>, <span class="number">2</span>, <span class="number">1</span>);        <span class="comment">// 单用户：2/s</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>各维度的阈值怎么定？</strong> 思路是<strong>从下游能力倒推，再按&quot;单个用户&#x2F;单个 IP 的合理行为&quot;分配</strong>：</p>
+<ul>
+<li>全局阈值 → 由下游能承受的总 QPS 决定（比如令牌桶限流目标就是 5000&#x2F;s）</li>
+<li>单用户阈值 → 正常用户 1 秒最多点 2 次，那就给 2&#x2F;s</li>
+<li>单 IP 阈值 → 一个正常人不会同时开 20 个页面，那就给 10&#x2F;s</li>
+</ul>
+<p><strong>坑点</strong>：维度不是越多越好。上面一次请求就要访问 <strong>4 次 Redis</strong>，这本身就是一笔不小的开销（见下一点）。实践中一般只保留 <strong>2~3 个核心维度</strong>（通常是&quot;全局 + 用户&quot;或&quot;全局 + IP&quot;）。</p>
+<p><strong>（3）每个请求都访问 Redis，Redis 会成为新热点。</strong></p>
+<p>从上面的代码能看到，多维限流会让<strong>一次业务请求膨胀成好几次 Redis 调用</strong>。所以在应用本地要做<strong>二级限流</strong>：</p>
+<ul>
+<li><strong>第一级（本地）</strong>：本机先用单机令牌桶挡掉绝大部分，阈值设成全局阈值的 1.2 倍左右</li>
+<li><strong>第二级（Redis）</strong>：只有通过本地限流的请求，才去查 Redis 做<strong>全局精确限流</strong></li>
+</ul>
+<p>因为绝大多数超量请求在第一级就被挡住了，Redis 的压力能下降一个数量级。</p>
+<p><strong>（4）Redis 挂了会怎样？</strong></p>
+<p>先明确一点：<strong>限流用的 Redis 通常是集群部署（Cluster 分片）或主从 + 哨兵部署，而不是单机</strong>。主从 + 哨兵有自动故障转移，Cluster 本身是多分片多副本——所以&quot;整个 Redis 全挂&quot;的概率其实非常低，绝大多数情况只是<strong>个别分片抖动或短暂的主从切换</strong>，表现为部分请求超时，而不是彻底不可用。</p>
+<p>但降级策略仍然要准备好，因为一旦真的不可用，必须有一个明确的决策：是&quot;<strong>放行</strong>&quot;（承担过载风险）还是&quot;<strong>全拒</strong>&quot;（业务直接中断）。秒杀场景一般选择<strong>本地兜底限流 + 放行</strong>：</p>
+<ul>
+<li>本机令牌桶继续挡掉大部分流量</li>
+<li>Redis 查不通就直接放行</li>
+</ul>
+<p>这样取舍的理由是：Redis 全挂的概率很低，而&quot;全拒&quot;会让整个活动立刻中断，业务损失更确定也更严重；即使放行导致一部分流量穿到下游，后面还有 <strong>Redis 库存扣减、MQ、DB</strong> 三道闸门兜着，不会立刻雪崩。</p>
+<hr>
+<h2 id="六、缓存与消息层：Redis-挡量-MQ-削峰"><a href="#六、缓存与消息层：Redis-挡量-MQ-削峰" class="headerlink" title="六、缓存与消息层：Redis 挡量 + MQ 削峰"></a>六、缓存与消息层：Redis 挡量 + MQ 削峰</h2><p>经过前两层，流量从 50 万降到了 10 万。但 10 万 QPS 直接打数据库，依然是灾难。这一章要解决的是<strong>最后一段</strong>的流量问题：<strong>如何把 10 万 QPS 降到数据库能承受的量级</strong>。</p>
+<p>这里用两把武器：<strong>Redis 当库存闸门（挡量）+ MQ 做异步削峰</strong>。</p>
+<h3 id="6-1-核心思路"><a href="#6-1-核心思路" class="headerlink" title="6.1 核心思路"></a>6.1 核心思路</h3><ul>
+<li><strong>Redis 挡量</strong>：把库存放进 Redis，请求先在 Redis 里扣。库存只有 100 件，<strong>Redis 最多只放行 100 个请求</strong>往下走，其余 99.9% 的请求在 Redis 这一层就被拒绝。这是漏斗里最关键的一次收缩。</li>
+<li><strong>MQ 削峰</strong>：通过 Redis 的这 100 个请求，不直接写库，而是<strong>扔进 MQ 排队</strong>，由消费者匀速消费。这样即使瞬间有 100 个并发写请求，数据库看到的也是平滑的写入流。</li>
+</ul>
+<h3 id="6-2-完整流程"><a href="#6-2-完整流程" class="headerlink" title="6.2 完整流程"></a>6.2 完整流程</h3><div class="mermaid-wrap"><pre class="mermaid-src" hidden>flowchart TD
+    S[&quot;活动开始前：库存预热Redis 里 stock &#x3D; 100&quot;] --&gt; A[&quot;用户发起秒杀请求&quot;]
+    A --&gt; B{&quot;令牌桶限流通过?&quot;}
+    B --&gt;|否| R1[&quot;拒绝：活动太火爆&quot;]
+    B --&gt;|是| C[&quot;Redis 执行 Lua原子扣减库存&quot;]
+    C --&gt; D{&quot;扣减结果&quot;}
+    D --&gt;|key 不存在| R2[&quot;拒绝：活动未开始并触发预热告警&quot;]
+    D --&gt;|stock &lt;&#x3D; 0| R3[&quot;拒绝：已售罄&quot;]
+    D --&gt;|扣减成功| E[&quot;发送下单消息到 MQ&quot;]
+    E --&gt; F{&quot;消息发送成功?&quot;}
+    F --&gt;|否| G[&quot;回补 Redis 库存返回：系统繁忙&quot;]
+    F --&gt;|是| H[&quot;立即返回：排队中&quot;]
+    H --&gt; I[&quot;MQ 投递消息&quot;]
+    I --&gt; J[&quot;消费者：扣 DB 库存 + 创建订单&quot;]
+    J --&gt; K[&quot;用户轮询查询结果&quot;]
+    K --&gt; L[&quot;返回：下单成功&quot;]
+
+    style C fill:#fff3cd
+    style R3 fill:#ffe0e0
+    style G fill:#ffe0e0
+    style L fill:#d4edda</pre></div>
+
+<p><strong>这条流程里藏着两个关键转变：</strong></p>
+<ol>
+<li><strong>数据库的访问量从 10 万降到 100</strong>——因为 Redis 只放行 100 个</li>
+<li><strong>写库从同步变异步</strong>——请求立即返回&quot;排队中&quot;，RT 从几百毫秒降到几毫秒</li>
+</ol>
+<p>第 2 点尤其重要：<strong>它把&quot;用户等待时间&quot;和&quot;数据库处理时间&quot;解耦了</strong>。用户不再需要等订单真的创建完，接口可以极快地返回，吞吐能力随之提升（回忆 1.3 提到的利特尔法则）。</p>
+<h3 id="6-3-库存预热"><a href="#6-3-库存预热" class="headerlink" title="6.3 库存预热"></a>6.3 库存预热</h3><p>活动开始前，把库存从 DB 加载到 Redis：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 活动开始前 10 分钟执行</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">warmUp</span><span class="params">(Long goodsId)</span> &#123;</span><br><span class="line">    <span class="type">Integer</span> <span class="variable">stock</span> <span class="operator">=</span> goodsMapper.selectStock(goodsId);</span><br><span class="line">    <span class="comment">// key 命名统一，便于管理和监控</span></span><br><span class="line">    redisTemplate.opsForValue().set(<span class="string">&quot;seckill:stock:&quot;</span> + goodsId, stock);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>坑点一：预热和开始之间要有时间缓冲。</strong><br>如果预热失败（Redis 抖动、网络超时），活动开始后所有请求都会走到&quot;Redis 里没有 key&quot;的分支。必须做<strong>预热校验</strong>：定时任务检查 key 是否存在，不存在则重试；活动开始时做一次最终确认。</p>
+<p><strong>坑点二：预热后 DB 和 Redis 的库存必须&quot;冻结&quot;。</strong><br>预热之后到活动结束前，任何人都不能直接改 DB 库存，否则两边数据不一致。</p>
+<h3 id="6-4-发送-MQ-与失败回补"><a href="#6-4-发送-MQ-与失败回补" class="headerlink" title="6.4 发送 MQ 与失败回补"></a>6.4 发送 MQ 与失败回补</h3><p>Redis 扣减成功后，进入发消息环节：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> SeckillResult <span class="title function_">seckill</span><span class="params">(Long userId, Long goodsId)</span> &#123;</span><br><span class="line">    <span class="comment">// 1. 校验活动状态（略）</span></span><br><span class="line">    <span class="comment">// 2. 幂等校验（见第二篇）</span></span><br><span class="line">    <span class="comment">// 3. Redis 原子扣减库存（见第二篇）</span></span><br><span class="line">    <span class="type">Long</span> <span class="variable">remain</span> <span class="operator">=</span> deductStock(goodsId);</span><br><span class="line">    <span class="keyword">if</span> (remain == -<span class="number">1</span>) &#123;</span><br><span class="line">        <span class="keyword">return</span> SeckillResult.fail(<span class="string">&quot;已售罄&quot;</span>);</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">if</span> (remain == -<span class="number">2</span>) &#123;</span><br><span class="line">        <span class="keyword">return</span> SeckillResult.fail(<span class="string">&quot;活动未开始&quot;</span>);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 4. 扣减成功，发消息异步下单</span></span><br><span class="line">    <span class="keyword">try</span> &#123;</span><br><span class="line">        mqProducer.send(<span class="keyword">new</span> <span class="title class_">SeckillMessage</span>(userId, goodsId), goodsId);</span><br><span class="line">    &#125; <span class="keyword">catch</span> (Exception e) &#123;</span><br><span class="line">        <span class="comment">// 发送失败必须回补库存，否则会少卖</span></span><br><span class="line">        redisTemplate.opsForValue().increment(<span class="string">&quot;seckill:stock:&quot;</span> + goodsId);</span><br><span class="line">        <span class="keyword">return</span> SeckillResult.fail(<span class="string">&quot;系统繁忙，请重试&quot;</span>);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 5. 立即返回&quot;排队中&quot;，前端轮询结果</span></span><br><span class="line">    <span class="keyword">return</span> SeckillResult.queueing();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>坑点一：发 MQ 失败必须回补库存。</strong><br>上面第 4 步的 <code>catch</code> 是关键。如果消息发送失败但不回补，库存就被永久占用了——<strong>少卖</strong>。</p>
+<p><strong>坑点二：回补本身也可能失败。</strong><br>如果回补时 Redis 正好挂了怎么办？所以还需要<strong>兜底对账</strong>：定时任务扫描&quot;Redis 已扣减但 DB 无对应订单&quot;的记录，做补偿。</p>
+<p><strong>坑点三：消息要按商品 ID 分区，保证顺序。</strong><br>让同一商品的消息落到同一队列分区，避免消费乱序带来的额外复杂度。</p>
+<h3 id="6-5-削峰原理：数据库能扛多少，MQ-需要扛多少"><a href="#6-5-削峰原理：数据库能扛多少，MQ-需要扛多少" class="headerlink" title="6.5 削峰原理：数据库能扛多少，MQ 需要扛多少"></a>6.5 削峰原理：数据库能扛多少，MQ 需要扛多少</h3><p><strong>先看数据库能扛多少。</strong> MySQL 单机的写入能力大约在 <strong>3000 ~ 8000 QPS</strong> 这个量级（具体取决于表结构、索引数量和硬件）。这个数字是理解 MQ 价值的前提。</p>
+<p><strong>再看没有 MQ 会怎样。</strong> 假设 Redis 已经放行了 1 万个请求（对应 1 万件库存），这 1 万个请求要同时去扣 DB 库存、写订单：</p>
+<ul>
+<li><strong>单个商品</strong>：所有请求都抢同一行库存，行锁排长队，数据库被打到极限；</li>
+<li><strong>多个商品同时秒杀</strong>：情况更糟——<strong>所有商品的所有写请求都挤在同一个库上</strong>，而这个库的写入能力还是那 3000~8000，瞬间就被打爆。</li>
+</ul>
+<p>打爆之后就是前面讲过的连锁反应：连接池耗尽 → 应用线程阻塞 → 整条链路雪崩。</p>
+<p><strong>MQ 的作用，就是把&quot;瞬时冲进来的洪水&quot;变成&quot;匀速流出的细流&quot;。</strong></p>
+<p>没有 MQ 时：1 万个请求在 1 秒内全部砸向数据库，数据库要在一瞬间处理 1 万次写入——它做不到，于是崩了。</p>
+<p>加入 MQ 之后：这 1 万个请求先被&quot;收进&quot;队列，<strong>数据库不再是直面 1 万个并发，而是面对一个队列</strong>。消费者按数据库能承受的速度去取：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">消费者并发度 = 20 个线程</span><br><span class="line">单条消息处理耗时 = 10 ms</span><br><span class="line">→ 消费速率 ≈ 20 ÷ 0.01s = 2000 QPS</span><br></pre></td></tr></table></figure>
+
+<p>这 2000 QPS 落在数据库 3000~8000 的能力区间内，<strong>数据库就稳了</strong>。而 1 万条消息只需要 5 秒就能消化完——用户多等几秒，但系统不会崩。</p>
+<blockquote>
+<p>一句话概括这个动作：<strong>MQ 相当于在数据库前面装了一个可以调节流量的阀门，把瞬间冲进来的洪水，拧成一股稳定的细流。</strong> 数据库的瞬时压力从 1 万降到 2000，代价只是把处理时间拉长了几秒。</p>
+</blockquote>
+<p><strong>所以 MQ 在这里削的是两样东西：</strong></p>
+<ol>
+<li><strong>削写入峰值</strong>：把&quot;瞬间 1 万个并发写&quot;变成&quot;消费者按数据库能力匀速消费&quot;，保护数据库不被打爆；</li>
+<li><strong>削接口耗时</strong>：接口不再同步等待下单完成，RT 大幅下降，用户不用卡在转圈上。</li>
+</ol>
+<p>但要注意——<strong>MQ 不减少总工作量</strong>，它只是<strong>把工作从&quot;瞬时&quot;摊到&quot;一段时间&quot;<strong>。如果消费者的总处理能力小于消息产生速度，消息会</strong>不断堆积</strong>，最终 MQ 也会被打满。所以消费者并发度必须按数据库的实际能力来配，并纳入《秒杀系统设计（三）》的容量校验。</p>
+<p><strong>MQ 实际需要扛多少 QPS？</strong></p>
+<p><strong>MQ 位于 Redis 之后，它收到的消息量等于 Redis 实际放行成功的请求数</strong>，也就是成功扣减掉的库存量，而不是入口流量：</p>
+<table>
+<thead>
+<tr>
+<th>场景</th>
+<th>入口峰值 QPS</th>
+<th>Redis 放行（&#x3D; MQ 消息量）</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>库存 100 件</td>
+<td>50 万</td>
+<td><strong>100 条</strong></td>
+</tr>
+<tr>
+<td>放量 1 万件</td>
+<td>50 万</td>
+<td><strong>1 万条</strong></td>
+</tr>
+<tr>
+<td>几十个商品各放量几万件（罕见）</td>
+<td>50 万</td>
+<td>累计才可能到十万级</td>
+</tr>
+</tbody></table>
+<p><strong>MQ 的量级由&quot;库存规模&quot;决定，不由&quot;入口流量&quot;决定。</strong> 想让 MQ 真的达到十万级 QPS，只有&quot;同时秒杀大量商品&quot;这一种可能——几十个商品各放量几万件，加起来才够，而这种业务场景本身就很难组织。</p>
+<p><strong>所以正常情况下 MQ 不是瓶颈，真正的瓶颈永远在最外层（Nginx、应用层）。</strong> 但仍要注意两点：</p>
+<ol>
+<li><strong>瞬时集中</strong>：消息可能在一瞬间全部涌入，MQ 需要有基本的缓冲能力（这个量级对任何消息队列都很轻松）；</li>
+<li><strong>异常放大</strong>：如果 Redis 预热失败导致扣减逻辑走错分支、或者代码有 bug，消息量可能失控，MQ 侧最好加一道<strong>发送速率限制</strong>作为兜底。</li>
+</ol>
+<p><strong>结论</strong>：MQ 的容量不要按入口峰值估算，而应该按&quot;<strong>库存规模 ÷ 活动时长</strong>&quot;估算，再纳入《秒杀系统设计（三）》的容量校验。</p>
+<h3 id="6-6-MQ-怎么选：Kafka-RocketMQ-RabbitMQ"><a href="#6-6-MQ-怎么选：Kafka-RocketMQ-RabbitMQ" class="headerlink" title="6.6 MQ 怎么选：Kafka &#x2F; RocketMQ &#x2F; RabbitMQ"></a>6.6 MQ 怎么选：Kafka &#x2F; RocketMQ &#x2F; RabbitMQ</h3><p>先把秒杀对 MQ 的<strong>真实要求</strong>说清楚，这决定了怎么选型。</p>
+<p><strong>要求一：要有足够强的堆积（缓冲）能力。</strong></p>
+<p>前面为了好讲解，举的是&quot;单商品、库存 100 件&quot;的例子，所以 MQ 的消息量看起来只有百来条。但<strong>真实业务里的秒杀通常不会只有一件商品</strong>——一场大促活动往往同时开抢几十甚至几百个商品，每个商品的库存都可能是几万件，这些消息<strong>全部会涌向同一个 MQ</strong>。算下来瞬时涌入几万到几十万条消息是完全可能的。</p>
+<p>而且 MQ 的价值不只是&quot;把峰值削平&quot;，更是&quot;<strong>扛住瞬时堆积</strong>&quot;：消费者短暂不可用、下游数据库慢查询、网络抖动……任何一个环节卡住，消息都会在 MQ 里越堆越多。<strong>能不能稳住这些堆积、不丢消息、不把内存撑爆，才是选型的第一个硬指标。</strong></p>
+<p><strong>要求二：功能上必须对得上。</strong></p>
+<ul>
+<li><strong>消息不能丢</strong>：秒杀是资损业务，丢一条消息就等于少卖一件</li>
+<li><strong>要支持延迟消息</strong>：15 分钟未支付自动取消订单</li>
+<li><strong>最好支持顺序消息</strong>：同一商品的消息有序，避免消费乱序带来的额外复杂度</li>
+</ul>
+<p>把三款主流 MQ 放在一起对比：</p>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>RabbitMQ</th>
+<th>RocketMQ</th>
+<th>Kafka</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>单机吞吐（消息&#x2F;秒）</strong></td>
+<td>3 万 ~ 5 万</td>
+<td><strong>约 10 万</strong></td>
+<td>10 万 ~ 百万级</td>
+</tr>
+<tr>
+<td>延迟</td>
+<td>微秒 ~ 毫秒（最低）</td>
+<td>毫秒级</td>
+<td>毫秒级</td>
+</tr>
+<tr>
+<td><strong>延迟消息</strong></td>
+<td>插件支持</td>
+<td><strong>原生支持</strong>（固定延迟等级 1s ~ 2h）</td>
+<td>支持但不完善</td>
+</tr>
+<tr>
+<td><strong>事务消息</strong></td>
+<td>插件支持</td>
+<td><strong>原生支持</strong></td>
+<td>需自行实现</td>
+</tr>
+<tr>
+<td><strong>顺序消息</strong></td>
+<td>较弱</td>
+<td><strong>支持（分区顺序）</strong></td>
+<td>支持（分区顺序）</td>
+</tr>
+<tr>
+<td>消息回溯</td>
+<td>不支持</td>
+<td>支持</td>
+<td>支持</td>
+</tr>
+<tr>
+<td>运维复杂度</td>
+<td>低</td>
+<td>中</td>
+<td>高</td>
+</tr>
+<tr>
+<td>典型场景</td>
+<td>中小系统、灵活路由</td>
+<td><strong>电商 &#x2F; 交易 &#x2F; 秒杀</strong></td>
+<td>日志、大数据、流处理</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>表中的吞吐是<strong>量级参考</strong>，来自公开压测与社区实践。实际能力受消息大小、刷盘方式（同步&#x2F;异步）、副本数影响很大，<strong>必须按自己的场景压测确认</strong>。</p>
+</blockquote>
+<p><strong>怎么选？</strong></p>
+<ul>
+<li><strong>RocketMQ</strong>：秒杀场景的<strong>默认答案</strong>。单机约 10 万条&#x2F;秒的吞吐远超需求，更重要的是<strong>延迟消息、事务消息、顺序消息都原生支持</strong>——&quot;15 分钟未支付自动取消订单&quot;用它自带的延迟消息就能实现，不必自己写定时任务扫表。</li>
+<li><strong>RabbitMQ</strong>：系统规模不大、团队想快速上手时选它。单机 3~5 万对秒杀已经够用，运维最简单；代价是延迟消息要靠插件，且要注意队列积压导致的内存问题。</li>
+<li><strong>Kafka</strong>：只有当你已经有一套 Kafka 基建、或者秒杀只是整个事件流的一环时才考虑。它吞吐最高，但延迟消息&#x2F;事务消息支持较弱、运维最重，<strong>为秒杀单独引入 Kafka 性价比不高</strong>。</li>
+</ul>
+<p><strong>一句话结论</strong>：<strong>秒杀优先 RocketMQ</strong>——它既能扛住几十万条的瞬时堆积，又原生支持延迟消息和事务消息，正好覆盖秒杀的两个核心要求。</p>
+<blockquote>
+<p>为什么 Kafka 反而排在最后？不是它不够强（吞吐最高），而是<strong>它的强项和秒杀的需求不完全对齐</strong>：Kafka 擅长的是海量数据流与流式计算，但在延迟消息、事务消息上支持较弱，运维也最重。秒杀要的是&quot;<strong>堆积稳、功能全</strong>&quot;，而不是&quot;吞吐极致&quot;。</p>
+</blockquote>
+<hr>
+<blockquote>
+<p><strong>【下一篇预告】</strong> 流量问题解决之后，系统算是&quot;活下来了&quot;，但<strong>活下来不等于活得对</strong>——库存可能被扣成负数（<strong>超卖</strong>），同一个用户也可能抢到多单（<strong>一人多单</strong>）。下一篇《秒杀系统设计（二）：数据正确性》就来解决这两件事：从 Redis 侧的原子扣减，到数据库侧的并发控制与分布式锁，再到一人一单与幂等设计。</p>
+</blockquote>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://LI-S-H.github.io">青山木</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://li-s-h.github.io/2026/10/01/%E7%A7%92%E6%9D%80%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9A%E9%9C%80%E6%B1%82%E6%8B%86%E8%A7%A3%E4%B8%8E%E6%B5%81%E9%87%8F%E6%B2%BB%E7%90%86/">https://li-s-h.github.io/2026/10/01/%E7%A7%92%E6%9D%80%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9A%E9%9C%80%E6%B1%82%E6%8B%86%E8%A7%A3%E4%B8%8E%E6%B5%81%E9%87%8F%E6%B2%BB%E7%90%86/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://LI-S-H.github.io" target="_blank">青山木</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/Redis/">Redis</a><a class="post-meta__tags" href="/tags/MQ/">MQ</a><a class="post-meta__tags" href="/tags/RocketMQ/">RocketMQ</a><a class="post-meta__tags" href="/tags/Lua/">Lua</a><a class="post-meta__tags" href="/tags/%E7%A7%92%E6%9D%80/">秒杀</a><a class="post-meta__tags" href="/tags/%E9%AB%98%E5%B9%B6%E5%8F%91/">高并发</a><a class="post-meta__tags" href="/tags/%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1/">负载均衡</a><a class="post-meta__tags" href="/tags/%E6%BC%8F%E6%96%97%E6%A8%A1%E5%9E%8B/">漏斗模型</a><a class="post-meta__tags" href="/tags/%E5%88%86%E5%B1%82%E9%98%B2%E5%BE%A1/">分层防御</a><a class="post-meta__tags" href="/tags/Nginx/">Nginx</a><a class="post-meta__tags" href="/tags/OpenResty/">OpenResty</a><a class="post-meta__tags" href="/tags/%E4%BB%A4%E7%89%8C%E6%A1%B6/">令牌桶</a><a class="post-meta__tags" href="/tags/%E9%99%90%E6%B5%81/">限流</a></div><div class="post-share"><div class="social-share" data-image="/img/title-picture/%E7%A7%92%E6%9D%80%E8%AE%BE%E8%AE%A1%E4%B8%80.jpg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/2026/10/02/%E7%A7%92%E6%9D%80%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9A%E6%95%B0%E6%8D%AE%E6%AD%A3%E7%A1%AE%E6%80%A7/" title="秒杀系统设计（二）：数据正确性——防超卖、分布式锁与一人一单"><img class="cover" src="/img/title-picture/%E7%A7%92%E6%9D%80%E8%AE%BE%E8%AE%A1%E4%BA%8C.jpg" onerror="onerror=null;src='/img/404.jpg'" alt="cover of previous post"><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">秒杀系统设计（二）：数据正确性——防超卖、分布式锁与一人一单</div></div><div class="info-2"><div class="info-item-1">流量问题解决后，系统活下来了，但不代表数据是对的。作为系列第二篇，本文解决秒杀里两件"必须正确"的事：一是库存不能超卖——从 Redis 侧的 Lua 原子扣减，到数据库侧的四种并发控制方案（悲观锁、乐观锁、CAS 原子 SQL、分布式锁）、三种锁的等待机制，以及"锁必须放在事务外"等三个坑点；二是一人只能有一单——三种实现方案、幂等设计，以及超时未支付的库存回补。</div></div></div></a><a class="pagination-related" href="/2026/09/29/Hot%20100%20---%20%E5%AF%BB%E6%89%BE%E9%87%8D%E5%A4%8D%E6%95%B0/" title="Hot 100 --- 寻找重复数"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="onerror=null;src='/img/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">Hot 100 --- 寻找重复数</div></div><div class="info-2"><div class="info-item-1">本文讲解寻找重复数：数组长度为 n+1、值都在 1~n 之间，所以每个值都是一个合法下标，可以把数组读成一张"每个位置指向 nums[位置]"的链表；重复值意味着两个下标指向同一节点，于是形成环，问题就变成找环入口。完整推导快慢指针为什么一定相遇、以及为什么相遇后同速走能停在环入口</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/2026/10/02/%E7%A7%92%E6%9D%80%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9A%E6%95%B0%E6%8D%AE%E6%AD%A3%E7%A1%AE%E6%80%A7/" title="秒杀系统设计（二）：数据正确性——防超卖、分布式锁与一人一单"><img class="cover" src="/img/title-picture/%E7%A7%92%E6%9D%80%E8%AE%BE%E8%AE%A1%E4%BA%8C.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-02</div><div class="info-item-2">秒杀系统设计（二）：数据正确性——防超卖、分布式锁与一人一单</div></div><div class="info-2"><div class="info-item-1">流量问题解决后，系统活下来了，但不代表数据是对的。作为系列第二篇，本文解决秒杀里两件"必须正确"的事：一是库存不能超卖——从 Redis 侧的 Lua 原子扣减，到数据库侧的四种并发控制方案（悲观锁、乐观锁、CAS 原子 SQL、分布式锁）、三种锁的等待机制，以及"锁必须放在事务外"等三个坑点；二是一人只能有一单——三种实现方案、幂等设计，以及超时未支付的库存回补。</div></div></div></a><a class="pagination-related" href="/2026/10/03/%E7%A7%92%E6%9D%80%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%EF%BC%88%E4%B8%89%EF%BC%89%EF%BC%9A%E8%A7%84%E6%A8%A1%E6%89%A9%E5%B1%95/" title="秒杀系统设计（三）：规模扩展——库存分片与容量规划"><img class="cover" src="/img/title-picture/%E7%A7%92%E6%9D%80%E8%AE%BE%E8%AE%A1%E4%B8%89.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-03</div><div class="info-item-2">秒杀系统设计（三）：规模扩展——库存分片与容量规划</div></div><div class="info-2"><div class="info-item-1">前两篇的方案，都建立在"一个商品、库存 100 件"这个前提上。作为系列第三篇，本文先讨论前提被打破时怎么办：大库存怎么做库存分桶（DB 侧与 Redis 侧，以及路由算法必须一致这条铁律）、多商品怎么分库分表、分片最大的坑"分桶不均导致少卖"的两种解法（预留兜底桶与桶间借调）；再回答最实际的问题——基于压测基线与漏斗衰减，逐层算出到底要几台机器。</div></div></div></a><a class="pagination-related" href="/2026/07/21/Redis%20%E7%BC%93%E5%AD%98%E4%B8%80%E8%87%B4%E6%80%A7%E5%85%A8%E8%A7%A3%EF%BC%9A%E4%BB%8E%20Cache%20Aside%20%E5%88%B0%E5%BB%B6%E8%BF%9F%E5%8F%8C%E5%88%A0%E3%80%81Canal+MQ%20%E7%9A%84%E8%BF%9B%E9%98%B6%E4%B9%8B%E8%B7%AF/" title="Redis 缓存一致性全解：从 Cache Aside 到延迟双删、Canal+MQ 的进阶之路"><img class="cover" src="/img/title-picture/Redis%E7%BC%93%E5%AD%98%E4%B8%80%E8%87%B4%E6%80%A7.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-21</div><div class="info-item-2">Redis 缓存一致性全解：从 Cache Aside 到延迟双删、Canal+MQ 的进阶之路</div></div><div class="info-2"><div class="info-item-1">引入 Redis 缓存层后，"数据库更新了缓存却没跟上"就成了绕不开的一致性难题。本文按"问题 → 朴素方案为何失败 → Cache Aside → 先删 vs 后删 → TTL 兜底 → 延迟双删 + MQ 重试 → Canal + MQ → 分布式锁 → 何时放弃缓存"的进阶路线，系统讲透更新缓存与删除缓存的取舍、并发读写场景下的脏数据窗口、ACK 时序、Canal 痛点以及强一致业务的选型逻辑，并配多张流程图辅助理解。</div></div></div></a><a class="pagination-related" href="/2026/07/15/%E4%B8%80%E6%8A%8A%20Redis%20%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81%EF%BC%8C%E8%B8%A9%E9%80%8F%E5%9B%9B%E4%B8%AA%E5%9D%91%EF%BC%9A%E9%94%81%E4%BA%89%E6%8A%A2%E3%80%81%E5%83%B5%E5%B0%B8%E9%94%81%E3%80%81%E9%94%81%E8%BF%87%E6%9C%9F%E3%80%81%E9%94%81%E4%B8%A2%E5%A4%B1/" title="一把 Redis 分布式锁，踩透四个坑：锁争抢、僵尸锁、锁过期、锁丢失"><img class="cover" src="/img/title-picture/%E4%B8%80%E6%8A%8A%20Redis%20%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81%EF%BC%8C%E8%B8%A9%E9%80%8F%E5%9B%9B%E4%B8%AA%E5%9D%91%EF%BC%9A%E9%94%81%E4%BA%89%E6%8A%A2%E3%80%81%E5%83%B5%E5%B0%B8%E9%94%81%E3%80%81%E9%94%81%E8%BF%87%E6%9C%9F%E3%80%81%E9%94%81%E4%B8%A2%E5%A4%B1.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-15</div><div class="info-item-2">一把 Redis 分布式锁，踩透四个坑：锁争抢、僵尸锁、锁过期、锁丢失</div></div><div class="info-2"><div class="info-item-1">Java 的 synchronized 和 ReentrantLock 只能锁住单个 JVM，多节点部署下会完全失效。本文从"为什么需要分布式锁"切入，按"问题 → 解决 → 引出新问题 → 再解决"的思路，讲清楚 Redis 分布式锁要解决的四大核心问题：锁争抢、僵尸锁、锁过期、锁高可用，以及对应的 SET NX EX、TTL 兜底、看门狗、UUID+Lua、RedLock 方案。</div></div></div></a><a class="pagination-related" href="/2026/07/13/Redis%20key%20%E8%BF%87%E6%9C%9F%E4%BA%86%E5%B0%B1%E4%B8%80%E5%AE%9A%E4%BC%9A%E8%A2%AB%E5%88%A0%E5%90%97%EF%BC%9F%E8%AE%B2%E9%80%8F%E8%BF%87%E6%9C%9F%E5%88%A0%E9%99%A4%E4%B8%8E%E5%86%85%E5%AD%98%E6%B7%98%E6%B1%B0%E7%AD%96%E7%95%A5/" title="Redis key 过期了就一定会被删吗？讲透过期删除与内存淘汰策略"><img class="cover" src="/img/title-picture/Redis%20key%20%E8%BF%87%E6%9C%9F%E4%BA%86%E5%B0%B1%E4%B8%80%E5%AE%9A%E4%BC%9A%E8%A2%AB%E5%88%A0%E5%90%97%EF%BC%9F%E8%AE%B2%E9%80%8F%E8%BF%87%E6%9C%9F%E5%88%A0%E9%99%A4%E4%B8%8E%E5%86%85%E5%AD%98%E6%B7%98%E6%B1%B0%E7%AD%96%E7%95%A5.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-13</div><div class="info-item-2">Redis key 过期了就一定会被删吗？讲透过期删除与内存淘汰策略</div></div><div class="info-2"><div class="info-item-1">Redis 的 key 设置了过期时间真的会到期就删吗？内存满了又要淘汰谁？本文从过期字典讲起，系统讲清三种过期删除策略（惰性、定时、定期）及 Redis 的组合方案，再过渡到 8 种内存淘汰策略，最后深入 LRU 近似实现与 LFU 的概率递增、时间衰减机制。</div></div></div></a><a class="pagination-related" href="/2026/06/17/%E4%B8%80%E8%A1%8C%E4%BB%A3%E7%A0%81%E7%99%BB%E5%BD%95%EF%BC%8C%E5%BE%AE%E7%A7%92%E7%BA%A7%E9%89%B4%E6%9D%83%EF%BC%9ASa-Token%20+%20Redis%20Session%20%E5%AE%9E%E8%B7%B5/" title="一行代码登录，微秒级鉴权：Sa-Token + Redis Session 实践"><img class="cover" src="/img/title-picture/sa-token.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-06-17</div><div class="info-item-2">一行代码登录，微秒级鉴权：Sa-Token + Redis Session 实践</div></div><div class="info-2"><div class="info-item-1">本文从实际项目出发，深入讲解 Sa-Token 的完整使用流程、底层鉴权机制以及基于 Redis Session 共享的性能优化方案</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/%E5%A4%B4%E5%83%8F.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">青山木</div><div class="author-info-description">正在学习Java后端开发＋智能体开发，希望能与大家多多交流</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">114</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">244</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">6</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/LI-S-H"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/LI-S-H" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">欢迎来到我的博客，记录学习与成长的点滴。</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%80%E3%80%81%E9%9C%80%E6%B1%82%E4%B8%8E%E9%9A%BE%E7%82%B9"><span class="toc-number">1.</span> <span class="toc-text">一、需求与难点</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1-1-%E4%B8%9A%E5%8A%A1%E5%9C%BA%E6%99%AF"><span class="toc-number">1.1.</span> <span class="toc-text">1.1 业务场景</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-2-%E5%8A%9F%E8%83%BD%E9%9C%80%E6%B1%82"><span class="toc-number">1.2.</span> <span class="toc-text">1.2 功能需求</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-3-%E9%9D%9E%E5%8A%9F%E8%83%BD%E9%9C%80%E6%B1%82"><span class="toc-number">1.3.</span> <span class="toc-text">1.3 非功能需求</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-4-%E6%8A%80%E6%9C%AF%E9%9A%BE%E7%82%B9%EF%BC%9A%E9%9C%80%E6%B1%82%E8%83%8C%E5%90%8E%E7%9A%84%E5%9B%9B%E4%B8%AA%E6%A0%B8%E5%BF%83%E7%9F%9B%E7%9B%BE"><span class="toc-number">1.4.</span> <span class="toc-text">1.4 技术难点：需求背后的四个核心矛盾</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%8C%E3%80%81%E6%9C%B4%E7%B4%A0%E5%AE%9E%E7%8E%B0%E6%9A%B4%E9%9C%B2%E7%9A%84%E4%B8%89%E4%B8%AA%E9%97%AE%E9%A2%98"><span class="toc-number">2.</span> <span class="toc-text">二、朴素实现暴露的三个问题</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#2-1-%E5%85%88%E6%8F%8F%E8%BF%B0%E4%B8%80%E4%B8%8B%E4%B8%9A%E5%8A%A1%E9%80%BB%E8%BE%91"><span class="toc-number">2.1.</span> <span class="toc-text">2.1 先描述一下业务逻辑</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-2-%E6%9C%B4%E7%B4%A0%E5%AE%9E%E7%8E%B0%E7%9A%84%E4%BB%A3%E7%A0%81"><span class="toc-number">2.2.</span> <span class="toc-text">2.2 朴素实现的代码</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-3-%E9%AB%98%E5%B9%B6%E5%8F%91%E9%97%AE%E9%A2%98%E4%B8%80%EF%BC%9A%E6%95%B0%E6%8D%AE%E5%BA%93%E8%A2%AB%E6%89%93%E7%88%86%EF%BC%88%E6%B5%81%E9%87%8F%E9%97%AE%E9%A2%98%EF%BC%89"><span class="toc-number">2.3.</span> <span class="toc-text">2.3 高并发问题一：数据库被打爆（流量问题）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-4-%E9%AB%98%E5%B9%B6%E5%8F%91%E9%97%AE%E9%A2%98%E4%BA%8C%EF%BC%9A%E8%B6%85%E5%8D%96%EF%BC%88%E6%95%B0%E6%8D%AE%E4%B8%80%E8%87%B4%E6%80%A7%E9%97%AE%E9%A2%98%EF%BC%89"><span class="toc-number">2.4.</span> <span class="toc-text">2.4 高并发问题二：超卖（数据一致性问题）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-5-%E9%AB%98%E5%B9%B6%E5%8F%91%E9%97%AE%E9%A2%98%E4%B8%89%EF%BC%9A%E4%B8%80%E4%BA%BA%E5%A4%9A%E5%8D%95%EF%BC%88%E5%B9%82%E7%AD%89%E6%80%A7%E9%97%AE%E9%A2%98%EF%BC%89"><span class="toc-number">2.5.</span> <span class="toc-text">2.5 高并发问题三：一人多单（幂等性问题）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-6-%E9%97%AE%E9%A2%98%E6%A2%B3%E7%90%86%E4%B8%8E%E8%A7%A3%E5%86%B3%E9%A1%BA%E5%BA%8F"><span class="toc-number">2.6.</span> <span class="toc-text">2.6 问题梳理与解决顺序</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%89%E3%80%81%E5%85%A8%E5%B1%80%E8%AE%BE%E8%AE%A1%EF%BC%9A%E6%BC%8F%E6%96%97%E6%A8%A1%E5%9E%8B%E4%B8%8E%E5%88%86%E5%B1%82%E6%9E%B6%E6%9E%84"><span class="toc-number">3.</span> <span class="toc-text">三、全局设计：漏斗模型与分层架构</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#3-1-%E6%A0%B8%E5%BF%83%E8%AE%A4%E7%9F%A5%EF%BC%9A%E6%BC%8F%E6%96%97%E6%A8%A1%E5%9E%8B"><span class="toc-number">3.1.</span> <span class="toc-text">3.1 核心认知：漏斗模型</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-2-%E5%AE%8C%E6%95%B4%E9%93%BE%E8%B7%AF%E4%B8%8E%E6%AF%8F%E5%B1%82%E8%81%8C%E8%B4%A3"><span class="toc-number">3.2.</span> <span class="toc-text">3.2 完整链路与每层职责</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-3-%E5%88%86%E5%B1%82%E9%98%B2%E5%BE%A1%E7%9A%84%E6%A0%B8%E5%BF%83%E6%80%9D%E6%83%B3"><span class="toc-number">3.3.</span> <span class="toc-text">3.3 分层防御的核心思想</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%9B%9B%E3%80%81%E6%8E%A5%E5%85%A5%E5%B1%82%EF%BC%9A%E4%BB%8E%E5%8D%95%E6%9C%BA-Nginx-%E5%88%B0%E5%A4%9A%E7%BA%A7%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1"><span class="toc-number">4.</span> <span class="toc-text">四、接入层：从单机 Nginx 到多级负载均衡</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#4-1-%E5%B1%82%E6%AC%A1%E4%B8%80%EF%BC%9A%E5%8A%A8%E9%9D%99%E5%88%86%E7%A6%BB%E2%80%94%E2%80%94%E5%85%88%E6%8A%8A%E6%97%A0%E6%95%88%E6%B5%81%E9%87%8F%E5%8D%B8%E6%8E%89"><span class="toc-number">4.1.</span> <span class="toc-text">4.1 层次一：动静分离——先把无效流量卸掉</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-2-%E5%B1%82%E6%AC%A1%E4%BA%8C%EF%BC%9A%E4%B8%80%E5%8F%B0-Nginx-%E8%83%BD%E6%89%9B%E5%A4%9A%E5%B0%91-QPS"><span class="toc-number">4.2.</span> <span class="toc-text">4.2 层次二：一台 Nginx 能扛多少 QPS</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-3-%E5%B1%82%E6%AC%A1%E4%B8%89%EF%BC%9ANginx-%E9%9B%86%E7%BE%A4%E2%80%94%E2%80%94%E9%9B%86%E7%BE%A4%E4%B9%8B%E5%90%8E%EF%BC%8C%E8%B0%81%E6%9D%A5%E5%81%9A%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1"><span class="toc-number">4.3.</span> <span class="toc-text">4.3 层次三：Nginx 集群——集群之后，谁来做负载均衡</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-4-%E5%B1%82%E6%AC%A1%E5%9B%9B%EF%BC%9A%E5%BC%95%E5%85%A5%E5%9B%9B%E5%B1%82%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1-LVS-F5"><span class="toc-number">4.4.</span> <span class="toc-text">4.4 层次四：引入四层负载均衡 LVS &#x2F; F5</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-5-%E5%B1%82%E6%AC%A1%E4%BA%94%EF%BC%9ALVS-%E4%B9%9F%E4%B8%8D%E8%83%BD%E6%98%AF%E5%8D%95%E7%82%B9%E2%80%94%E2%80%94%E4%B8%BB%E5%A4%87%E4%B8%8E%E5%A4%9A%E9%9B%86%E7%BE%A4"><span class="toc-number">4.5.</span> <span class="toc-text">4.5 层次五：LVS 也不能是单点——主备与多集群</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-6-%E6%8E%A5%E5%85%A5%E5%B1%82%E7%9A%84%E5%AE%8C%E6%95%B4%E5%B1%82%E6%AC%A1%E5%9B%BE"><span class="toc-number">4.6.</span> <span class="toc-text">4.6 接入层的完整层次图</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-7-%E5%B1%82%E6%AC%A1%E5%85%AD%EF%BC%9A%E5%9C%A8-Nginx-%E4%B8%8A%E5%81%9A%E9%99%90%E6%B5%81"><span class="toc-number">4.7.</span> <span class="toc-text">4.7 层次六：在 Nginx 上做限流</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-8-%E5%B1%82%E6%AC%A1%E4%B8%83%EF%BC%9AOpenResty%E2%80%94%E2%80%94%E8%AE%A9-Nginx-%E5%85%B7%E5%A4%87%E4%B8%9A%E5%8A%A1%E5%88%A4%E6%96%AD%E8%83%BD%E5%8A%9B"><span class="toc-number">4.8.</span> <span class="toc-text">4.8 层次七：OpenResty——让 Nginx 具备业务判断能力</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-9-%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1%E7%AE%97%E6%B3%95%E6%80%8E%E4%B9%88%E9%80%89"><span class="toc-number">4.9.</span> <span class="toc-text">4.9 负载均衡算法怎么选</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%94%E3%80%81%E5%BA%94%E7%94%A8%E5%B1%82%EF%BC%9A%E4%BB%A4%E7%89%8C%E6%A1%B6%E9%99%90%E6%B5%81"><span class="toc-number">5.</span> <span class="toc-text">五、应用层：令牌桶限流</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#5-1-%E4%BB%A4%E7%89%8C%E6%A1%B6%E5%8E%9F%E7%90%86"><span class="toc-number">5.1.</span> <span class="toc-text">5.1 令牌桶原理</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#5-2-%E4%BB%A4%E7%89%8C%E6%A1%B6-vs-%E6%BC%8F%E6%A1%B6"><span class="toc-number">5.2.</span> <span class="toc-text">5.2 令牌桶 vs 漏桶</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#5-3-Redis-Lua-%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E4%BB%A4%E7%89%8C%E6%A1%B6"><span class="toc-number">5.3.</span> <span class="toc-text">5.3 Redis + Lua 实现分布式令牌桶</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#5-4-%E4%B8%BA%E4%BB%80%E4%B9%88%E5%BF%85%E9%A1%BB%E7%94%A8-Lua"><span class="toc-number">5.4.</span> <span class="toc-text">5.4 为什么必须用 Lua</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#5-5-%E4%BB%A4%E7%89%8C%E6%A1%B6%E7%9A%84%E5%B1%80%E9%99%90%E4%B8%8E%E5%9D%91%E7%82%B9"><span class="toc-number">5.5.</span> <span class="toc-text">5.5 令牌桶的局限与坑点</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%85%AD%E3%80%81%E7%BC%93%E5%AD%98%E4%B8%8E%E6%B6%88%E6%81%AF%E5%B1%82%EF%BC%9ARedis-%E6%8C%A1%E9%87%8F-MQ-%E5%89%8A%E5%B3%B0"><span class="toc-number">6.</span> <span class="toc-text">六、缓存与消息层：Redis 挡量 + MQ 削峰</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#6-1-%E6%A0%B8%E5%BF%83%E6%80%9D%E8%B7%AF"><span class="toc-number">6.1.</span> <span class="toc-text">6.1 核心思路</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-2-%E5%AE%8C%E6%95%B4%E6%B5%81%E7%A8%8B"><span class="toc-number">6.2.</span> <span class="toc-text">6.2 完整流程</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-3-%E5%BA%93%E5%AD%98%E9%A2%84%E7%83%AD"><span class="toc-number">6.3.</span> <span class="toc-text">6.3 库存预热</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-4-%E5%8F%91%E9%80%81-MQ-%E4%B8%8E%E5%A4%B1%E8%B4%A5%E5%9B%9E%E8%A1%A5"><span class="toc-number">6.4.</span> <span class="toc-text">6.4 发送 MQ 与失败回补</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-5-%E5%89%8A%E5%B3%B0%E5%8E%9F%E7%90%86%EF%BC%9A%E6%95%B0%E6%8D%AE%E5%BA%93%E8%83%BD%E6%89%9B%E5%A4%9A%E5%B0%91%EF%BC%8CMQ-%E9%9C%80%E8%A6%81%E6%89%9B%E5%A4%9A%E5%B0%91"><span class="toc-number">6.5.</span> <span class="toc-text">6.5 削峰原理：数据库能扛多少，MQ 需要扛多少</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-6-MQ-%E6%80%8E%E4%B9%88%E9%80%89%EF%BC%9AKafka-RocketMQ-RabbitMQ"><span class="toc-number">6.6.</span> <span class="toc-text">6.6 MQ 怎么选：Kafka &#x2F; RocketMQ &#x2F; RabbitMQ</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/2026/10/03/%E7%A7%92%E6%9D%80%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%EF%BC%88%E4%B8%89%EF%BC%89%EF%BC%9A%E8%A7%84%E6%A8%A1%E6%89%A9%E5%B1%95/" title="秒杀系统设计（三）：规模扩展——库存分片与容量规划"><img src="/img/title-picture/%E7%A7%92%E6%9D%80%E8%AE%BE%E8%AE%A1%E4%B8%89.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="秒杀系统设计（三）：规模扩展——库存分片与容量规划"/></a><div class="content"><a class="title" href="/2026/10/03/%E7%A7%92%E6%9D%80%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%EF%BC%88%E4%B8%89%EF%BC%89%EF%BC%9A%E8%A7%84%E6%A8%A1%E6%89%A9%E5%B1%95/" title="秒杀系统设计（三）：规模扩展——库存分片与容量规划">秒杀系统设计（三）：规模扩展——库存分片与容量规划</a><time datetime="2026-10-03T02:00:00.000Z" title="发表于 2026-10-03 10:00:00">2026-10-03</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/10/02/%E7%A7%92%E6%9D%80%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9A%E6%95%B0%E6%8D%AE%E6%AD%A3%E7%A1%AE%E6%80%A7/" title="秒杀系统设计（二）：数据正确性——防超卖、分布式锁与一人一单"><img src="/img/title-picture/%E7%A7%92%E6%9D%80%E8%AE%BE%E8%AE%A1%E4%BA%8C.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="秒杀系统设计（二）：数据正确性——防超卖、分布式锁与一人一单"/></a><div class="content"><a class="title" href="/2026/10/02/%E7%A7%92%E6%9D%80%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9A%E6%95%B0%E6%8D%AE%E6%AD%A3%E7%A1%AE%E6%80%A7/" title="秒杀系统设计（二）：数据正确性——防超卖、分布式锁与一人一单">秒杀系统设计（二）：数据正确性——防超卖、分布式锁与一人一单</a><time datetime="2026-10-02T02:00:00.000Z" title="发表于 2026-10-02 10:00:00">2026-10-02</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/10/01/%E7%A7%92%E6%9D%80%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9A%E9%9C%80%E6%B1%82%E6%8B%86%E8%A7%A3%E4%B8%8E%E6%B5%81%E9%87%8F%E6%B2%BB%E7%90%86/" title="秒杀系统设计（一）：需求拆解与流量治理"><img src="/img/title-picture/%E7%A7%92%E6%9D%80%E8%AE%BE%E8%AE%A1%E4%B8%80.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="秒杀系统设计（一）：需求拆解与流量治理"/></a><div class="content"><a class="title" href="/2026/10/01/%E7%A7%92%E6%9D%80%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9A%E9%9C%80%E6%B1%82%E6%8B%86%E8%A7%A3%E4%B8%8E%E6%B5%81%E9%87%8F%E6%B2%BB%E7%90%86/" title="秒杀系统设计（一）：需求拆解与流量治理">秒杀系统设计（一）：需求拆解与流量治理</a><time datetime="2026-10-01T02:00:00.000Z" title="发表于 2026-10-01 10:00:00">2026-10-01</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/09/29/Hot%20100%20---%20%E5%AF%BB%E6%89%BE%E9%87%8D%E5%A4%8D%E6%95%B0/" title="Hot 100 --- 寻找重复数"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 寻找重复数"/></a><div class="content"><a class="title" href="/2026/09/29/Hot%20100%20---%20%E5%AF%BB%E6%89%BE%E9%87%8D%E5%A4%8D%E6%95%B0/" title="Hot 100 --- 寻找重复数">Hot 100 --- 寻找重复数</a><time datetime="2026-09-29T14:30:00.000Z" title="发表于 2026-09-29 22:30:00">2026-09-29</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/09/28/Hot%20100%20---%20%E4%B8%8B%E4%B8%80%E4%B8%AA%E6%8E%92%E5%88%97/" title="Hot 100 --- 下一个排列"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 下一个排列"/></a><div class="content"><a class="title" href="/2026/09/28/Hot%20100%20---%20%E4%B8%8B%E4%B8%80%E4%B8%AA%E6%8E%92%E5%88%97/" title="Hot 100 --- 下一个排列">Hot 100 --- 下一个排列</a><time datetime="2026-09-28T15:30:00.000Z" title="发表于 2026-09-28 23:30:00">2026-09-28</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By 青山木</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.5.4"></script><script src="/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script>
+(function() {
+  /* 仅在首页标题上方插入头像 */
+  if (window.location.pathname !== '/' && !window.location.pathname.endsWith('/index.html')) return;
+  var siteTitle = document.getElementById('site-title');
+  if (siteTitle) {
+    var avatar = document.createElement('img');
+    avatar.src = '/img/头像.jpg';
+    avatar.alt = 'avatar';
+    avatar.className = 'avatar-img';
+    siteTitle.parentNode.insertBefore(avatar, siteTitle);
+  }
+})();
+</script>
+<script>
+(function() {
+  function initMermaid() {
+    if (window.mermaid) return Promise.resolve();
+    return new Promise(function(resolve, reject) {
+      var script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/mermaid@11.12.2/dist/mermaid.min.js';
+      script.onload = function() {
+        mermaid.initialize({
+          startOnLoad: false,
+          // 图表主题固定，避免站点深浅色切换时重新解析整篇文章的所有 Mermaid 图。
+          theme: 'dark',
+          securityLevel: 'loose'
+        });
+        resolve();
+      };
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  }
+
+  // Mermaid 会异步改变文章高度；目录跳转必须等所有图表完成布局后再读取标题位置。
+  window.mermaidReady = Promise.resolve();
+  var renderSequence = 0;
+
+  function waitForStableLayout() {
+    return new Promise(function(resolve) {
+      requestAnimationFrame(function() {
+        requestAnimationFrame(function() {
+          // 让 SVG 内的 foreignObject 完成一次实际布局，再刷新 Butterfly 的标题位置缓存。
+          setTimeout(resolve, 50);
+        });
+      });
+    });
+  }
+
+  function showMermaidSource(pre) {
+    pre.hidden = false;
+    pre.style.display = 'block';
+    pre.style.color = '#d32f2f';
+    pre.style.whiteSpace = 'pre-wrap';
+    pre.style.fontSize = '13px';
+  }
+
+  function refreshTocPositions() {
+    // Butterfly 只在 resize 时重新缓存标题坐标。
+    window.dispatchEvent(new Event('resize'));
+    document.dispatchEvent(new CustomEvent('mermaid:rendered'));
+  }
+
+  function renderMermaidDiagrams() {
+    var wraps = document.querySelectorAll('#article-container .mermaid-wrap');
+    if (wraps.length === 0) {
+      window.mermaidReady = Promise.resolve();
+      return window.mermaidReady;
+    }
+
+    var renderTask = initMermaid().then(function() {
+      return Promise.all(Array.prototype.map.call(wraps, function(wrap, index) {
+        var pre = wrap.querySelector('pre.mermaid-src');
+        if (!pre || pre.dataset.rendered === 'true') return Promise.resolve();
+
+        var code = pre.textContent;
+        var id = 'mermaid-' + index + '-' + (++renderSequence);
+        return Promise.resolve().then(function() {
+          return mermaid.render(id, code);
+        }).then(function(result) {
+          pre.dataset.rendered = 'true';
+          pre.style.display = 'none';
+          var div = document.createElement('div');
+          div.innerHTML = result.svg;
+          wrap.insertBefore(div.firstChild, pre.nextSibling);
+        }).catch(function(err) {
+          console.error('[Mermaid] Block #' + index + ' render failed:', err);
+          showMermaidSource(pre);
+        });
+      }));
+    }).then(function() {
+      return waitForStableLayout();
+    }).then(function() {
+      refreshTocPositions();
+    }).catch(function(err) {
+      console.error('[Mermaid] Failed to load mermaid.js:', err);
+      wraps.forEach(function(wrap) {
+        var pre = wrap.querySelector('pre.mermaid-src');
+        if (pre) showMermaidSource(pre);
+      });
+    });
+
+    window.mermaidReady = renderTask;
+    return renderTask;
+  }
+
+  // 页面加载完成后渲染
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', renderMermaidDiagrams);
+  } else {
+    renderMermaidDiagrams();
+  }
+
+  // 拦截目录点击：若图表仍在渲染，等待布局稳定后按实时坐标滚动。
+  // 使用捕获阶段，避免 Butterfly 先按渲染前的坐标启动平滑滚动。
+  var tocNavigationSequence = 0;
+  document.addEventListener('click', function(e) {
+    var link = e.target.closest('#card-toc .toc-link');
+    if (!link) return;
+
+    var href = link.getAttribute('href') || '';
+    var hashIndex = href.indexOf('#');
+    if (hashIndex < 0) return;
+
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    var navigationSequence = ++tocNavigationSequence;
+    var headingId = decodeURI(href.slice(hashIndex + 1));
+
+    (window.mermaidReady || Promise.resolve()).then(function() {
+      return waitForStableLayout();
+    }).then(function() {
+      if (navigationSequence !== tocNavigationSequence) return;
+      var heading = document.getElementById(headingId);
+      if (!heading) return;
+
+      // 使用点击时的实际位置，避免异步 SVG 插入改变标题高度后跳错章节。
+      var top = heading.getBoundingClientRect().top + window.scrollY;
+      if (window.btf && window.btf.scrollToDest) {
+        window.btf.scrollToDest(top, 300);
+      } else {
+        window.scrollTo({ top: top, behavior: 'smooth' });
+      }
+    });
+  }, true);
+
+})();
+</script>
+<script id="canvas_nest" defer="defer" color="107,159,255" opacity="0.6" zIndex="-1" count="99" mobile="false" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/dist/canvas-nest.min.js"></script></div></body></html>

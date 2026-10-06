@@ -1,0 +1,1022 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="dark"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>秒杀系统设计（二）：数据正确性——防超卖、分布式锁与一人一单 | 青山木</title><meta name="author" content="青山木"><meta name="copyright" content="青山木"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#0d1117"><meta name="description" content="流量问题解决后，系统活下来了，但不代表数据是对的。作为系列第二篇，本文解决秒杀里两件&quot;必须正确&quot;的事：一是库存不能超卖——从 Redis 侧的 Lua 原子扣减，到数据库侧的四种并发控制方案（悲观锁、乐观锁、CAS 原子 SQL、分布式锁）、三种锁的等待机制，以及&quot;锁必须放在事务外&quot;等三个坑点；二是一人只能有一单——三种实现方案、幂等设计，以及超时未支付的库存回补。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="秒杀系统设计（二）：数据正确性——防超卖、分布式锁与一人一单">
+<meta property="og:url" content="https://li-s-h.github.io/2026/10/02/%E7%A7%92%E6%9D%80%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9A%E6%95%B0%E6%8D%AE%E6%AD%A3%E7%A1%AE%E6%80%A7/index.html">
+<meta property="og:site_name" content="青山木">
+<meta property="og:description" content="流量问题解决后，系统活下来了，但不代表数据是对的。作为系列第二篇，本文解决秒杀里两件&quot;必须正确&quot;的事：一是库存不能超卖——从 Redis 侧的 Lua 原子扣减，到数据库侧的四种并发控制方案（悲观锁、乐观锁、CAS 原子 SQL、分布式锁）、三种锁的等待机制，以及&quot;锁必须放在事务外&quot;等三个坑点；二是一人只能有一单——三种实现方案、幂等设计，以及超时未支付的库存回补。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://li-s-h.github.io/img/title-picture/%E7%A7%92%E6%9D%80%E8%AE%BE%E8%AE%A1%E4%BA%8C.jpg">
+<meta property="article:published_time" content="2026-10-02T02:00:00.000Z">
+<meta property="article:modified_time" content="2026-10-01T12:40:47.816Z">
+<meta property="article:author" content="青山木">
+<meta property="article:tag" content="Redis">
+<meta property="article:tag" content="MQ">
+<meta property="article:tag" content="分布式锁">
+<meta property="article:tag" content="幂等">
+<meta property="article:tag" content="Redisson">
+<meta property="article:tag" content="Lua">
+<meta property="article:tag" content="秒杀">
+<meta property="article:tag" content="高并发">
+<meta property="article:tag" content="超卖">
+<meta property="article:tag" content="自旋">
+<meta property="article:tag" content="CAS">
+<meta property="article:tag" content="乐观锁">
+<meta property="article:tag" content="悲观锁">
+<meta property="article:tag" content="唯一索引">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://li-s-h.github.io/img/title-picture/%E7%A7%92%E6%9D%80%E8%AE%BE%E8%AE%A1%E4%BA%8C.jpg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "秒杀系统设计（二）：数据正确性——防超卖、分布式锁与一人一单",
+  "url": "https://li-s-h.github.io/2026/10/02/%E7%A7%92%E6%9D%80%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9A%E6%95%B0%E6%8D%AE%E6%AD%A3%E7%A1%AE%E6%80%A7/",
+  "image": "https://li-s-h.github.io/img/title-picture/%E7%A7%92%E6%9D%80%E8%AE%BE%E8%AE%A1%E4%BA%8C.jpg",
+  "datePublished": "2026-10-02T02:00:00.000Z",
+  "dateModified": "2026-10-01T12:40:47.816Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "青山木",
+      "url": "https://LI-S-H.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/%E5%A4%B4%E5%83%8F.jpg"><link rel="canonical" href="https://li-s-h.github.io/2026/10/02/%E7%A7%92%E6%9D%80%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9A%E6%95%B0%E6%8D%AE%E6%AD%A3%E7%A1%AE%E6%80%A7/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="stylesheet" href="/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d1117')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', 'ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '秒杀系统设计（二）：数据正确性——防超卖、分布式锁与一人一单',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><style>
+  #site-title { font-size: 1.76em !important; }
+  #subtitle { font-size: 0.88em !important; }
+
+  /* 卡片悬停放大 + 辉光 */
+  #recent-posts .recent-post-item {
+    transition: transform .3s ease, box-shadow .3s ease, border-color .3s ease;
+  }
+  #recent-posts .recent-post-item:hover {
+    transform: scale(1.025) !important;
+    border-color: rgba(107,159,255,0.5) !important;
+    box-shadow: 0 0 0 1px rgba(107,159,255,0.15),
+                0 0 45px rgba(107,159,255,0.12),
+                0 8px 30px rgba(0,0,0,0.4) !important;
+  }
+
+  /* 首页标题上方头像 */
+  #site-info .avatar-img {
+    display: block;
+    width: 144px;
+    height: 144px;
+    border-radius: 50%;
+    margin: 0 auto 20px;
+    border: 3px solid rgba(107,159,255,0.6);
+    box-shadow: 0 0 30px rgba(107,159,255,0.35),
+                0 0 60px rgba(107,159,255,0.15),
+                0 4px 20px rgba(0,0,0,0.25);
+    object-fit: cover;
+    transition: box-shadow .4s ease, border-color .4s ease;
+  }
+  #site-info .avatar-img:hover {
+    border-color: rgba(107,159,255,0.9);
+    box-shadow: 0 0 40px rgba(107,159,255,0.5),
+                0 0 80px rgba(107,159,255,0.25),
+                0 4px 20px rgba(0,0,0,0.25);
+  }
+
+  /* Mermaid 图表容器样式 */
+  .mermaid-wrap {
+    position: relative;
+    /* 图表固定使用深色画布，主题切换无需销毁并重绘所有 SVG。 */
+    background: #1e1e1e !important;
+    padding: 12px !important;
+    border-radius: 8px !important;
+    border: 1px solid #444 !important;
+    text-align: center;
+    margin: 0 0 20px 0;
+    overflow-x: auto;
+  }
+  .mermaid-wrap > svg {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+  }
+  /* 深色图表画布在两种站点主题下保持一致，避免切换时重排。 */
+  [data-theme="dark"] .mermaid-wrap {
+    background: #1e1e1e !important;
+    border-color: #444 !important;
+  }
+</style>
+<meta name="generator" content="Hexo 7.3.0"></head><body><div class="bg-animation" id="web_bg" style="background-image: url(/img/%E8%83%8C%E6%99%AF%E5%9B%BE2.webp);"></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(/img/title-picture/%E7%A7%92%E6%9D%80%E8%AE%BE%E8%AE%A1%E4%BA%8C.jpg);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">青山木</span></a><a class="nav-page-title" href="/"><span class="site-name">秒杀系统设计（二）：数据正确性——防超卖、分布式锁与一人一单</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">秒杀系统设计（二）：数据正确性——防超卖、分布式锁与一人一单</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-10-02T02:00:00.000Z" title="发表于 2026-10-02 10:00:00">2026-10-02</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-10-01T12:40:47.816Z" title="更新于 2026-10-01 20:40:47">2026-10-01</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/%E5%90%8E%E7%AB%AF%E5%BC%80%E5%8F%91/">后端开发</a></span></div><div class="meta-secondline"></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><blockquote>
+<p><strong>【系列说明】</strong> 本文是《秒杀系统设计》系列的第 2 篇，共 3 篇。系列主线只有一句话：<strong>秒杀的本质是漏斗，不是堆机器</strong>。</p>
+<ul>
+<li>第 1 篇：需求拆解与流量治理——解决&quot;数据库被打爆&quot;</li>
+<li><strong>第 2 篇（本文）</strong>：数据正确性——解决&quot;库存超卖&quot;与&quot;一人多单&quot;</li>
+<li>第 3 篇：规模扩展——大库存、多商品的分片方案，以及到底要几台机器</li>
+</ul>
+</blockquote>
+<blockquote>
+<p><strong>【承接上文】</strong> 第一篇结尾，流量已经被逐层削了下来：数据库不再被打爆，系统算是&quot;活下来&quot;了。但<strong>活下来不等于活得对</strong>——本篇要解决的是&quot;<strong>库存不能超卖，一个人只能有一单</strong>&quot;。分三层展开：Redis 侧怎么保证扣减原子（第一章）、数据库侧怎么控制并发（第二章）、业务侧怎么保证一人一单（第三章），最后用幂等和超时回补收尾。</p>
+</blockquote>
+<h2 id="一、Redis-侧：Lua-原子扣减"><a href="#一、Redis-侧：Lua-原子扣减" class="headerlink" title="一、Redis 侧：Lua 原子扣减"></a>一、Redis 侧：Lua 原子扣减</h2><p>超卖会发生在两个环节：Redis 扣减时、数据库扣减时。这一章先解决 Redis 侧的。</p>
+<h3 id="1-1-Redis-侧的并发问题：扣减不原子导致超卖"><a href="#1-1-Redis-侧的并发问题：扣减不原子导致超卖" class="headerlink" title="1.1 Redis 侧的并发问题：扣减不原子导致超卖"></a>1.1 Redis 侧的并发问题：扣减不原子导致超卖</h3><p>先看会出现什么情况。</p>
+<p>假设库存只剩 <strong>1 件</strong>，两个请求几乎同时到达。如果扣减不是原子的，最终可能<strong>卖出 2 件</strong>：</p>
+<div class="mermaid-wrap"><pre class="mermaid-src" hidden>sequenceDiagram
+    participant A as 请求A
+    participant B as 请求B
+    participant R as Redis
+
+    Note over R: 库存只剩 1 件
+    A-&gt;&gt;R: 1. GET stock → 1
+    B-&gt;&gt;R: 2. GET stock → 1
+    Note over A,B: 两个请求都判断 1 &gt; 0，都认为可以扣
+    A-&gt;&gt;R: 3. DECR stock → 0
+    B-&gt;&gt;R: 4. DECR stock → -1
+    Note over R: ❌ 库存变成 -1，卖出了 2 件</pre></div>
+
+<p><strong>为什么会这样？</strong></p>
+<p>第一篇 6.4 里的 <code>deductStock</code> 看起来只是&quot;读一下、减一下&quot;，但如果把它拆成两条命令：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">Integer</span> <span class="variable">stock</span> <span class="operator">=</span> redis.get(<span class="string">&quot;seckill:stock:&quot;</span> + goodsId);   <span class="comment">// 1. 读</span></span><br><span class="line"><span class="keyword">if</span> (stock &gt; <span class="number">0</span>) &#123;</span><br><span class="line">    redis.decr(<span class="string">&quot;seckill:stock:&quot;</span> + goodsId);              <span class="comment">// 2. 写</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>问题就出在&quot;读&quot;和&quot;写&quot;<strong>中间那段时间</strong>：请求 A 和请求 B 都在这个窗口里读到了 <code>stock = 1</code>，都通过了 <code>stock &gt; 0</code> 的判断，然后各自执行了一次 <code>DECR</code>。</p>
+<p>这和 2.4 是同一个问题——&quot;<strong>读—判断—写</strong>&quot;不原子。Redis 命令本身是单线程执行的，但&quot;读&quot;和&quot;写&quot;是<strong>两条独立的命令</strong>，中间完全可以插入别的请求。</p>
+<h3 id="1-2-用-Lua-保证原子扣减"><a href="#1-2-用-Lua-保证原子扣减" class="headerlink" title="1.2 用 Lua 保证原子扣减"></a>1.2 用 Lua 保证原子扣减</h3><p>把&quot;读—判断—扣减&quot;整体塞进一个 Lua 脚本：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> Long <span class="title function_">deductStock</span><span class="params">(Long goodsId)</span> &#123;</span><br><span class="line">    <span class="comment">// 扣减 + 判断原子化：库存不足时不再扣减，避免扣成负数</span></span><br><span class="line">    <span class="type">String</span> <span class="variable">script</span> <span class="operator">=</span></span><br><span class="line">            <span class="string">&quot;local stock = tonumber(redis.call(&#x27;GET&#x27;, KEYS[1])) &quot;</span> +</span><br><span class="line">            <span class="string">&quot;if stock == nil then return -2 end &quot;</span> +   -- key 不存在，预热失败</span><br><span class="line">            <span class="string">&quot;if stock &lt;= 0 then return -1 end &quot;</span> +     -- 已售罄</span><br><span class="line">            <span class="string">&quot;redis.call(&#x27;DECR&#x27;, KEYS[1]) &quot;</span> +</span><br><span class="line">            <span class="string">&quot;return stock - 1&quot;</span>;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> redisTemplate.execute(</span><br><span class="line">            <span class="keyword">new</span> <span class="title class_">DefaultRedisScript</span>&lt;&gt;(script, Long.class),</span><br><span class="line">            Collections.singletonList(<span class="string">&quot;seckill:stock:&quot;</span> + goodsId)</span><br><span class="line">    );</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么必须是 Lua：</strong></p>
+<p><code>GET</code> 和 <code>DECR</code> 是两条命令，中间有窗口期。用 Lua 之后，&quot;读取—判断—扣减&quot;整体原子执行，<strong>绝对不会扣成负数</strong>。</p>
+<h3 id="1-3-坑点：为什么不用-DECR-后判断"><a href="#1-3-坑点：为什么不用-DECR-后判断" class="headerlink" title="1.3 坑点：为什么不用 DECR 后判断"></a>1.3 坑点：为什么不用 <code>DECR</code> 后判断</h3><p>有人会写：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">Long</span> <span class="variable">remain</span> <span class="operator">=</span> redisTemplate.opsForValue().decrement(<span class="string">&quot;seckill:stock:&quot;</span> + goodsId);</span><br><span class="line"><span class="keyword">if</span> (remain &lt; <span class="number">0</span>) &#123;</span><br><span class="line">    <span class="comment">// 库存不足，回滚</span></span><br><span class="line">    redisTemplate.opsForValue().increment(<span class="string">&quot;seckill:stock:&quot;</span> + goodsId);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>看起来也能防超卖（扣成负数再回滚），但有两个问题：</p>
+<ol>
+<li><strong>回滚期间库存是错的（负数）</strong>，如果有其他逻辑读这个值会出问题</li>
+<li><strong>回滚本身不是原子的</strong>，如果应用在 DECR 之后、INCREMENT 之前崩溃，库存就永久少了一件——<strong>少卖</strong></li>
+</ol>
+<p><strong>能在一个 Lua 里干完的事，绝不要拆成多条命令。</strong></p>
+<h3 id="1-4-关键认知：这一层为什么不需要分布式锁"><a href="#1-4-关键认知：这一层为什么不需要分布式锁" class="headerlink" title="1.4 关键认知：这一层为什么不需要分布式锁"></a>1.4 关键认知：这一层为什么不需要分布式锁</h3><p>这一点很重要，因为它纠正了很多人的直觉。</p>
+<p>在 1.2 的 <code>deductStock</code> 里，我们<strong>没有加任何锁</strong>。原因是：</p>
+<blockquote>
+<p><strong>Lua 脚本本身就是原子的。</strong> Redis 执行 Lua 期间不会执行其他命令，&quot;读库存—判断—扣减&quot;这三步在 Redis 内部是不可分割的整体。既然操作本身不可分割，再加一把锁就是多余的。</p>
+</blockquote>
+<p><strong>这也是&quot;原子操作优于加锁&quot;的典型场景：</strong></p>
+<ul>
+<li>加锁的代价：一次 Redis 加锁 + 一次解锁（2 次网络往返）+ 锁超时风险 + 锁误删风险 + 看门狗续期开销</li>
+<li>原子操作的代价：一次 Lua 脚本调用（1 次网络往返），无锁风险</li>
+</ul>
+<p><strong>记住这条取舍原则：能用原子操作解决的，就不要用锁。锁是最后的手段。</strong></p>
+<p>但——<strong>Redis 侧不超卖，不代表数据库侧也不超卖</strong>。下一章就是关键。</p>
+<hr>
+<h2 id="二、数据库侧：并发控制与锁"><a href="#二、数据库侧：并发控制与锁" class="headerlink" title="二、数据库侧：并发控制与锁"></a>二、数据库侧：并发控制与锁</h2><p>Redis 只保证了&quot;最多 100 个请求被放行&quot;，但<strong>这 100 个请求最终都要落到数据库</strong>。在数据库这一层，超卖问题会<strong>再出现一次</strong>。</p>
+<h3 id="2-1-数据库侧的超卖是怎么发生的"><a href="#2-1-数据库侧的超卖是怎么发生的" class="headerlink" title="2.1 数据库侧的超卖是怎么发生的"></a>2.1 数据库侧的超卖是怎么发生的</h3><p>消费者从 MQ 取到消息后，要真正扣减 DB 库存：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">SELECT</span> stock <span class="keyword">FROM</span> goods <span class="keyword">WHERE</span> id <span class="operator">=</span> <span class="number">1</span>;              <span class="comment">-- 线程A读到 10</span></span><br><span class="line"><span class="keyword">SELECT</span> stock <span class="keyword">FROM</span> goods <span class="keyword">WHERE</span> id <span class="operator">=</span> <span class="number">1</span>;              <span class="comment">-- 线程B读到 10</span></span><br><span class="line"><span class="keyword">UPDATE</span> goods <span class="keyword">SET</span> stock <span class="operator">=</span> stock <span class="operator">-</span> <span class="number">1</span> <span class="keyword">WHERE</span> id <span class="operator">=</span> <span class="number">1</span>;   <span class="comment">-- A → 9</span></span><br><span class="line"><span class="keyword">UPDATE</span> goods <span class="keyword">SET</span> stock <span class="operator">=</span> stock <span class="operator">-</span> <span class="number">1</span> <span class="keyword">WHERE</span> id <span class="operator">=</span> <span class="number">1</span>;   <span class="comment">-- B → 8</span></span><br></pre></td></tr></table></figure>
+
+<p>如果消费者的并发度大于 1（这是必须的，否则 MQ 削峰就没意义），<strong>同一商品的库存行会被多个线程同时修改</strong>。这和第一篇 2.4 节是同一个问题——只是这次发生在 DB 层。</p>
+<p>所以这一层<strong>必须有并发控制</strong>。</p>
+<h3 id="2-2-先试最直觉的方案：加锁"><a href="#2-2-先试最直觉的方案：加锁" class="headerlink" title="2.2 先试最直觉的方案：加锁"></a>2.2 先试最直觉的方案：加锁</h3><p>最直觉的修复是加锁。但如果用 Java 的 <code>synchronized</code>，在多节点部署下会<strong>完全失效</strong>：</p>
+<div class="mermaid-wrap"><pre class="mermaid-src" hidden>sequenceDiagram
+    participant UA as 用户A
+    participant LB as 负载均衡
+    participant SA as 服务A (JVM-A)
+    participant SB as 服务B (JVM-B)
+    participant DB as 共享库存
+
+    UA-&gt;&gt;LB: 扣减请求
+    LB-&gt;&gt;SA: 路由到服务A
+    LB-&gt;&gt;SB: 路由到服务B
+    SA-&gt;&gt;SA: synchronized 加锁 ✅
+    SB-&gt;&gt;SB: synchronized 加锁 ✅
+    Note over SA,SB: 两套 JVM 互不可见，双双加锁成功
+    SA-&gt;&gt;DB: 扣减
+    SB-&gt;&gt;DB: 扣减
+    Note over DB: ❌ 依然超卖</pre></div>
+
+<p><strong>关键点</strong>：单机锁只能保证<strong>单个 JVM 内</strong>的互斥。要跨节点互斥，必须有一把<strong>所有节点都能看到的锁</strong>——也就是分布式锁。Redis 分布式锁的完整原理（锁争抢、僵尸锁、锁过期、锁丢失）我在《一把 Redis 分布式锁，踩透四个坑》里已经详细展开，这里重点讲它在秒杀链路里的<strong>位置和取舍</strong>。</p>
+<h3 id="2-3-四种并发控制方案的对比"><a href="#2-3-四种并发控制方案的对比" class="headerlink" title="2.3 四种并发控制方案的对比"></a>2.3 四种并发控制方案的对比</h3><p>先给一张总表，下面再逐个说明&quot;它是什么、为什么是这个性能、秒杀能不能用&quot;。</p>
+<table>
+<thead>
+<tr>
+<th>方案</th>
+<th>实现方式</th>
+<th>持锁范围</th>
+<th>性能</th>
+<th>高并发下能否用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>DB 悲观锁</strong></td>
+<td><code>SELECT ... FOR UPDATE</code></td>
+<td>整个事务</td>
+<td>低</td>
+<td>能用，但很慢</td>
+</tr>
+<tr>
+<td><strong>DB 乐观锁</strong></td>
+<td><code>WHERE version = #&#123;v&#125;</code></td>
+<td>单条 SQL</td>
+<td>中</td>
+<td><strong>不能用（失败率极高）</strong></td>
+</tr>
+<tr>
+<td><strong>CAS 原子 SQL</strong></td>
+<td><code>UPDATE ... WHERE stock &gt; 0</code></td>
+<td>单条 SQL</td>
+<td><strong>高</strong></td>
+<td><strong>可以，首选</strong></td>
+</tr>
+<tr>
+<td><strong>Redis 分布式锁</strong></td>
+<td><code>SET NX PX</code> + Lua 释放</td>
+<td>锁住临界区</td>
+<td><strong>高</strong></td>
+<td>可以</td>
+</tr>
+</tbody></table>
+<p><strong>（1）DB 悲观锁：为什么慢</strong></p>
+<p>&quot;悲观&quot;的意思是<strong>假设冲突一定会发生</strong>，所以先把资源锁住再操作。<code>SELECT ... FOR UPDATE</code> 会给这一行加上<strong>排他锁</strong>，其他事务想读这一行都要排队。</p>
+<p>它慢的原因有三个，都跟&quot;<strong>锁由事务持有</strong>&quot;这一点有关：</p>
+<ul>
+<li><strong>持锁范围是整个事务</strong>——数据库行锁必须等<strong>事务提交或回滚</strong>才释放，而事务里往往不止&quot;扣库存&quot;这一件事，还有创建订单、插入明细等耗时操作。锁的持有时间被整个事务撑得极长；</li>
+<li><strong>锁等待会占用数据库连接</strong>——拿不到锁的请求会排队等待，而等待期间它<strong>一直占着数据库连接</strong>。并发一高，连接池迅速耗尽，<strong>整个应用线程池跟着阻塞</strong>，引发雪崩。这是 DB 锁最危险的地方；</li>
+<li><strong>锁粒度由索引决定</strong>——命中唯一索引时只锁单行；一旦没走索引，InnoDB 会锁住所有扫描到的行，<strong>等价于锁全表</strong>。</li>
+</ul>
+<blockquote>
+<p>对比一下：Redis 分布式锁可以自由控制临界区范围，只锁&quot;扣减库存&quot;那几行代码，创建订单等操作完全放在锁外——<strong>持锁时间从整个事务缩短到核心几行代码</strong>，这就是两者性能差距的根本来源。</p>
+</blockquote>
+<p><strong>（2）DB 乐观锁：为什么高并发下&quot;不能用&quot;</strong></p>
+<p>&quot;乐观&quot;的意思是<strong>假设冲突很少</strong>，所以不加锁，而是在更新时校验数据有没有被人改过：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">-- 1. 先查出版本号</span></span><br><span class="line"><span class="keyword">SELECT</span> stock, version <span class="keyword">FROM</span> goods <span class="keyword">WHERE</span> id <span class="operator">=</span> <span class="number">1</span>;</span><br><span class="line"><span class="comment">-- 2. 更新时带上版本号；如果版本对不上，说明这行被别人改过，本次更新就会失败</span></span><br><span class="line"><span class="keyword">UPDATE</span> goods <span class="keyword">SET</span> stock <span class="operator">=</span> stock <span class="operator">-</span> <span class="number">1</span>, version <span class="operator">=</span> version <span class="operator">+</span> <span class="number">1</span></span><br><span class="line"><span class="keyword">WHERE</span> id <span class="operator">=</span> <span class="number">1</span> <span class="keyword">AND</span> version <span class="operator">=</span> #&#123;oldVersion&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>单看逻辑很优雅，但<strong>它的致命问题在秒杀场景下会被无限放大</strong>：</p>
+<p>库存只剩 1 件，1000 个请求同时读到 <code>version = 100</code>，然后一起执行 <code>WHERE version = 100</code>——<strong>只有一个能成功，其余 999 个全部更新失败</strong>。失败之后怎么办？只能<strong>重试</strong>：重新查版本号、重新更新。而重试又会引发新一轮竞争、继续大量失败，形成<strong>活锁</strong>（大家都在重试，谁也做不完）。</p>
+<p>所以乐观锁适合的是&quot;<strong>冲突很少</strong>&quot;的场景，比如后台管理系统两个人改同一条数据。在秒杀这种&quot;几千人抢 1 件&quot;的极端竞争下，<strong>失败率高到不可接受</strong>。</p>
+<p><strong>（3）CAS 原子 SQL：为什么它又能用了</strong></p>
+<p>看起来它和乐观锁几乎一样，都是&quot;带条件更新&quot;，区别到底在哪？</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">UPDATE</span> goods <span class="keyword">SET</span> stock <span class="operator">=</span> stock <span class="operator">-</span> <span class="number">1</span> <span class="keyword">WHERE</span> id <span class="operator">=</span> <span class="number">1</span> <span class="keyword">AND</span> stock <span class="operator">&gt;</span> <span class="number">0</span>;</span><br></pre></td></tr></table></figure>
+
+<p><strong>关键差别在&quot;条件&quot;上：乐观锁的条件是 <code>version = 旧值</code>，CAS 的条件是 <code>stock &gt; 0</code>。</strong></p>
+<ul>
+<li>乐观锁要求&quot;<strong>这一行必须完全没被人动过</strong>&quot;——所以并发越高，越容易失败，因为总有人比你快；</li>
+<li>CAS 只要求&quot;<strong>库存还有</strong>&quot;——所以只要还有库存，多少个请求来都能依次成功，<strong>不需要重试，一次就拿到确定结果</strong>。</li>
+</ul>
+<p>这就是 CAS 在秒杀场景下可用的根本原因：<strong>它把&quot;版本有没有变&quot;这种强条件，换成了&quot;业务上到底还能不能扣&quot;这种弱条件。</strong> 而秒杀恰好只需要后者——我们并不关心库存是被谁扣走的，只关心&quot;还有没有&quot;。</p>
+<blockquote>
+<p>一点补充：这里的 &quot;CAS&quot; 来自 CPU 的 <strong>Compare-And-Swap</strong> 指令，思想就是&quot;比较并交换&quot;。2.4 讲的首选方案用的正是它——<code>WHERE stock &gt; 0</code> 就是那个&quot;比较&quot;，<code>SET stock = stock - 1</code> 就是那个&quot;交换&quot;。</p>
+</blockquote>
+<p><strong>（4）Redis 分布式锁：为什么性能高，但复杂度也高</strong></p>
+<p>它的性能优势来自&quot;<strong>锁的范围由你自己控制</strong>&quot;——可以只锁&quot;扣库存&quot;那几行代码，把创建订单等耗时操作放在锁外，持锁时间远短于 DB 悲观锁。代价是要自己处理锁超时、误删、可重入、以及&quot;等待机制&quot;等一堆问题（见 2.5、2.6、2.7）。</p>
+<h3 id="2-4-首选方案：CAS-原子-SQL"><a href="#2-4-首选方案：CAS-原子-SQL" class="headerlink" title="2.4 首选方案：CAS 原子 SQL"></a>2.4 首选方案：CAS 原子 SQL</h3><p>大多数情况下，秒杀在 DB 层<strong>根本不需要额外加锁</strong>。用一条带条件的原子 SQL 就够了：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">UPDATE</span> goods</span><br><span class="line"><span class="keyword">SET</span> stock <span class="operator">=</span> stock <span class="operator">-</span> <span class="number">1</span></span><br><span class="line"><span class="keyword">WHERE</span> id <span class="operator">=</span> #&#123;goodsId&#125;</span><br><span class="line">  <span class="keyword">AND</span> stock <span class="operator">&gt;</span> <span class="number">0</span>;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="variable">affected</span> <span class="operator">=</span> goodsMapper.deductStock(goodsId);</span><br><span class="line"><span class="keyword">if</span> (affected == <span class="number">0</span>) &#123;</span><br><span class="line">    <span class="comment">// 影响行数为 0，说明 stock &gt; 0 不成立，库存已空</span></span><br><span class="line">    <span class="keyword">throw</span> <span class="keyword">new</span> <span class="title class_">BizException</span>(<span class="string">&quot;库存不足&quot;</span>);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>原理和 1.2 的 Lua 完全一样</strong>：把&quot;判断&quot;和&quot;扣减&quot;合并进一条 SQL。InnoDB 执行这条 UPDATE 时会<strong>对目标行加行锁</strong>，天然保证同一行的串行执行，同时 <code>WHERE stock &gt; 0</code> 又保证了不会扣成负数。</p>
+<p><strong>但这里要先纠正一个误解：CAS 并不是&quot;没有锁&quot;。</strong></p>
+<p>上面这条 SQL 之所以能防住超卖，靠的正是 <strong>InnoDB 对目标行加的排他锁</strong>——执行 UPDATE 时，InnoDB 会先锁住这一行，再修改，事务提交时才释放。所以准确的说法是：<strong>CAS 只是把&quot;加锁&quot;这件事交给了数据库自己做，而不是真的不需要锁。</strong></p>
+<p>理解这一点，才能看清 CAS 的能力边界：</p>
+<ul>
+<li>CAS 的原子性<strong>只覆盖一条 SQL</strong>，它能保证&quot;这一行的这一次修改&quot;是原子的；</li>
+<li>一旦业务需要<strong>跨多条记录、跨多个步骤</strong>保持原子，<strong>一条 SQL 就表达不了</strong>，这时就轮到分布式锁出场。</li>
+</ul>
+<p><strong>什么时候必须用分布式锁？</strong></p>
+<table>
+<thead>
+<tr>
+<th>场景</th>
+<th>能否用 CAS</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>只扣一行库存</td>
+<td>✅ 可以</td>
+<td>一条 SQL 搞定，首选</td>
+</tr>
+<tr>
+<td>扣库存 + 创建订单（要求整体原子）</td>
+<td>❌ 不行</td>
+<td>跨表、跨多步，一条 SQL 表达不了</td>
+</tr>
+<tr>
+<td>库存分桶后需要&quot;桶间借调&quot;</td>
+<td>❌ 不行</td>
+<td>要同时操作多个 key &#x2F; 多行，必须先锁住再判断</td>
+</tr>
+</tbody></table>
+<p>所以取舍很清楚：<strong>能用 CAS 就用 CAS；只有当&quot;多个操作必须作为一个整体&quot;时，才升级到分布式锁。</strong></p>
+<p><strong>还有一个容易被忽略的问题：CAS 拦不住请求到达数据库。</strong></p>
+<p>CAS 和 DB 行锁<strong>都是在数据库内部做互斥</strong>——它们能保证&quot;数据不算错&quot;，但<strong>请求本身已经打到数据库了</strong>：数据库得先去抢行锁、再排进锁等待队列，才能开始干活。</p>
+<p>高并发下会出什么问题？假设 Redis 放行了 1 万个请求（对应 1 万件库存）：</p>
+<ul>
+<li>1 万个请求<strong>全部连到数据库</strong>，一起竞争同一行的锁；</li>
+<li>只有 1 个能拿到锁，其余 9999 个进入<strong>锁等待队列</strong>；</li>
+<li>等待期间，这些请求<strong>一直占着数据库连接</strong>；</li>
+<li>连接池很快被占满 → 后来的请求连不上数据库 → 应用线程池阻塞 → <strong>雪崩</strong>。</li>
+</ul>
+<p>行锁保证了库存不会算错，但<strong>数据库被这 1 万个并发连接压垮了</strong>。</p>
+<p><strong>换成 Redis 分布式锁，情况就不一样了：</strong></p>
+<ul>
+<li>1 万个请求先去 Redis 抢锁，<strong>抢不到的请求在 Redis 这一层就被挡住</strong>，根本不会连到数据库；</li>
+<li>真正打到数据库的，只有<strong>拿到锁的那一个</strong>（加上在 Redis 侧等待的少量请求）；</li>
+<li>相当于<strong>把 1 万 QPS 的压力从数据库转移到了 Redis</strong>——而 Redis 的内存操作性能远高于数据库，扛得住。</li>
+</ul>
+<p>这正是分布式锁在秒杀中的另一层价值：<strong>它不只是一把&quot;互斥的锁&quot;，同时还是拦在数据库前面的一道&quot;流量闸门&quot;。</strong></p>
+<blockquote>
+<p>需要客观补充一句：<strong>这种&quot;被打爆&quot;在常规规模下概率并不高。</strong> 因为 Redis 预减库存已经把流量砍到了库存量级（100 件就是 100 个请求），100 个并发对数据库毫无压力。只有当<strong>库存规模本身就很大</strong>（比如放量几万件）时，这个风险才真正显现。而那种情况下，更合适的做法是<strong>库存分片</strong>（见《秒杀系统设计（三）》），把压力分散到多行上，而不是靠一把锁硬扛。</p>
+</blockquote>
+<h3 id="2-5-三种锁的等待机制：-自旋-这件事由谁负责"><a href="#2-5-三种锁的等待机制：-自旋-这件事由谁负责" class="headerlink" title="2.5 三种锁的等待机制：&quot;自旋&quot;这件事由谁负责"></a>2.5 三种锁的等待机制：&quot;自旋&quot;这件事由谁负责</h3><p>前面反复说&quot;拿不到锁就等待&quot;，但有一个很容易被忽略、却直接决定代码怎么写的问题：<strong>等待到底由谁来实现，三种锁的答案完全不同</strong>。</p>
+<p><strong>（1）<code>synchronized</code>：JVM 内置了等待队列</strong></p>
+<p><code>synchronized</code> 拿不到锁时，<strong>不需要写任何代码</strong>。JVM 内部有一套 Monitor 机制：线程会进入该对象的<strong>同步等待队列</strong>（EntryList）并进入阻塞状态（不消耗 CPU），等锁释放后由 JVM 唤醒竞争。整个过程对使用者完全透明。</p>
+<p><strong>（2）DB 行锁：InnoDB 内置了锁等待队列</strong></p>
+<p><code>SELECT ... FOR UPDATE</code> 抢不到锁时，同样不用操心。InnoDB 有锁管理器和<strong>锁等待队列</strong>，请求会自动排进队列，等前面的锁释放后再被唤醒。</p>
+<p>可以用一个参数控制最多等多久：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">-- 最多等 5 秒，超时就报锁等待超时，而不是无限等下去</span></span><br><span class="line"><span class="keyword">SET</span> innodb_lock_wait_timeout <span class="operator">=</span> <span class="number">5</span>;</span><br></pre></td></tr></table></figure>
+
+<p>超时会抛 <code>Lock wait timeout exceeded</code>，由业务决定是重试还是失败返回。</p>
+<p><strong>（3）Redis 分布式锁：没有任何内置等待机制，必须自己实现</strong></p>
+<p>这是三者里最&quot;原始&quot;的一个。Redis 只管存一个 key，<strong>它并不知道&quot;有谁在等锁&quot;这件事</strong>。所以 <code>SET NX</code> 失败之后怎么办，<strong>完全由你的代码决定</strong>，通常有三种做法。</p>
+<p><strong>做法一：直接失败（不自旋）</strong></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">Boolean</span> <span class="variable">ok</span> <span class="operator">=</span> redisTemplate.opsForValue()</span><br><span class="line">        .setIfAbsent(lockKey, uuid, <span class="number">30</span>, TimeUnit.SECONDS);</span><br><span class="line"><span class="keyword">if</span> (Boolean.FALSE.equals(ok)) &#123;</span><br><span class="line">    <span class="comment">// 拿不到锁，直接告诉用户稍后重试</span></span><br><span class="line">    <span class="keyword">return</span> SeckillResult.fail(<span class="string">&quot;当前抢购人数过多，请稍后再试&quot;</span>);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>最简单，秒杀场景下往往也最合适——<strong>抢不到就该快速失败</strong>，没必要卡着用户。</p>
+<p><strong>做法二：自旋重试（循环 + 间隔）</strong></p>
+<p>如果想给用户更多机会，就自己写一个循环，隔一小段时间重试一次：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="type">boolean</span> <span class="title function_">tryLockWithSpin</span><span class="params">(String lockKey, String uuid, <span class="type">long</span> timeoutMs)</span> &#123;</span><br><span class="line">    <span class="type">long</span> <span class="variable">deadline</span> <span class="operator">=</span> System.currentTimeMillis() + timeoutMs;</span><br><span class="line">    <span class="keyword">while</span> (System.currentTimeMillis() &lt; deadline) &#123;</span><br><span class="line">        <span class="type">Boolean</span> <span class="variable">ok</span> <span class="operator">=</span> redisTemplate.opsForValue()</span><br><span class="line">                .setIfAbsent(lockKey, uuid, <span class="number">30</span>, TimeUnit.SECONDS);</span><br><span class="line">        <span class="keyword">if</span> (Boolean.TRUE.equals(ok)) &#123;</span><br><span class="line">            <span class="keyword">return</span> <span class="literal">true</span>;                          <span class="comment">// 抢到了</span></span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">try</span> &#123;</span><br><span class="line">            Thread.sleep(<span class="number">50</span>);                     <span class="comment">// 间隔 50ms 再试</span></span><br><span class="line">        &#125; <span class="keyword">catch</span> (InterruptedException e) &#123;</span><br><span class="line">            Thread.currentThread().interrupt();</span><br><span class="line">            <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">false</span>;                                 <span class="comment">// 超时，放弃</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这里有两个必须自己把控的点：</p>
+<ul>
+<li><strong>间隔时间</strong>：太短会疯狂打 Redis（相当于自己在制造 QPS），太长会让用户等太久，一般取 20~100ms；</li>
+<li><strong>超时上限</strong>：<strong>必须有</strong>。不加超时的自旋会一直转下去，和死锁没区别，还会把线程池占满。</li>
+</ul>
+<p><strong>这个&quot;循环 + 间隔&quot;就是自旋。</strong> <code>synchronized</code> 和 DB 行锁的等待是&quot;内核&#x2F;数据库帮你排队&quot;，而分布式锁的这个队列<strong>需要你自己用轮询实现</strong>。</p>
+<p><strong>做法三：Redisson 的 pub&#x2F;sub 唤醒（推荐）</strong></p>
+<p>自旋的缺点是<strong>一直在无谓地轮询 Redis</strong>——明明前面那个人还要 200ms 才出来，我却每 50ms 问一次，四次全是白问。</p>
+<p>Redisson 的做法更优雅，它基于 <strong>Redis 的发布订阅（pub&#x2F;sub）</strong>：</p>
+<ol>
+<li>尝试 <code>SET NX</code> 加锁；</li>
+<li>失败后不轮询，而是<strong>订阅一个专门的解锁频道</strong>（如 <code>redisson_lock__channel:&#123;锁名&#125;</code>），然后让当前线程阻塞等待；</li>
+<li>持锁者释放锁时，<strong>向这个频道发一条消息</strong>；</li>
+<li>等待中的线程被唤醒，<strong>再去尝试一次加锁</strong>（如果又失败，就再次订阅等待）。</li>
+</ol>
+<div class="mermaid-wrap"><pre class="mermaid-src" hidden>flowchart TD
+    A[&quot;尝试加锁 SET NX&quot;] --&gt; B{&quot;加锁成功?&quot;}
+    B --&gt;|是| OK[&quot;拿到锁，执行业务&quot;]
+    B --&gt;|否| C[&quot;订阅解锁频道阻塞等待&quot;]
+    C --&gt; D{&quot;收到解锁消息或等待超时?&quot;}
+    D --&gt;|超时| FAIL[&quot;放弃，返回失败&quot;]
+    D --&gt;|收到消息| A
+    OK --&gt; E[&quot;执行业务后释放锁&quot;]
+    E --&gt; F[&quot;向频道发布解锁消息&quot;]
+    F --&gt; C
+
+    style OK fill:#d4edda
+    style FAIL fill:#ffe0e0</pre></div>
+
+<p><strong>这样等待就从主动轮询变成了锁释放时通知我</strong>，既没有无效轮询，又能在锁释放的第一时间被唤醒。Redisson 的 <code>lock()</code> 默认就是这套机制。</p>
+<p><strong>顺带澄清一个容易混淆的点：看门狗不是用来解决自旋的。</strong></p>
+<p>Redisson 有两个不同的机制，常被混在一起讲：</p>
+<table>
+<thead>
+<tr>
+<th>机制</th>
+<th>解决的问题</th>
+<th>具体做什么</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>pub&#x2F;sub 等待</strong></td>
+<td>拿不到锁时怎么等</td>
+<td>订阅解锁频道，锁释放时被唤醒（即做法三）</td>
+</tr>
+<tr>
+<td><strong>看门狗（watchdog）</strong></td>
+<td>业务没跑完锁就过期</td>
+<td>后台定时任务给锁<strong>自动续期</strong>，默认每 10 秒把 TTL 续回 30 秒</td>
+</tr>
+</tbody></table>
+<p>一个是&quot;<strong>等锁</strong>&quot;，一个是&quot;<strong>保锁</strong>&quot;，完全是两个问题。</p>
+<blockquote>
+<p>但看门狗也不是万能的——它依赖&quot;持有锁的 JVM 还活着&quot;。一旦进程被 kill、或发生长时间 Full GC，续期就会中断，锁照样会过期。这正是 8.7 要讨论的问题。</p>
+</blockquote>
+<p><strong>三种锁的等待机制汇总：</strong></p>
+<table>
+<thead>
+<tr>
+<th>锁类型</th>
+<th>等待由谁实现</th>
+<th>等待时是否消耗 CPU</th>
+<th>是否需自己写代码</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>synchronized</strong></td>
+<td>JVM Monitor（同步队列）</td>
+<td>否（阻塞挂起）</td>
+<td>不需要</td>
+</tr>
+<tr>
+<td><strong>DB 行锁</strong></td>
+<td>InnoDB 锁管理器（锁等待队列）</td>
+<td>否（阻塞挂起）</td>
+<td>不需要（可配置超时）</td>
+</tr>
+<tr>
+<td><strong>Redis 分布式锁</strong></td>
+<td><strong>使用者自己</strong>（轮询自旋 &#x2F; pub-sub 订阅）</td>
+<td>轮询会消耗</td>
+<td><strong>需要</strong></td>
+</tr>
+</tbody></table>
+<p><strong>结论</strong>：前两种锁的&quot;排队&quot;是语言和数据库的内置能力，第三种必须自己补齐。而<strong>无论用哪种等待方式，都必须设置超时上限</strong>——否则一旦锁异常，就会从&quot;等待&quot;变成&quot;卡死&quot;。</p>
+<h3 id="2-6-Redis-分布式锁不是银弹"><a href="#2-6-Redis-分布式锁不是银弹" class="headerlink" title="2.6 Redis 分布式锁不是银弹"></a>2.6 Redis 分布式锁不是银弹</h3><p>性能虽好，但 Redis 分布式锁有两类绕不开的可靠性问题。先把它们解释清楚，后面才知道为什么必须兜底。</p>
+<p><strong>问题一：锁过期提前释放。</strong></p>
+<p>Redisson 的看门狗（watchdog）会定期给锁续期，看起来挺安全。但它有个前提：<strong>持有锁的那个 JVM 必须还活着</strong>。如果 JVM 发生了长时间的 Full GC、或者进程被 kill 掉，看门狗也就停了，锁会在 TTL 到期后自动释放——而此时业务可能还没执行完。一旦业务代码在锁释放后继续往下跑，就出现了&quot;<strong>两个人同时操作同一行数据</strong>&quot;。</p>
+<p><strong>问题二：脑裂，导致锁丢失。</strong></p>
+<p>&quot;脑裂&quot;这个词听起来唬人，其实就是指<strong>分布式系统里出现了两个都认为&quot;我是主&quot;的节点</strong>。放到 Redis 主从架构下，具体过程是这样的：</p>
+<ol>
+<li>客户端 A 向<strong>主节点</strong>申请锁，主节点在内存里加锁成功，返回 A 成功</li>
+<li>主节点<strong>还没来得及把这条加锁记录同步给从节点</strong>，就宕机了</li>
+<li>哨兵（Sentinel）检测到主节点挂了，触发故障转移，把一个<strong>没有这把锁记录</strong>的从节点提升为新主节点</li>
+<li>客户端 B 来申请同一把锁，新主节点里查不到记录，于是<strong>也加锁成功了</strong></li>
+<li>结果：<strong>A 和 B 同时持有同一把锁</strong>，互斥性被打破</li>
+</ol>
+<div class="mermaid-wrap"><pre class="mermaid-src" hidden>sequenceDiagram
+    participant A as 客户端A
+    participant M as Redis 主节点
+    participant S as Redis 从节点
+    participant B as 客户端B
+
+    A-&gt;&gt;M: SET lock NX → 加锁成功
+    Note over M,S: 加锁记录还没来得及同步给从节点
+    M--xM: 主节点宕机 💥
+    Note over S: 哨兵把从节点提升为新的主节点
+    B-&gt;&gt;S: SET lock NX → 加锁
+    Note over S: 新主节点里没有这把锁的记录
+    S--&gt;&gt;B: 加锁成功 ❌
+    Note over A,B: A 和 B 同时持有了同一把锁</pre></div>
+
+<p><strong>这两类问题指向同一个结论</strong>：Redis 分布式锁提供的是<strong>高性能的互斥</strong>，但它<strong>不是数据正确性的最终保证</strong>——锁可能因为过期或脑裂而失效，失效的那一瞬间就可能产生脏数据。</p>
+<p><strong>所以：锁用来保性能（让并发串行化），正确性的最后一道防线必须放在数据库</strong>（唯一索引 + 原子 SQL）。这一点在 2.9 会展开。</p>
+<p>先做一个整体对比：</p>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>DB 行锁</th>
+<th>Redis 分布式锁</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>性能</td>
+<td>低</td>
+<td>高</td>
+</tr>
+<tr>
+<td>正确性</td>
+<td><strong>强</strong>（DB 保证，不受客户端崩溃影响）</td>
+<td><strong>弱</strong>（受锁过期、脑裂影响，必须用 DB 兜底）</td>
+</tr>
+<tr>
+<td>实现复杂度</td>
+<td>低（一条 SQL）</td>
+<td>高（要处理误删、续期、可重入）</td>
+</tr>
+<tr>
+<td>额外依赖</td>
+<td>无</td>
+<td>需要 Redis 高可用</td>
+</tr>
+<tr>
+<td>客户端崩溃</td>
+<td>事务回滚，锁自动释放</td>
+<td>必须靠 TTL 兜底，存在不安全窗口</td>
+</tr>
+</tbody></table>
+<p><strong>所以正确的取舍是：</strong></p>
+<ul>
+<li><strong>能用原子 SQL 解决</strong> → 用 <code>WHERE stock &gt; 0</code>，不需要任何锁（首选）</li>
+<li><strong>并发不高、正确性优先</strong> → 用 DB 行锁，简单可靠</li>
+<li><strong>必须锁住多步操作、且并发极高</strong> → 用 Redis 分布式锁换性能，但要接受它的可靠性边界，并用<strong>唯一索引 + 幂等</strong>兜底</li>
+</ul>
+<h3 id="2-7-坑点一：锁必须放在事务外面（最重要的坑）"><a href="#2-7-坑点一：锁必须放在事务外面（最重要的坑）" class="headerlink" title="2.7 坑点一：锁必须放在事务外面（最重要的坑）"></a>2.7 坑点一：锁必须放在事务外面（最重要的坑）</h3><p>这是生产环境最常见、也最隐蔽的错误。先看<strong>错误写法</strong>：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Transactional(rollbackFor = Exception.class)</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">createOrder</span><span class="params">(SeckillMessage msg)</span> &#123;</span><br><span class="line">    <span class="type">RLock</span> <span class="variable">lock</span> <span class="operator">=</span> redissonClient.getLock(<span class="string">&quot;lock:stock:&quot;</span> + msg.getGoodsId());</span><br><span class="line">    lock.lock();</span><br><span class="line">    <span class="keyword">try</span> &#123;</span><br><span class="line">        <span class="comment">// 1. 扣减库存</span></span><br><span class="line">        <span class="comment">// 2. 创建订单</span></span><br><span class="line">    &#125; <span class="keyword">finally</span> &#123;</span><br><span class="line">        lock.unlock();     <span class="comment">// ❌ 锁在这里就释放了</span></span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 方法返回后，Spring 事务代理才会提交事务</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>看起来&quot;加了锁也加了事务&quot;，但<strong>执行顺序是错的</strong>。</p>
+<p><strong>实际执行顺序（错误版）</strong>——注意看线程 B 是怎么插进来的：</p>
+<div class="mermaid-wrap"><pre class="mermaid-src" hidden>sequenceDiagram
+    participant P as Spring 事务代理
+    participant A as 线程A
+    participant L as Redis 锁
+    participant B as 线程B（另一个请求）
+    participant DB as MySQL
+
+    Note over DB: 库存 &#x3D; 1
+    P-&gt;&gt;A: 开启事务，调用 createOrder
+    A-&gt;&gt;L: lock() 加锁 ✅
+    A-&gt;&gt;DB: 扣减库存（事务内，尚未提交）
+    A-&gt;&gt;L: unlock() 释放锁 ❌
+    Note over L: 锁已释放！但线程A 的事务还没提交
+
+    B-&gt;&gt;L: lock() 加锁 ✅ 立刻拿到了锁
+    B-&gt;&gt;DB: 查询库存
+    DB--&gt;&gt;B: 读到 1（线程A 未提交，读到的是旧值）
+    Note over B: 判断 1 &gt; 0 通过，认为自己可以扣
+    B-&gt;&gt;DB: 扣减库存
+
+    A--&gt;&gt;P: 方法返回
+    P-&gt;&gt;P: COMMIT 提交事务
+    Note over DB: ❌ 库存被扣了两次，最终 &#x3D; -1，超卖</pre></div>
+
+<p><strong>问题出在哪：</strong></p>
+<p><code>unlock()</code> 在 <code>finally</code> 里执行，此时<strong>方法体执行完了，但事务还没提交</strong>——Spring 的 <code>@Transactional</code> 是通过 AOP 代理实现的，事务的提交发生在<strong>目标方法返回之后</strong>，由代理来完成。</p>
+<p>于是出现了一个致命窗口：</p>
+<ol>
+<li>线程 A 加锁 → 扣减库存（未提交）→ <strong>释放锁</strong></li>
+<li>线程 B 立刻拿到锁 → 读取库存 → <strong>读到的是线程 A 未提交的旧库存</strong> → 判断通过 → 再次扣减</li>
+<li>两个线程都扣了，<strong>超卖</strong></li>
+</ol>
+<blockquote>
+<p>一句话总结：<strong>锁提前释放了，事务还没提交，后来者读到了脏数据。</strong></p>
+</blockquote>
+<p><strong>正确写法：把锁放在事务外面</strong></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// ✅ 外层方法：负责加锁，本身不开启事务</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">createOrder</span><span class="params">(SeckillMessage msg)</span> &#123;</span><br><span class="line">    <span class="type">RLock</span> <span class="variable">lock</span> <span class="operator">=</span> redissonClient.getLock(<span class="string">&quot;lock:stock:&quot;</span> + msg.getGoodsId());</span><br><span class="line">    lock.lock();</span><br><span class="line">    <span class="keyword">try</span> &#123;</span><br><span class="line">        <span class="comment">// 调用事务方法，锁的范围包住整个事务</span></span><br><span class="line">        orderService.doCreateOrder(msg);</span><br><span class="line">    &#125; <span class="keyword">finally</span> &#123;</span><br><span class="line">        lock.unlock();</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// ✅ 内层事务方法：只管事务</span></span><br><span class="line"><span class="meta">@Transactional(rollbackFor = Exception.class)</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">doCreateOrder</span><span class="params">(SeckillMessage msg)</span> &#123;</span><br><span class="line">    <span class="comment">// 1. 扣减库存</span></span><br><span class="line">    <span class="comment">// 2. 创建订单</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>正确执行顺序：</strong></p>
+<div class="mermaid-wrap"><pre class="mermaid-src" hidden>sequenceDiagram
+    participant O as 外层方法
+    participant L as Redis 锁
+    participant P as Spring 事务代理
+
+    O-&gt;&gt;L: lock() 加锁
+    O-&gt;&gt;P: 调用事务方法
+    P-&gt;&gt;P: 开启事务
+    P-&gt;&gt;P: 扣减库存 + 创建订单
+    P-&gt;&gt;P: COMMIT 提交事务 ✅
+    P--&gt;&gt;O: 方法返回
+    O-&gt;&gt;L: unlock() 释放锁 ✅
+    Note over L: 事务已提交，锁才释放</pre></div>
+
+<p><strong>顺序变成了：加锁 → 开启事务 → 业务 → 提交事务 → 释放锁。</strong></p>
+<blockquote>
+<p><strong>铁律：锁的范围必须完整包住事务，而不是被困在事务里面。</strong></p>
+<p>判断标准很简单：<strong>unlock() 必须发生在 <code>COMMIT</code> 之后</strong>。如果你看到 <code>lock()</code> 和 <code>@Transactional</code> 写在同一个方法里，那基本就是错的。</p>
+</blockquote>
+<p><strong>坑点延伸</strong>：同样的道理适用于 <code>synchronized</code>。在事务方法内用 <code>synchronized</code> 加锁，锁释放同样早于事务提交，一样会超卖。</p>
+<h3 id="2-8-坑点二：锁的粒度设计"><a href="#2-8-坑点二：锁的粒度设计" class="headerlink" title="2.8 坑点二：锁的粒度设计"></a>2.8 坑点二：锁的粒度设计</h3><p>锁的粒度直接决定吞吐量：</p>
+<ul>
+<li><strong>锁商品 ID</strong>（推荐）：<code>lock:stock:goodsId</code>。不同商品互不影响，粒度最细</li>
+<li><strong>锁全局</strong>：<code>lock:seckill</code>。所有商品串行，吞吐量极低</li>
+</ul>
+<p><strong>注意</strong>：秒杀场景下，同一商品的库存本来就是&quot;必须串行&quot;的（否则无法保证不超卖），所以锁商品维度是最小且正确的粒度。</p>
+<h3 id="2-9-坑点三：锁不可靠怎么办——唯一索引兜底"><a href="#2-9-坑点三：锁不可靠怎么办——唯一索引兜底" class="headerlink" title="2.9 坑点三：锁不可靠怎么办——唯一索引兜底"></a>2.9 坑点三：锁不可靠怎么办——唯一索引兜底</h3><p><strong>先说为什么&quot;必须&quot;要兜底，而不是&quot;最好&quot;要兜底。</strong></p>
+<p>2.6 已经说清楚了：Redis 分布式锁会因为<strong>锁过期</strong>、<strong>脑裂</strong>而失效。这意味着一件事——<strong>只要你用了分布式锁，就必须假设在某一刻它可能不起作用</strong>。这不是&quot;能不能做好的问题&quot;，而是分布式系统的固有属性：锁的状态存在 Redis 里，Redis 会宕机、会主从切换、网络会分区，任何依赖它们的机制都有可能失效。</p>
+<p><strong>那锁失效的那一刻，具体会发生什么？</strong></p>
+<p>回到 2.7 的那张图：线程 A 和线程 B 同时进入了临界区，各自执行了一遍&quot;扣库存 + 创建订单&quot;。结果就是——<strong>同一个用户，对同一个商品，生成了两条订单</strong>。</p>
+<p>注意这里其实有<strong>两层损失</strong>：</p>
+<ul>
+<li><strong>显性损失（业务层）</strong>：一个用户抢到了 2 件，本该只能 1 件，活动公平性被破坏；</li>
+<li><strong>隐性损失（数据层，更麻烦）</strong>：如果这两条订单里有一条后来&quot;超时未支付被回补库存&quot;，数据会变得<strong>极其难对账</strong>——你既不能简单删掉一条订单（用户可能已经付款了），也很难判断库存到底该回补几件。</li>
+</ul>
+<p><strong>而这类问题的特点是：发生概率极低，但一旦发生就是线上事故。</strong></p>
+<p>锁只能把&quot;发生概率&quot;降低，不能把它降到 0。所以<strong>必须有一道不依赖任何中间件状态、绝对可靠的防线</strong>——它不能依赖 Redis、不能依赖锁、不能依赖网络。</p>
+<p><strong>这道防线就是数据库的唯一索引。</strong></p>
+<p>它的可靠性来自一个前提：<strong>唯一索引是由数据库内核强制的</strong>。无论前面的链路怎么出问题——锁失效也好、消息重复也好、代码有 bug 也好——只要最终要往 <code>orders</code> 表插入两行&quot;同一用户 + 同一商品&quot;的数据，数据库就一定会拒绝第二行：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">-- 用户 + 商品唯一索引：同一个用户对同一个商品，只允许存在一条订单</span></span><br><span class="line"><span class="keyword">ALTER TABLE</span> orders <span class="keyword">ADD</span> <span class="keyword">UNIQUE</span> KEY uk_user_goods (user_id, goods_id);</span><br></pre></td></tr></table></figure>
+
+<p>有了它，即使锁失效、两个线程同时插入，也只会有一条成功，另一条被数据库直接拦下。<strong>代码上要做的，就是把&quot;唯一索引冲突&quot;当成一个正常分支来处理，而不是当成异常抛给用户：</strong></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">try</span> &#123;</span><br><span class="line">    orderMapper.insert(order);</span><br><span class="line">&#125; <span class="keyword">catch</span> (DuplicateKeyException e) &#123;</span><br><span class="line">    <span class="comment">// 唯一索引冲突 → 说明这个用户已经抢过了</span></span><br><span class="line">    <span class="comment">// 视为&quot;重复请求&quot;，静默处理掉</span></span><br><span class="line">    log.warn(<span class="string">&quot;重复下单被唯一索引拦截, userId=&#123;&#125;, goodsId=&#123;&#125;&quot;</span>, userId, goodsId);</span><br><span class="line">    <span class="keyword">throw</span> <span class="keyword">new</span> <span class="title class_">BizException</span>(<span class="string">&quot;您已参与过本次抢购&quot;</span>);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>它还有一个很大的好处：一份兜底，多处复用。</strong></p>
+<p>同一个唯一索引，同时解决了三个不同环节的问题：</p>
+<table>
+<thead>
+<tr>
+<th>问题</th>
+<th>出现的原因</th>
+<th>高发位置</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>锁失效导致重复下单</strong></td>
+<td>锁过期 &#x2F; 脑裂</td>
+<td>本节（2.9）</td>
+</tr>
+<tr>
+<td><strong>MQ 重复投递导致重复消费</strong></td>
+<td>消息队列的 at-least-once 语义</td>
+<td>3.3</td>
+</tr>
+<tr>
+<td><strong>用户手速&#x2F;脚本导致重复提交</strong></td>
+<td>&quot;先查再插&quot;的窗口期</td>
+<td>3.2</td>
+</tr>
+</tbody></table>
+<p>也就是说，它并不是&quot;某一章的补丁&quot;，而是<strong>整条链路最终一致性的基石</strong>。</p>
+<blockquote>
+<p><strong>一句话总结：锁是为了性能，唯一索引是为了正确性。</strong> 性能可以妥协，正确性不能——所以哪怕锁写得再完美，唯一索引也必须加。</p>
+</blockquote>
+<p>关于&quot;一人一单&quot;的完整实现，下一章展开。</p>
+<hr>
+<h2 id="三、业务侧：一人一单与幂等"><a href="#三、业务侧：一人一单与幂等" class="headerlink" title="三、业务侧：一人一单与幂等"></a>三、业务侧：一人一单与幂等</h2><p>前面两章解决了&quot;<strong>库存不会被扣成负数</strong>&quot;，但还剩第一篇 2.5 节提到的另一个问题没解决——&quot;<strong>一人多单</strong>&quot;。</p>
+<h3 id="3-1-为什么-先查再插-的一人一单会失效"><a href="#3-1-为什么-先查再插-的一人一单会失效" class="headerlink" title="3.1 为什么&quot;先查再插&quot;的一人一单会失效"></a>3.1 为什么&quot;先查再插&quot;的一人一单会失效</h3><p>最直觉的一人一单写法是&quot;查一下，没有就插&quot;：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 先查这个用户有没有下过单</span></span><br><span class="line"><span class="type">Long</span> <span class="variable">count</span> <span class="operator">=</span> orderMapper.countByUserAndGoods(userId, goodsId);</span><br><span class="line"><span class="keyword">if</span> (count &gt; <span class="number">0</span>) &#123;</span><br><span class="line">    <span class="keyword">return</span> SeckillResult.fail(<span class="string">&quot;请勿重复提交&quot;</span>);</span><br><span class="line">&#125;</span><br><span class="line"><span class="comment">// 没有就插入订单</span></span><br><span class="line">orderMapper.insert(<span class="keyword">new</span> <span class="title class_">Order</span>(userId, goodsId, OrderStatus.UNPAID));</span><br></pre></td></tr></table></figure>
+
+<p>单看逻辑没问题，但在并发下它会失效——<strong>因为&quot;查&quot;和&quot;插&quot;之间有一个窗口期</strong>：</p>
+<div class="mermaid-wrap"><pre class="mermaid-src" hidden>sequenceDiagram
+    participant U as 同一用户
+    participant APP as 应用
+    participant DB as MySQL
+
+    U-&gt;&gt;APP: 请求1（脚本 &#x2F; 手速，几乎同时）
+    U-&gt;&gt;APP: 请求2
+    APP-&gt;&gt;DB: 请求1：查询是否已下单 → 0 条
+    APP-&gt;&gt;DB: 请求2：查询是否已下单 → 0 条
+    Note over APP: 两个请求都认为&quot;没下过单&quot;，都通过了校验
+    APP-&gt;&gt;DB: 请求1：INSERT 订单
+    APP-&gt;&gt;DB: 请求2：INSERT 订单
+    Note over DB: ❌ 同一用户生成了 2 条订单</pre></div>
+
+<p><strong>为什么会失效？</strong> 和 1.1 的 Redis 超卖、2.1 的 DB 超卖是<strong>同一个根因</strong>——&quot;<strong>读—判断—写</strong>&quot;不原子。两个请求在同一个窗口里都读到了&quot;没下过单&quot;，于是都通过了校验，然后各自插入了一条订单。</p>
+<p>用户只要用脚本、或者手速快一点同时发多个请求，就能抢到多件。这违反了 F1（一人一单）和 F8（防刷）。</p>
+<p><strong>所以一人一单不能靠&quot;应用层自己查一下&quot;来解决</strong>——应用层的查询天然有窗口期。<strong>真正的解法是把这个判断交给一个无法绕过、天然原子的东西</strong>，也就是下面这三个方案。</p>
+<h3 id="3-2-一人一单的三种实现"><a href="#3-2-一人一单的三种实现" class="headerlink" title="3.2 一人一单的三种实现"></a>3.2 一人一单的三种实现</h3><p><strong>方案一：数据库唯一索引（最可靠，必做）</strong></p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">ALTER TABLE</span> orders <span class="keyword">ADD</span> <span class="keyword">UNIQUE</span> KEY uk_user_goods (user_id, goods_id);</span><br></pre></td></tr></table></figure>
+
+<p>插入重复数据直接抛异常，捕获后视为&quot;已抢过&quot;。<strong>这是最后的兜底，无论前面怎么写，这条都必须有。</strong></p>
+<p><strong>方案二：Redis 原子标记（性能好，用于前置拦截）</strong></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">String</span> <span class="variable">dedupKey</span> <span class="operator">=</span> <span class="string">&quot;seckill:dedup:&quot;</span> + userId + <span class="string">&quot;:&quot;</span> + goodsId;</span><br><span class="line"><span class="type">Boolean</span> <span class="variable">first</span> <span class="operator">=</span> redisTemplate.opsForValue()</span><br><span class="line">        .setIfAbsent(dedupKey, <span class="string">&quot;1&quot;</span>, <span class="number">24</span>, TimeUnit.HOURS);</span><br><span class="line"><span class="keyword">if</span> (Boolean.FALSE.equals(first)) &#123;</span><br><span class="line">    <span class="keyword">return</span> SeckillResult.fail(<span class="string">&quot;请勿重复提交&quot;</span>);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>SETNX</code> 本身是原子的，所以并发下只会有一个请求成功，其余全部被拒。这个方案挡在<strong>最前面</strong>，能大幅减少后面的无效处理。</p>
+<p><strong>方案三：数据库去重表</strong></p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">CREATE TABLE</span> seckill_dedup (</span><br><span class="line">    id       <span class="type">BIGINT</span> <span class="keyword">PRIMARY KEY</span> AUTO_INCREMENT,</span><br><span class="line">    user_id  <span class="type">BIGINT</span> <span class="keyword">NOT NULL</span>,</span><br><span class="line">    goods_id <span class="type">BIGINT</span> <span class="keyword">NOT NULL</span>,</span><br><span class="line">    msg_id   <span class="type">VARCHAR</span>(<span class="number">64</span>) <span class="keyword">NOT NULL</span>,</span><br><span class="line">    <span class="keyword">UNIQUE</span> KEY uk_msg (msg_id)</span><br><span class="line">);</span><br></pre></td></tr></table></figure>
+
+<p><strong>坑点：Redis 标记方案存在&quot;标记成功但业务失败&quot;的问题。</strong></p>
+<p>用户被标记了（<code>SETNX</code> 成功），但后续下单失败（发 MQ 失败、库存不足），此时用户就被<strong>永久标记</strong>了，再也无法下单——这是<strong>少卖</strong>。</p>
+<p><strong>怎么解决？</strong> 有两种思路，第二种更推荐。</p>
+<p><strong>思路一：标记失败即撤销（回滚标记）</strong></p>
+<p>在业务失败的每个分支里，把标记删掉：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">String</span> <span class="variable">dedupKey</span> <span class="operator">=</span> <span class="string">&quot;seckill:dedup:&quot;</span> + userId + <span class="string">&quot;:&quot;</span> + goodsId;</span><br><span class="line"><span class="type">Boolean</span> <span class="variable">first</span> <span class="operator">=</span> redisTemplate.opsForValue()</span><br><span class="line">        .setIfAbsent(dedupKey, <span class="string">&quot;1&quot;</span>, <span class="number">24</span>, TimeUnit.HOURS);</span><br><span class="line"><span class="keyword">if</span> (Boolean.FALSE.equals(first)) &#123;</span><br><span class="line">    <span class="keyword">return</span> SeckillResult.fail(<span class="string">&quot;请勿重复提交&quot;</span>);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">try</span> &#123;</span><br><span class="line">    <span class="comment">// 后续业务流程（发 MQ、异步下单……）</span></span><br><span class="line">    doSeckill(userId, goodsId);</span><br><span class="line">&#125; <span class="keyword">catch</span> (Exception e) &#123;</span><br><span class="line">    <span class="comment">// 业务失败就把标记撤销，让用户还能重试</span></span><br><span class="line">    redisTemplate.delete(dedupKey);</span><br><span class="line">    <span class="keyword">throw</span> e;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这个方案能解决&quot;业务失败&quot;的情况，但<strong>它自己又引入了新问题</strong>：<code>delete</code> 也可能失败（Redis 抖动、进程刚好崩溃），标记还是会残留。所以它是&quot;降低概率&quot;，而不是&quot;彻底解决&quot;。</p>
+<p><strong>思路二：把标记当成&quot;结果&quot;而不是&quot;过程&quot;（推荐）</strong></p>
+<p>换一个思路——<strong>不要在下单前打标记，而是在下单成功后打标记。</strong></p>
+<p>具体做法是把两件事分开：</p>
+<ul>
+<li><strong>前置拦截</strong>用 Redis 标记（快，但允许漏判，漏判了用户重试一次就行）；</li>
+<li><strong>真正的判定</strong>交给<strong>数据库唯一索引</strong>（慢，但绝对准确）。</li>
+</ul>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 第 1 步：前置拦截（允许漏判，只求快）</span></span><br><span class="line"><span class="keyword">if</span> (Boolean.TRUE.equals(redisTemplate.hasKey(dedupKey))) &#123;</span><br><span class="line">    <span class="keyword">return</span> SeckillResult.fail(<span class="string">&quot;请勿重复提交&quot;</span>);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 第 2 步：真正的判定交给数据库唯一索引</span></span><br><span class="line"><span class="keyword">try</span> &#123;</span><br><span class="line">    orderMapper.insert(order);   <span class="comment">// 唯一索引冲突会抛 DuplicateKeyException</span></span><br><span class="line">&#125; <span class="keyword">catch</span> (DuplicateKeyException e) &#123;</span><br><span class="line">    <span class="comment">// 说明确实已经下过单了，此时补上标记</span></span><br><span class="line">    redisTemplate.opsForValue().set(dedupKey, <span class="string">&quot;1&quot;</span>, <span class="number">24</span>, TimeUnit.HOURS);</span><br><span class="line">    <span class="keyword">return</span> SeckillResult.fail(<span class="string">&quot;您已参与过本次抢购&quot;</span>);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 第 3 步：下单成功后才写标记，供后续请求快速拦截</span></span><br><span class="line">redisTemplate.opsForValue().set(dedupKey, <span class="string">&quot;1&quot;</span>, <span class="number">24</span>, TimeUnit.HOURS);</span><br><span class="line"><span class="keyword">return</span> SeckillResult.success();</span><br></pre></td></tr></table></figure>
+
+<p>这样即使标记写失败、或者标记被误删，<strong>最多也只是多走一次数据库查询</strong>，绝不会出现&quot;用户被永久拦住&quot;的情况。</p>
+<p><strong>两种思路的取舍：</strong></p>
+<table>
+<thead>
+<tr>
+<th>思路</th>
+<th>标记时机</th>
+<th>业务失败时</th>
+<th>对用户的影响</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>前置标记 + 失败撤销</td>
+<td>下单前</td>
+<td>撤销标记</td>
+<td>标记没撤销掉，用户就再也抢不了</td>
+</tr>
+<tr>
+<td><strong>前置查询 + 成功后标记</strong></td>
+<td>下单成功后</td>
+<td>无需处理</td>
+<td><strong>不会误拦，最多多查一次库</strong></td>
+</tr>
+</tbody></table>
+<p><strong>结论</strong>：Redis 标记只能用来做<strong>性能优化</strong>（前置拦截、减少无效请求），<strong>绝不能承担正确性职责</strong>。正确性必须交给数据库唯一索引：</p>
+<ul>
+<li><strong>防刷场景</strong>（宁可误杀）：可以用 Redis 标记</li>
+<li><strong>下单场景</strong>（不能误杀）：Redis 标记只做前置拦截，真正判定靠<strong>数据库唯一索引</strong></li>
+</ul>
+<h3 id="3-3-MQ-消费端的幂等"><a href="#3-3-MQ-消费端的幂等" class="headerlink" title="3.3 MQ 消费端的幂等"></a>3.3 MQ 消费端的幂等</h3><p>MQ 为了保证可靠性，普遍采用 <strong>at-least-once</strong> 语义，<strong>消息会重复投递</strong>。消费端必须幂等，否则会重复创建订单。</p>
+<table>
+<thead>
+<tr>
+<th>方案</th>
+<th>实现</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>DB 唯一索引</td>
+<td>插入失败即视为已处理</td>
+<td><strong>最可靠，推荐</strong></td>
+</tr>
+<tr>
+<td>去重表</td>
+<td><code>msg_id</code> 唯一索引</td>
+<td>适合需要记录消息的场景</td>
+</tr>
+<tr>
+<td>Redis 标记</td>
+<td><code>SETNX msg_id</code></td>
+<td>性能好，但要注意原子性</td>
+</tr>
+</tbody></table>
+<p><strong>坑点一：Redis 标记必须和业务操作保持原子。</strong><br>如果&quot;打标记&quot;和&quot;创建订单&quot;分两步，中间崩溃就会导致&quot;标记了但没下单&quot;。所以推荐<strong>先插入订单（唯一索引兜底），成功后再记标记</strong>；或者干脆只用 DB 唯一索引。</p>
+<p><strong>坑点二：消费失败要重试，但不能无限重试。</strong><br>设置最大重试次数，超过后进入<strong>死信队列</strong>，由人工或定时任务处理，避免消息被反复消费拖垮系统。</p>
+<p><strong>坑点三：消费者并发度要可控。</strong><br>并发度太低，MQ 起不到削峰作用；并发度太高，又会加重 DB 锁竞争。合理值通常通过<strong>压测</strong>确定（见《秒杀系统设计（三）》的容量规划）。</p>
+<h3 id="3-4-超时未支付与库存回补"><a href="#3-4-超时未支付与库存回补" class="headerlink" title="3.4 超时未支付与库存回补"></a>3.4 超时未支付与库存回补</h3><p>订单创建后如果用户 15 分钟不支付，需要：</p>
+<ul>
+<li>取消订单（更新状态，<strong>不是删除</strong>）</li>
+<li><strong>回补库存</strong>到 Redis 和 DB</li>
+<li>回补时要考虑：回补到&quot;哪个桶&quot;（见《秒杀系统设计（三）》的库存分片）</li>
+</ul>
+<p>订单的状态流转必须清晰，避免状态错乱：</p>
+<div class="mermaid-wrap"><pre class="mermaid-src" hidden>stateDiagram-v2
+    [*] --&gt; 待支付: MQ 消费成功
+    待支付 --&gt; 已支付: 用户支付
+    待支付 --&gt; 已取消: 超时未支付 &#x2F; 用户取消
+    已取消 --&gt; [*]: 回补库存
+    已支付 --&gt; [*]</pre></div>
+
+<p><strong>坑点：回补和取消必须幂等。</strong><br>定时任务可能重复触发，必须用状态判断（<code>WHERE status = 待支付</code>）配合原子 SQL，保证&quot;取消 + 回补&quot;只执行一次。</p>
+<hr>
+<blockquote>
+<p><strong>【下一篇预告】</strong> 到这里，单商品、小库存的秒杀已经能做对了。但真实业务往往不是这样——<strong>大促可能放量十万件，一场活动可能同时开抢几百个商品</strong>。这时&quot;单个热点 key &#x2F; 单行 &#x2F; 单库&quot;就会成为新的瓶颈。下一篇《秒杀系统设计（三）：规模扩展》讲库存分片，并回答那个最实际的问题：<strong>到底要几台机器</strong>。</p>
+</blockquote>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://LI-S-H.github.io">青山木</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://li-s-h.github.io/2026/10/02/%E7%A7%92%E6%9D%80%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9A%E6%95%B0%E6%8D%AE%E6%AD%A3%E7%A1%AE%E6%80%A7/">https://li-s-h.github.io/2026/10/02/%E7%A7%92%E6%9D%80%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9A%E6%95%B0%E6%8D%AE%E6%AD%A3%E7%A1%AE%E6%80%A7/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://LI-S-H.github.io" target="_blank">青山木</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/Redis/">Redis</a><a class="post-meta__tags" href="/tags/MQ/">MQ</a><a class="post-meta__tags" href="/tags/%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81/">分布式锁</a><a class="post-meta__tags" href="/tags/%E5%B9%82%E7%AD%89/">幂等</a><a class="post-meta__tags" href="/tags/Redisson/">Redisson</a><a class="post-meta__tags" href="/tags/Lua/">Lua</a><a class="post-meta__tags" href="/tags/%E7%A7%92%E6%9D%80/">秒杀</a><a class="post-meta__tags" href="/tags/%E9%AB%98%E5%B9%B6%E5%8F%91/">高并发</a><a class="post-meta__tags" href="/tags/%E8%B6%85%E5%8D%96/">超卖</a><a class="post-meta__tags" href="/tags/%E8%87%AA%E6%97%8B/">自旋</a><a class="post-meta__tags" href="/tags/CAS/">CAS</a><a class="post-meta__tags" href="/tags/%E4%B9%90%E8%A7%82%E9%94%81/">乐观锁</a><a class="post-meta__tags" href="/tags/%E6%82%B2%E8%A7%82%E9%94%81/">悲观锁</a><a class="post-meta__tags" href="/tags/%E5%94%AF%E4%B8%80%E7%B4%A2%E5%BC%95/">唯一索引</a></div><div class="post-share"><div class="social-share" data-image="/img/title-picture/%E7%A7%92%E6%9D%80%E8%AE%BE%E8%AE%A1%E4%BA%8C.jpg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/2026/10/03/%E7%A7%92%E6%9D%80%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%EF%BC%88%E4%B8%89%EF%BC%89%EF%BC%9A%E8%A7%84%E6%A8%A1%E6%89%A9%E5%B1%95/" title="秒杀系统设计（三）：规模扩展——库存分片与容量规划"><img class="cover" src="/img/title-picture/%E7%A7%92%E6%9D%80%E8%AE%BE%E8%AE%A1%E4%B8%89.jpg" onerror="onerror=null;src='/img/404.jpg'" alt="cover of previous post"><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">秒杀系统设计（三）：规模扩展——库存分片与容量规划</div></div><div class="info-2"><div class="info-item-1">前两篇的方案，都建立在"一个商品、库存 100 件"这个前提上。作为系列第三篇，本文先讨论前提被打破时怎么办：大库存怎么做库存分桶（DB 侧与 Redis 侧，以及路由算法必须一致这条铁律）、多商品怎么分库分表、分片最大的坑"分桶不均导致少卖"的两种解法（预留兜底桶与桶间借调）；再回答最实际的问题——基于压测基线与漏斗衰减，逐层算出到底要几台机器。</div></div></div></a><a class="pagination-related" href="/2026/10/01/%E7%A7%92%E6%9D%80%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9A%E9%9C%80%E6%B1%82%E6%8B%86%E8%A7%A3%E4%B8%8E%E6%B5%81%E9%87%8F%E6%B2%BB%E7%90%86/" title="秒杀系统设计（一）：需求拆解与流量治理"><img class="cover" src="/img/title-picture/%E7%A7%92%E6%9D%80%E8%AE%BE%E8%AE%A1%E4%B8%80.jpg" onerror="onerror=null;src='/img/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">秒杀系统设计（一）：需求拆解与流量治理</div></div><div class="info-2"><div class="info-item-1">秒杀的本质是漏斗，不是堆机器。作为系列第一篇，本文先拆解秒杀的功能与非功能需求（一人一单、防超卖、支持海量用户抢购），再用一段朴素代码暴露三类高并发问题，然后按"由外到内"的顺序逐层削流量：接入层的架构层次设计（单机 Nginx → 集群 → LVS/F5 → DNS 轮询）、Nginx 限流与 OpenResty、应用层令牌桶、Redis 挡量与 MQ 削峰，并给出 MQ 选型建议与每一层的坑点。</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/2026/10/01/%E7%A7%92%E6%9D%80%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9A%E9%9C%80%E6%B1%82%E6%8B%86%E8%A7%A3%E4%B8%8E%E6%B5%81%E9%87%8F%E6%B2%BB%E7%90%86/" title="秒杀系统设计（一）：需求拆解与流量治理"><img class="cover" src="/img/title-picture/%E7%A7%92%E6%9D%80%E8%AE%BE%E8%AE%A1%E4%B8%80.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-01</div><div class="info-item-2">秒杀系统设计（一）：需求拆解与流量治理</div></div><div class="info-2"><div class="info-item-1">秒杀的本质是漏斗，不是堆机器。作为系列第一篇，本文先拆解秒杀的功能与非功能需求（一人一单、防超卖、支持海量用户抢购），再用一段朴素代码暴露三类高并发问题，然后按"由外到内"的顺序逐层削流量：接入层的架构层次设计（单机 Nginx → 集群 → LVS/F5 → DNS 轮询）、Nginx 限流与 OpenResty、应用层令牌桶、Redis 挡量与 MQ 削峰，并给出 MQ 选型建议与每一层的坑点。</div></div></div></a><a class="pagination-related" href="/2026/07/15/%E4%B8%80%E6%8A%8A%20Redis%20%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81%EF%BC%8C%E8%B8%A9%E9%80%8F%E5%9B%9B%E4%B8%AA%E5%9D%91%EF%BC%9A%E9%94%81%E4%BA%89%E6%8A%A2%E3%80%81%E5%83%B5%E5%B0%B8%E9%94%81%E3%80%81%E9%94%81%E8%BF%87%E6%9C%9F%E3%80%81%E9%94%81%E4%B8%A2%E5%A4%B1/" title="一把 Redis 分布式锁，踩透四个坑：锁争抢、僵尸锁、锁过期、锁丢失"><img class="cover" src="/img/title-picture/%E4%B8%80%E6%8A%8A%20Redis%20%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81%EF%BC%8C%E8%B8%A9%E9%80%8F%E5%9B%9B%E4%B8%AA%E5%9D%91%EF%BC%9A%E9%94%81%E4%BA%89%E6%8A%A2%E3%80%81%E5%83%B5%E5%B0%B8%E9%94%81%E3%80%81%E9%94%81%E8%BF%87%E6%9C%9F%E3%80%81%E9%94%81%E4%B8%A2%E5%A4%B1.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-15</div><div class="info-item-2">一把 Redis 分布式锁，踩透四个坑：锁争抢、僵尸锁、锁过期、锁丢失</div></div><div class="info-2"><div class="info-item-1">Java 的 synchronized 和 ReentrantLock 只能锁住单个 JVM，多节点部署下会完全失效。本文从"为什么需要分布式锁"切入，按"问题 → 解决 → 引出新问题 → 再解决"的思路，讲清楚 Redis 分布式锁要解决的四大核心问题：锁争抢、僵尸锁、锁过期、锁高可用，以及对应的 SET NX EX、TTL 兜底、看门狗、UUID+Lua、RedLock 方案。</div></div></div></a><a class="pagination-related" href="/2026/07/21/Redis%20%E7%BC%93%E5%AD%98%E4%B8%80%E8%87%B4%E6%80%A7%E5%85%A8%E8%A7%A3%EF%BC%9A%E4%BB%8E%20Cache%20Aside%20%E5%88%B0%E5%BB%B6%E8%BF%9F%E5%8F%8C%E5%88%A0%E3%80%81Canal+MQ%20%E7%9A%84%E8%BF%9B%E9%98%B6%E4%B9%8B%E8%B7%AF/" title="Redis 缓存一致性全解：从 Cache Aside 到延迟双删、Canal+MQ 的进阶之路"><img class="cover" src="/img/title-picture/Redis%E7%BC%93%E5%AD%98%E4%B8%80%E8%87%B4%E6%80%A7.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-21</div><div class="info-item-2">Redis 缓存一致性全解：从 Cache Aside 到延迟双删、Canal+MQ 的进阶之路</div></div><div class="info-2"><div class="info-item-1">引入 Redis 缓存层后，"数据库更新了缓存却没跟上"就成了绕不开的一致性难题。本文按"问题 → 朴素方案为何失败 → Cache Aside → 先删 vs 后删 → TTL 兜底 → 延迟双删 + MQ 重试 → Canal + MQ → 分布式锁 → 何时放弃缓存"的进阶路线，系统讲透更新缓存与删除缓存的取舍、并发读写场景下的脏数据窗口、ACK 时序、Canal 痛点以及强一致业务的选型逻辑，并配多张流程图辅助理解。</div></div></div></a><a class="pagination-related" href="/2026/04/26/Redis%E6%A0%B8%E5%BF%83%E5%AE%9E%E6%88%98%EF%BC%9A%E4%BB%8E%E7%BC%93%E5%AD%98%E8%AE%BE%E8%AE%A1%E5%88%B0%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81%E7%9A%84%E6%B7%B1%E5%BA%A6%E8%A7%A3%E6%9E%90/" title="Redis核心实战：从缓存设计到分布式锁的深度解析"><img class="cover" src="/img/title-picture/redis.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-04-26</div><div class="info-item-2">Redis核心实战：从缓存设计到分布式锁的深度解析</div></div><div class="info-2"><div class="info-item-1">本文从实际场景入手，系统讲解Redis的核心知识，涵盖缓存设计基础（缓存策略、Key设计规范）、缓存击穿/穿透/雪崩三大问题的解决方案，以及秒杀与一人一单等业务场景下的分布式锁实战应用</div></div></div></a><a class="pagination-related" href="/2026/10/03/%E7%A7%92%E6%9D%80%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%EF%BC%88%E4%B8%89%EF%BC%89%EF%BC%9A%E8%A7%84%E6%A8%A1%E6%89%A9%E5%B1%95/" title="秒杀系统设计（三）：规模扩展——库存分片与容量规划"><img class="cover" src="/img/title-picture/%E7%A7%92%E6%9D%80%E8%AE%BE%E8%AE%A1%E4%B8%89.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-03</div><div class="info-item-2">秒杀系统设计（三）：规模扩展——库存分片与容量规划</div></div><div class="info-2"><div class="info-item-1">前两篇的方案，都建立在"一个商品、库存 100 件"这个前提上。作为系列第三篇，本文先讨论前提被打破时怎么办：大库存怎么做库存分桶（DB 侧与 Redis 侧，以及路由算法必须一致这条铁律）、多商品怎么分库分表、分片最大的坑"分桶不均导致少卖"的两种解法（预留兜底桶与桶间借调）；再回答最实际的问题——基于压测基线与漏斗衰减，逐层算出到底要几台机器。</div></div></div></a><a class="pagination-related" href="/2026/07/03/Redis%20%E9%AB%98%E5%8F%AF%E7%94%A8%E8%AF%A6%E8%A7%A3%EF%BC%9A%E4%B8%BB%E4%BB%8E%E5%A4%8D%E5%88%B6%20%E5%93%A8%E5%85%B5%E6%9C%BA%E5%88%B6%E4%B8%8E%E6%95%85%E9%9A%9C%E8%BD%AC%E7%A7%BB/" title="一文讲透 Redis 高可用：主从复制、哨兵机制与故障转移全流程"><img class="cover" src="/img/title-picture/redis.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-03</div><div class="info-item-2">一文讲透 Redis 高可用：主从复制、哨兵机制与故障转移全流程</div></div><div class="info-2"><div class="info-item-1">Redis 单节点再快也绕不开性能上限和单点故障。本文从主从架构出发，讲清楚主从复制如何保证数据同步，Sentinel 如何完成故障转移，以及为什么哨兵本身也必须集群化。</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/%E5%A4%B4%E5%83%8F.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">青山木</div><div class="author-info-description">正在学习Java后端开发＋智能体开发，希望能与大家多多交流</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">114</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">244</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">6</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/LI-S-H"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/LI-S-H" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">欢迎来到我的博客，记录学习与成长的点滴。</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%80%E3%80%81Redis-%E4%BE%A7%EF%BC%9ALua-%E5%8E%9F%E5%AD%90%E6%89%A3%E5%87%8F"><span class="toc-number">1.</span> <span class="toc-text">一、Redis 侧：Lua 原子扣减</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1-1-Redis-%E4%BE%A7%E7%9A%84%E5%B9%B6%E5%8F%91%E9%97%AE%E9%A2%98%EF%BC%9A%E6%89%A3%E5%87%8F%E4%B8%8D%E5%8E%9F%E5%AD%90%E5%AF%BC%E8%87%B4%E8%B6%85%E5%8D%96"><span class="toc-number">1.1.</span> <span class="toc-text">1.1 Redis 侧的并发问题：扣减不原子导致超卖</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-2-%E7%94%A8-Lua-%E4%BF%9D%E8%AF%81%E5%8E%9F%E5%AD%90%E6%89%A3%E5%87%8F"><span class="toc-number">1.2.</span> <span class="toc-text">1.2 用 Lua 保证原子扣减</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-3-%E5%9D%91%E7%82%B9%EF%BC%9A%E4%B8%BA%E4%BB%80%E4%B9%88%E4%B8%8D%E7%94%A8-DECR-%E5%90%8E%E5%88%A4%E6%96%AD"><span class="toc-number">1.3.</span> <span class="toc-text">1.3 坑点：为什么不用 DECR 后判断</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-4-%E5%85%B3%E9%94%AE%E8%AE%A4%E7%9F%A5%EF%BC%9A%E8%BF%99%E4%B8%80%E5%B1%82%E4%B8%BA%E4%BB%80%E4%B9%88%E4%B8%8D%E9%9C%80%E8%A6%81%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81"><span class="toc-number">1.4.</span> <span class="toc-text">1.4 关键认知：这一层为什么不需要分布式锁</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%8C%E3%80%81%E6%95%B0%E6%8D%AE%E5%BA%93%E4%BE%A7%EF%BC%9A%E5%B9%B6%E5%8F%91%E6%8E%A7%E5%88%B6%E4%B8%8E%E9%94%81"><span class="toc-number">2.</span> <span class="toc-text">二、数据库侧：并发控制与锁</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#2-1-%E6%95%B0%E6%8D%AE%E5%BA%93%E4%BE%A7%E7%9A%84%E8%B6%85%E5%8D%96%E6%98%AF%E6%80%8E%E4%B9%88%E5%8F%91%E7%94%9F%E7%9A%84"><span class="toc-number">2.1.</span> <span class="toc-text">2.1 数据库侧的超卖是怎么发生的</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-2-%E5%85%88%E8%AF%95%E6%9C%80%E7%9B%B4%E8%A7%89%E7%9A%84%E6%96%B9%E6%A1%88%EF%BC%9A%E5%8A%A0%E9%94%81"><span class="toc-number">2.2.</span> <span class="toc-text">2.2 先试最直觉的方案：加锁</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-3-%E5%9B%9B%E7%A7%8D%E5%B9%B6%E5%8F%91%E6%8E%A7%E5%88%B6%E6%96%B9%E6%A1%88%E7%9A%84%E5%AF%B9%E6%AF%94"><span class="toc-number">2.3.</span> <span class="toc-text">2.3 四种并发控制方案的对比</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-4-%E9%A6%96%E9%80%89%E6%96%B9%E6%A1%88%EF%BC%9ACAS-%E5%8E%9F%E5%AD%90-SQL"><span class="toc-number">2.4.</span> <span class="toc-text">2.4 首选方案：CAS 原子 SQL</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-5-%E4%B8%89%E7%A7%8D%E9%94%81%E7%9A%84%E7%AD%89%E5%BE%85%E6%9C%BA%E5%88%B6%EF%BC%9A-%E8%87%AA%E6%97%8B-%E8%BF%99%E4%BB%B6%E4%BA%8B%E7%94%B1%E8%B0%81%E8%B4%9F%E8%B4%A3"><span class="toc-number">2.5.</span> <span class="toc-text">2.5 三种锁的等待机制：&quot;自旋&quot;这件事由谁负责</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-6-Redis-%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81%E4%B8%8D%E6%98%AF%E9%93%B6%E5%BC%B9"><span class="toc-number">2.6.</span> <span class="toc-text">2.6 Redis 分布式锁不是银弹</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-7-%E5%9D%91%E7%82%B9%E4%B8%80%EF%BC%9A%E9%94%81%E5%BF%85%E9%A1%BB%E6%94%BE%E5%9C%A8%E4%BA%8B%E5%8A%A1%E5%A4%96%E9%9D%A2%EF%BC%88%E6%9C%80%E9%87%8D%E8%A6%81%E7%9A%84%E5%9D%91%EF%BC%89"><span class="toc-number">2.7.</span> <span class="toc-text">2.7 坑点一：锁必须放在事务外面（最重要的坑）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-8-%E5%9D%91%E7%82%B9%E4%BA%8C%EF%BC%9A%E9%94%81%E7%9A%84%E7%B2%92%E5%BA%A6%E8%AE%BE%E8%AE%A1"><span class="toc-number">2.8.</span> <span class="toc-text">2.8 坑点二：锁的粒度设计</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-9-%E5%9D%91%E7%82%B9%E4%B8%89%EF%BC%9A%E9%94%81%E4%B8%8D%E5%8F%AF%E9%9D%A0%E6%80%8E%E4%B9%88%E5%8A%9E%E2%80%94%E2%80%94%E5%94%AF%E4%B8%80%E7%B4%A2%E5%BC%95%E5%85%9C%E5%BA%95"><span class="toc-number">2.9.</span> <span class="toc-text">2.9 坑点三：锁不可靠怎么办——唯一索引兜底</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%89%E3%80%81%E4%B8%9A%E5%8A%A1%E4%BE%A7%EF%BC%9A%E4%B8%80%E4%BA%BA%E4%B8%80%E5%8D%95%E4%B8%8E%E5%B9%82%E7%AD%89"><span class="toc-number">3.</span> <span class="toc-text">三、业务侧：一人一单与幂等</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#3-1-%E4%B8%BA%E4%BB%80%E4%B9%88-%E5%85%88%E6%9F%A5%E5%86%8D%E6%8F%92-%E7%9A%84%E4%B8%80%E4%BA%BA%E4%B8%80%E5%8D%95%E4%BC%9A%E5%A4%B1%E6%95%88"><span class="toc-number">3.1.</span> <span class="toc-text">3.1 为什么&quot;先查再插&quot;的一人一单会失效</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-2-%E4%B8%80%E4%BA%BA%E4%B8%80%E5%8D%95%E7%9A%84%E4%B8%89%E7%A7%8D%E5%AE%9E%E7%8E%B0"><span class="toc-number">3.2.</span> <span class="toc-text">3.2 一人一单的三种实现</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-3-MQ-%E6%B6%88%E8%B4%B9%E7%AB%AF%E7%9A%84%E5%B9%82%E7%AD%89"><span class="toc-number">3.3.</span> <span class="toc-text">3.3 MQ 消费端的幂等</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-4-%E8%B6%85%E6%97%B6%E6%9C%AA%E6%94%AF%E4%BB%98%E4%B8%8E%E5%BA%93%E5%AD%98%E5%9B%9E%E8%A1%A5"><span class="toc-number">3.4.</span> <span class="toc-text">3.4 超时未支付与库存回补</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/2026/10/03/%E7%A7%92%E6%9D%80%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%EF%BC%88%E4%B8%89%EF%BC%89%EF%BC%9A%E8%A7%84%E6%A8%A1%E6%89%A9%E5%B1%95/" title="秒杀系统设计（三）：规模扩展——库存分片与容量规划"><img src="/img/title-picture/%E7%A7%92%E6%9D%80%E8%AE%BE%E8%AE%A1%E4%B8%89.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="秒杀系统设计（三）：规模扩展——库存分片与容量规划"/></a><div class="content"><a class="title" href="/2026/10/03/%E7%A7%92%E6%9D%80%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%EF%BC%88%E4%B8%89%EF%BC%89%EF%BC%9A%E8%A7%84%E6%A8%A1%E6%89%A9%E5%B1%95/" title="秒杀系统设计（三）：规模扩展——库存分片与容量规划">秒杀系统设计（三）：规模扩展——库存分片与容量规划</a><time datetime="2026-10-03T02:00:00.000Z" title="发表于 2026-10-03 10:00:00">2026-10-03</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/10/02/%E7%A7%92%E6%9D%80%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9A%E6%95%B0%E6%8D%AE%E6%AD%A3%E7%A1%AE%E6%80%A7/" title="秒杀系统设计（二）：数据正确性——防超卖、分布式锁与一人一单"><img src="/img/title-picture/%E7%A7%92%E6%9D%80%E8%AE%BE%E8%AE%A1%E4%BA%8C.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="秒杀系统设计（二）：数据正确性——防超卖、分布式锁与一人一单"/></a><div class="content"><a class="title" href="/2026/10/02/%E7%A7%92%E6%9D%80%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9A%E6%95%B0%E6%8D%AE%E6%AD%A3%E7%A1%AE%E6%80%A7/" title="秒杀系统设计（二）：数据正确性——防超卖、分布式锁与一人一单">秒杀系统设计（二）：数据正确性——防超卖、分布式锁与一人一单</a><time datetime="2026-10-02T02:00:00.000Z" title="发表于 2026-10-02 10:00:00">2026-10-02</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/10/01/%E7%A7%92%E6%9D%80%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9A%E9%9C%80%E6%B1%82%E6%8B%86%E8%A7%A3%E4%B8%8E%E6%B5%81%E9%87%8F%E6%B2%BB%E7%90%86/" title="秒杀系统设计（一）：需求拆解与流量治理"><img src="/img/title-picture/%E7%A7%92%E6%9D%80%E8%AE%BE%E8%AE%A1%E4%B8%80.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="秒杀系统设计（一）：需求拆解与流量治理"/></a><div class="content"><a class="title" href="/2026/10/01/%E7%A7%92%E6%9D%80%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9A%E9%9C%80%E6%B1%82%E6%8B%86%E8%A7%A3%E4%B8%8E%E6%B5%81%E9%87%8F%E6%B2%BB%E7%90%86/" title="秒杀系统设计（一）：需求拆解与流量治理">秒杀系统设计（一）：需求拆解与流量治理</a><time datetime="2026-10-01T02:00:00.000Z" title="发表于 2026-10-01 10:00:00">2026-10-01</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/09/29/Hot%20100%20---%20%E5%AF%BB%E6%89%BE%E9%87%8D%E5%A4%8D%E6%95%B0/" title="Hot 100 --- 寻找重复数"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 寻找重复数"/></a><div class="content"><a class="title" href="/2026/09/29/Hot%20100%20---%20%E5%AF%BB%E6%89%BE%E9%87%8D%E5%A4%8D%E6%95%B0/" title="Hot 100 --- 寻找重复数">Hot 100 --- 寻找重复数</a><time datetime="2026-09-29T14:30:00.000Z" title="发表于 2026-09-29 22:30:00">2026-09-29</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/09/28/Hot%20100%20---%20%E4%B8%8B%E4%B8%80%E4%B8%AA%E6%8E%92%E5%88%97/" title="Hot 100 --- 下一个排列"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 下一个排列"/></a><div class="content"><a class="title" href="/2026/09/28/Hot%20100%20---%20%E4%B8%8B%E4%B8%80%E4%B8%AA%E6%8E%92%E5%88%97/" title="Hot 100 --- 下一个排列">Hot 100 --- 下一个排列</a><time datetime="2026-09-28T15:30:00.000Z" title="发表于 2026-09-28 23:30:00">2026-09-28</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By 青山木</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.5.4"></script><script src="/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script>
+(function() {
+  /* 仅在首页标题上方插入头像 */
+  if (window.location.pathname !== '/' && !window.location.pathname.endsWith('/index.html')) return;
+  var siteTitle = document.getElementById('site-title');
+  if (siteTitle) {
+    var avatar = document.createElement('img');
+    avatar.src = '/img/头像.jpg';
+    avatar.alt = 'avatar';
+    avatar.className = 'avatar-img';
+    siteTitle.parentNode.insertBefore(avatar, siteTitle);
+  }
+})();
+</script>
+<script>
+(function() {
+  function initMermaid() {
+    if (window.mermaid) return Promise.resolve();
+    return new Promise(function(resolve, reject) {
+      var script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/mermaid@11.12.2/dist/mermaid.min.js';
+      script.onload = function() {
+        mermaid.initialize({
+          startOnLoad: false,
+          // 图表主题固定，避免站点深浅色切换时重新解析整篇文章的所有 Mermaid 图。
+          theme: 'dark',
+          securityLevel: 'loose'
+        });
+        resolve();
+      };
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  }
+
+  // Mermaid 会异步改变文章高度；目录跳转必须等所有图表完成布局后再读取标题位置。
+  window.mermaidReady = Promise.resolve();
+  var renderSequence = 0;
+
+  function waitForStableLayout() {
+    return new Promise(function(resolve) {
+      requestAnimationFrame(function() {
+        requestAnimationFrame(function() {
+          // 让 SVG 内的 foreignObject 完成一次实际布局，再刷新 Butterfly 的标题位置缓存。
+          setTimeout(resolve, 50);
+        });
+      });
+    });
+  }
+
+  function showMermaidSource(pre) {
+    pre.hidden = false;
+    pre.style.display = 'block';
+    pre.style.color = '#d32f2f';
+    pre.style.whiteSpace = 'pre-wrap';
+    pre.style.fontSize = '13px';
+  }
+
+  function refreshTocPositions() {
+    // Butterfly 只在 resize 时重新缓存标题坐标。
+    window.dispatchEvent(new Event('resize'));
+    document.dispatchEvent(new CustomEvent('mermaid:rendered'));
+  }
+
+  function renderMermaidDiagrams() {
+    var wraps = document.querySelectorAll('#article-container .mermaid-wrap');
+    if (wraps.length === 0) {
+      window.mermaidReady = Promise.resolve();
+      return window.mermaidReady;
+    }
+
+    var renderTask = initMermaid().then(function() {
+      return Promise.all(Array.prototype.map.call(wraps, function(wrap, index) {
+        var pre = wrap.querySelector('pre.mermaid-src');
+        if (!pre || pre.dataset.rendered === 'true') return Promise.resolve();
+
+        var code = pre.textContent;
+        var id = 'mermaid-' + index + '-' + (++renderSequence);
+        return Promise.resolve().then(function() {
+          return mermaid.render(id, code);
+        }).then(function(result) {
+          pre.dataset.rendered = 'true';
+          pre.style.display = 'none';
+          var div = document.createElement('div');
+          div.innerHTML = result.svg;
+          wrap.insertBefore(div.firstChild, pre.nextSibling);
+        }).catch(function(err) {
+          console.error('[Mermaid] Block #' + index + ' render failed:', err);
+          showMermaidSource(pre);
+        });
+      }));
+    }).then(function() {
+      return waitForStableLayout();
+    }).then(function() {
+      refreshTocPositions();
+    }).catch(function(err) {
+      console.error('[Mermaid] Failed to load mermaid.js:', err);
+      wraps.forEach(function(wrap) {
+        var pre = wrap.querySelector('pre.mermaid-src');
+        if (pre) showMermaidSource(pre);
+      });
+    });
+
+    window.mermaidReady = renderTask;
+    return renderTask;
+  }
+
+  // 页面加载完成后渲染
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', renderMermaidDiagrams);
+  } else {
+    renderMermaidDiagrams();
+  }
+
+  // 拦截目录点击：若图表仍在渲染，等待布局稳定后按实时坐标滚动。
+  // 使用捕获阶段，避免 Butterfly 先按渲染前的坐标启动平滑滚动。
+  var tocNavigationSequence = 0;
+  document.addEventListener('click', function(e) {
+    var link = e.target.closest('#card-toc .toc-link');
+    if (!link) return;
+
+    var href = link.getAttribute('href') || '';
+    var hashIndex = href.indexOf('#');
+    if (hashIndex < 0) return;
+
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    var navigationSequence = ++tocNavigationSequence;
+    var headingId = decodeURI(href.slice(hashIndex + 1));
+
+    (window.mermaidReady || Promise.resolve()).then(function() {
+      return waitForStableLayout();
+    }).then(function() {
+      if (navigationSequence !== tocNavigationSequence) return;
+      var heading = document.getElementById(headingId);
+      if (!heading) return;
+
+      // 使用点击时的实际位置，避免异步 SVG 插入改变标题高度后跳错章节。
+      var top = heading.getBoundingClientRect().top + window.scrollY;
+      if (window.btf && window.btf.scrollToDest) {
+        window.btf.scrollToDest(top, 300);
+      } else {
+        window.scrollTo({ top: top, behavior: 'smooth' });
+      }
+    });
+  }, true);
+
+})();
+</script>
+<script id="canvas_nest" defer="defer" color="107,159,255" opacity="0.6" zIndex="-1" count="99" mobile="false" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/dist/canvas-nest.min.js"></script></div></body></html>

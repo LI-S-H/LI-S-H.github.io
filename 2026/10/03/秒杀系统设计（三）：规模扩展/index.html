@@ -1,0 +1,935 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="dark"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>秒杀系统设计（三）：规模扩展——库存分片与容量规划 | 青山木</title><meta name="author" content="青山木"><meta name="copyright" content="青山木"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#0d1117"><meta name="description" content="前两篇的方案，都建立在&quot;一个商品、库存 100 件&quot;这个前提上。作为系列第三篇，本文先讨论前提被打破时怎么办：大库存怎么做库存分桶（DB 侧与 Redis 侧，以及路由算法必须一致这条铁律）、多商品怎么分库分表、分片最大的坑&quot;分桶不均导致少卖&quot;的两种解法（预留兜底桶与桶间借调）；再回答最实际的问题——基于压测基线与漏斗衰减，逐层算出到底要几台机器。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="秒杀系统设计（三）：规模扩展——库存分片与容量规划">
+<meta property="og:url" content="https://li-s-h.github.io/2026/10/03/%E7%A7%92%E6%9D%80%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%EF%BC%88%E4%B8%89%EF%BC%89%EF%BC%9A%E8%A7%84%E6%A8%A1%E6%89%A9%E5%B1%95/index.html">
+<meta property="og:site_name" content="青山木">
+<meta property="og:description" content="前两篇的方案，都建立在&quot;一个商品、库存 100 件&quot;这个前提上。作为系列第三篇，本文先讨论前提被打破时怎么办：大库存怎么做库存分桶（DB 侧与 Redis 侧，以及路由算法必须一致这条铁律）、多商品怎么分库分表、分片最大的坑&quot;分桶不均导致少卖&quot;的两种解法（预留兜底桶与桶间借调）；再回答最实际的问题——基于压测基线与漏斗衰减，逐层算出到底要几台机器。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://li-s-h.github.io/img/title-picture/%E7%A7%92%E6%9D%80%E8%AE%BE%E8%AE%A1%E4%B8%89.jpg">
+<meta property="article:published_time" content="2026-10-03T02:00:00.000Z">
+<meta property="article:modified_time" content="2026-10-01T12:40:47.817Z">
+<meta property="article:author" content="青山木">
+<meta property="article:tag" content="秒杀">
+<meta property="article:tag" content="高并发">
+<meta property="article:tag" content="库存分片">
+<meta property="article:tag" content="分桶">
+<meta property="article:tag" content="兜底桶">
+<meta property="article:tag" content="桶间借调">
+<meta property="article:tag" content="分库分表">
+<meta property="article:tag" content="容量规划">
+<meta property="article:tag" content="QPS">
+<meta property="article:tag" content="压测">
+<meta property="article:tag" content="负载均衡">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://li-s-h.github.io/img/title-picture/%E7%A7%92%E6%9D%80%E8%AE%BE%E8%AE%A1%E4%B8%89.jpg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "秒杀系统设计（三）：规模扩展——库存分片与容量规划",
+  "url": "https://li-s-h.github.io/2026/10/03/%E7%A7%92%E6%9D%80%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%EF%BC%88%E4%B8%89%EF%BC%89%EF%BC%9A%E8%A7%84%E6%A8%A1%E6%89%A9%E5%B1%95/",
+  "image": "https://li-s-h.github.io/img/title-picture/%E7%A7%92%E6%9D%80%E8%AE%BE%E8%AE%A1%E4%B8%89.jpg",
+  "datePublished": "2026-10-03T02:00:00.000Z",
+  "dateModified": "2026-10-01T12:40:47.817Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "青山木",
+      "url": "https://LI-S-H.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/%E5%A4%B4%E5%83%8F.jpg"><link rel="canonical" href="https://li-s-h.github.io/2026/10/03/%E7%A7%92%E6%9D%80%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%EF%BC%88%E4%B8%89%EF%BC%89%EF%BC%9A%E8%A7%84%E6%A8%A1%E6%89%A9%E5%B1%95/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="stylesheet" href="/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d1117')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', 'ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '秒杀系统设计（三）：规模扩展——库存分片与容量规划',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><style>
+  #site-title { font-size: 1.76em !important; }
+  #subtitle { font-size: 0.88em !important; }
+
+  /* 卡片悬停放大 + 辉光 */
+  #recent-posts .recent-post-item {
+    transition: transform .3s ease, box-shadow .3s ease, border-color .3s ease;
+  }
+  #recent-posts .recent-post-item:hover {
+    transform: scale(1.025) !important;
+    border-color: rgba(107,159,255,0.5) !important;
+    box-shadow: 0 0 0 1px rgba(107,159,255,0.15),
+                0 0 45px rgba(107,159,255,0.12),
+                0 8px 30px rgba(0,0,0,0.4) !important;
+  }
+
+  /* 首页标题上方头像 */
+  #site-info .avatar-img {
+    display: block;
+    width: 144px;
+    height: 144px;
+    border-radius: 50%;
+    margin: 0 auto 20px;
+    border: 3px solid rgba(107,159,255,0.6);
+    box-shadow: 0 0 30px rgba(107,159,255,0.35),
+                0 0 60px rgba(107,159,255,0.15),
+                0 4px 20px rgba(0,0,0,0.25);
+    object-fit: cover;
+    transition: box-shadow .4s ease, border-color .4s ease;
+  }
+  #site-info .avatar-img:hover {
+    border-color: rgba(107,159,255,0.9);
+    box-shadow: 0 0 40px rgba(107,159,255,0.5),
+                0 0 80px rgba(107,159,255,0.25),
+                0 4px 20px rgba(0,0,0,0.25);
+  }
+
+  /* Mermaid 图表容器样式 */
+  .mermaid-wrap {
+    position: relative;
+    /* 图表固定使用深色画布，主题切换无需销毁并重绘所有 SVG。 */
+    background: #1e1e1e !important;
+    padding: 12px !important;
+    border-radius: 8px !important;
+    border: 1px solid #444 !important;
+    text-align: center;
+    margin: 0 0 20px 0;
+    overflow-x: auto;
+  }
+  .mermaid-wrap > svg {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+  }
+  /* 深色图表画布在两种站点主题下保持一致，避免切换时重排。 */
+  [data-theme="dark"] .mermaid-wrap {
+    background: #1e1e1e !important;
+    border-color: #444 !important;
+  }
+</style>
+<meta name="generator" content="Hexo 7.3.0"></head><body><div class="bg-animation" id="web_bg" style="background-image: url(/img/%E8%83%8C%E6%99%AF%E5%9B%BE2.webp);"></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(/img/title-picture/%E7%A7%92%E6%9D%80%E8%AE%BE%E8%AE%A1%E4%B8%89.jpg);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">青山木</span></a><a class="nav-page-title" href="/"><span class="site-name">秒杀系统设计（三）：规模扩展——库存分片与容量规划</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">秒杀系统设计（三）：规模扩展——库存分片与容量规划</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-10-03T02:00:00.000Z" title="发表于 2026-10-03 10:00:00">2026-10-03</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-10-01T12:40:47.817Z" title="更新于 2026-10-01 20:40:47">2026-10-01</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/%E5%90%8E%E7%AB%AF%E5%BC%80%E5%8F%91/">后端开发</a></span></div><div class="meta-secondline"></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><blockquote>
+<p><strong>【系列说明】</strong> 本文是《秒杀系统设计》系列的第 3 篇，共 3 篇。系列主线只有一句话：<strong>秒杀的本质是漏斗，不是堆机器</strong>。</p>
+<ul>
+<li>第 1 篇：需求拆解与流量治理——解决&quot;数据库被打爆&quot;</li>
+<li>第 2 篇：数据正确性——解决&quot;库存超卖&quot;与&quot;一人多单&quot;</li>
+<li><strong>第 3 篇（本文）</strong>：规模扩展——大库存、多商品的分片方案，以及到底要几台机器</li>
+</ul>
+</blockquote>
+<blockquote>
+<p><strong>【承接上文】</strong> 前两篇的所有方案，都建立在&quot;<strong>一个商品、库存 100 件</strong>&quot;这个前提上。本篇先讨论这个前提被打破时怎么办——<strong>大库存、多商品要用库存分片</strong>（第一章）；再回答那个最实际的问题——<strong>到底要几台机器</strong>（第二章，逐层容量估算）；最后收口整个系列（第三章）。</p>
+</blockquote>
+<h2 id="一、库存分片"><a href="#一、库存分片" class="headerlink" title="一、库存分片"></a>一、库存分片</h2><p>前面所有讨论都基于一个前提：<strong>库存只有 100 件，且只秒杀一个商品</strong>。但真实业务里还有两种更复杂的情况：</p>
+<ol>
+<li><strong>秒杀库存很大</strong>：比如大促放量 10 万件、优惠券发放 50 万张</li>
+<li><strong>同时秒杀大量商品</strong>：比如&quot;品类日&quot;同时开抢几百个商品，全部写进同一个库</li>
+</ol>
+<p>这两种情况都会让<strong>单点（单 key &#x2F; 单行 &#x2F; 单库）成为瓶颈</strong>，解法就是<strong>分片</strong>。这一章讲清楚什么时候分、怎么分、以及分片的坑。</p>
+<h3 id="1-1-什么时候需要分片"><a href="#1-1-什么时候需要分片" class="headerlink" title="1.1 什么时候需要分片"></a>1.1 什么时候需要分片</h3><p>先明确边界，<strong>不要一上来就分片</strong>。</p>
+<p><strong>不需要分片的场景：</strong></p>
+<ul>
+<li>库存只有几百件 → Redis 预减库存之后，真正放行到 DB 的请求也就几百个，单行锁完全扛得住</li>
+<li>并发不高（放行到 DB 的请求只有几百个） → 单个热点行不会成为瓶颈</li>
+<li>只秒杀少量商品 → 单库完全能承载</li>
+</ul>
+<p><strong>需要分片的场景：</strong></p>
+<ul>
+<li><strong>库存量大</strong>：单 key 的扣减能力成为瓶颈</li>
+<li><strong>扣减 QPS 极高</strong>：即使库存不多，但放行到 DB 层的请求非常多</li>
+<li><strong>商品数量多</strong>：几百个商品同时开抢，订单表写入集中在同一个库</li>
+</ul>
+<p><strong>判断标准</strong>：单 key &#x2F; 单行 &#x2F; 单库的写入能力是否小于业务需要的 QPS。单 Redis key 的写入能力大约在 <strong>1 万 ~ 5 万 QPS</strong> 量级，超过这个数就该考虑分片。</p>
+<h3 id="1-2-情况一：大库存-→-库存分桶"><a href="#1-2-情况一：大库存-→-库存分桶" class="headerlink" title="1.2 情况一：大库存 → 库存分桶"></a>1.2 情况一：大库存 → 库存分桶</h3><p><strong>先说清楚&quot;分桶&quot;到底在分什么。</strong></p>
+<p>原来的设计是&quot;<strong>一个商品对应一行库存记录</strong>&quot;——DB 里是 <code>goods_stock</code> 表的一行，Redis 里是 <code>seckill:stock:1</code> 一个 key。所有请求都去抢这<strong>同一行 &#x2F; 同一个 key</strong>。</p>
+<p>分桶的做法是：<strong>把这一行拆成 N 行</strong>（Redis 侧则是拆成 N 个 key），每行存一部分库存，N 行加起来等于总库存。以 10 万件库存、分 100 个桶为例：</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>分桶前</th>
+<th>分桶后</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>DB</strong></td>
+<td><code>goods_stock</code> 里 <strong>1 行</strong>，stock &#x3D; 100000</td>
+<td><code>goods_stock_bucket</code> 里 <strong>100 行</strong>，每行 stock &#x3D; 1000</td>
+</tr>
+<tr>
+<td><strong>Redis</strong></td>
+<td><code>seckill:stock:1</code> <strong>1 个 key</strong></td>
+<td><code>seckill:stock:1:0</code> ~ <code>seckill:stock:1:99</code>，<strong>100 个 key</strong></td>
+</tr>
+</tbody></table>
+<p><strong>这里要澄清一个容易误解的点：表还是那一张表，不是建 100 张表。</strong> 分桶是靠&quot;<strong>同一张表里的多行</strong>&quot;来实现的——用 <code>bucket_no</code> 字段区分不同的桶，行数变多了，表结构没变。Redis 侧同理，是 key 变多了，不是 Redis 实例变多了。</p>
+<p><strong>数据库分桶：</strong></p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">-- 原来：一行库存，所有请求抢这一行</span></span><br><span class="line"><span class="comment">-- goods_stock(id, goods_id, stock)</span></span><br><span class="line"></span><br><span class="line"><span class="comment">-- 现在：拆成 N 行，用 bucket_no 区分</span></span><br><span class="line"><span class="keyword">CREATE TABLE</span> goods_stock_bucket (</span><br><span class="line">    id        <span class="type">BIGINT</span> <span class="keyword">PRIMARY KEY</span> AUTO_INCREMENT,</span><br><span class="line">    goods_id  <span class="type">BIGINT</span> <span class="keyword">NOT NULL</span>,</span><br><span class="line">    bucket_no <span class="type">INT</span>    <span class="keyword">NOT NULL</span>,     <span class="comment">-- 桶编号 0 ~ N-1</span></span><br><span class="line">    stock     <span class="type">INT</span>    <span class="keyword">NOT NULL</span>,     <span class="comment">-- 该桶的库存</span></span><br><span class="line">    <span class="keyword">UNIQUE</span> KEY uk_goods_bucket (goods_id, bucket_no)</span><br><span class="line">);</span><br><span class="line"></span><br><span class="line"><span class="comment">-- 库存 10 万、分 100 桶，就插入 100 行，每行 1000</span></span><br><span class="line"><span class="keyword">INSERT INTO</span> goods_stock_bucket (goods_id, bucket_no, stock) <span class="keyword">VALUES</span></span><br><span class="line">(<span class="number">1</span>, <span class="number">0</span>, <span class="number">1000</span>), (<span class="number">1</span>, <span class="number">1</span>, <span class="number">1000</span>), ..., (<span class="number">1</span>, <span class="number">99</span>, <span class="number">1000</span>);</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">-- 每个桶独立扣减，不同桶之间互不阻塞</span></span><br><span class="line"><span class="keyword">UPDATE</span> goods_stock_bucket</span><br><span class="line"><span class="keyword">SET</span> stock <span class="operator">=</span> stock <span class="operator">-</span> <span class="number">1</span></span><br><span class="line"><span class="keyword">WHERE</span> goods_id <span class="operator">=</span> #&#123;goodsId&#125;</span><br><span class="line">  <span class="keyword">AND</span> bucket_no <span class="operator">=</span> #&#123;bucketNo&#125;</span><br><span class="line">  <span class="keyword">AND</span> stock <span class="operator">&gt;</span> <span class="number">0</span>;</span><br></pre></td></tr></table></figure>
+
+<p><strong>收益到底在哪？关键不在&quot;线程数&quot;，而在&quot;同一时刻有多少请求在抢同一把行锁&quot;。</strong></p>
+<p>假设峰值有 <strong>5 万个扣减请求</strong>同时打到数据库：</p>
+<ul>
+<li><strong>不分桶</strong>：这 5 万个请求<strong>全部去抢同一行的锁</strong>，行锁排成一条极长的队列，绝大多数请求卡在锁等待上、还一直占着数据库连接 → 数据库被打爆；</li>
+<li><strong>分 100 桶</strong>：这 5 万个请求按 <code>userId % 100</code> 被均摊到 100 行上，<strong>每行大约只有 500 个请求在抢锁</strong>。</li>
+</ul>
+<p>也就是说，<strong>单行的锁竞争压力从 5 万降到了 500，下降了 100 倍</strong>——这才是分桶真正的收益。</p>
+<blockquote>
+<p>换个说法：分桶就是把&quot;<strong>一个滚烫的热点行</strong>&quot;变成&quot;<strong>100 个温度低得多的行</strong>&quot;。</p>
+<p>但要注意——<strong>它并没有让总压力消失，只是分摊了</strong>。如果总共只有几百个请求，分桶毫无意义（每行也就几个请求）；只有并发高到&quot;单行扛不住&quot;时，分桶才值得做。这就是 10.1 强调&quot;不要一上来就分片&quot;的原因。</p>
+</blockquote>
+<p><strong>Redis 分桶：</strong></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 根据用户 ID 计算桶编号，保证同一用户总是落到同一桶</span></span><br><span class="line"><span class="type">int</span> <span class="variable">bucketNo</span> <span class="operator">=</span> (<span class="type">int</span>) (userId % BUCKET_COUNT);   <span class="comment">// BUCKET_COUNT = 100</span></span><br><span class="line"><span class="type">String</span> <span class="variable">key</span> <span class="operator">=</span> <span class="string">&quot;seckill:stock:&quot;</span> + goodsId + <span class="string">&quot;:&quot;</span> + bucketNo;</span><br></pre></td></tr></table></figure>
+
+<p>Lua 脚本的逻辑完全不变，只是传入的 key 变了（从 <code>seckill:stock:1</code> 变成 <code>seckill:stock:1:73</code> 这样）。</p>
+<p><strong>⚠️ 这里有一条必须遵守的铁律：Redis 和 DB 的路由算法必须完全一致。</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">两边的桶编号，必须由同一个算法算出来：</span><br><span class="line"></span><br><span class="line">  bucketNo = userId % BUCKET_COUNT</span><br><span class="line"></span><br><span class="line">  Redis 扣减：seckill:stock:&#123;goodsId&#125;:&#123;bucketNo&#125;</span><br><span class="line">  DB    扣减：... WHERE bucket_no = &#123;bucketNo&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么必须一致？因为&quot;Redis 里扣减的桶&quot;和&quot;DB 里扣减的桶&quot;必须是同一个桶。</strong></p>
+<p>举个反例：如果 Redis 用 <code>userId % 100</code> 算桶，而 DB 用 <code>userId % 50</code> 算桶，那么一次请求可能&quot;在 Redis 的桶 73 扣掉了一件&quot;，转头却&quot;要求 DB 从桶 23 扣一件&quot;——而桶 23 很可能早就空了，于是这次下单直接失败。更糟的是，<strong>两边各桶的余额从此彻底错乱，连对账都对不平</strong>。</p>
+<p>所以工程上要<strong>把路由算法抽成一个公共方法，两边调同一份代码</strong>：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title class_">BucketRouter</span> &#123;</span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">final</span> <span class="type">int</span> <span class="variable">BUCKET_COUNT</span> <span class="operator">=</span> <span class="number">100</span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Redis 扣减和 DB 扣减都必须调用这一个方法，绝不允许各写一份</span></span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">static</span> <span class="type">int</span> <span class="title function_">route</span><span class="params">(Long userId)</span> &#123;</span><br><span class="line">        <span class="keyword">return</span> (<span class="type">int</span>) (userId % BUCKET_COUNT);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>另外两个必须守住的点：</p>
+<ul>
+<li><strong><code>BUCKET_COUNT</code> 上线后不要改</strong>：改了之后老用户会被路由到新桶，之前扣的库存就&quot;找不回来&quot;了；</li>
+<li><strong>回补库存必须回原桶</strong>：超时未支付要还库存，必须还到&quot;订单当初扣的那个桶&quot;，所以订单表要记录 <code>bucket_no</code>，否则各桶余额会漂移。</li>
+</ul>
+<div class="mermaid-wrap"><pre class="mermaid-src" hidden>flowchart TD
+    RQ[&quot;请求userId&#x3D;1001&quot;] --&gt; H[&quot;BucketRouter.route(userId)&#x3D; userId % 100&quot;]
+    H --&gt; B0[&quot;stock:goods1:0&quot;]
+    H --&gt; B1[&quot;stock:goods1:1&quot;]
+    H --&gt; BN[&quot;stock:goods1:99&quot;]
+
+    B0 --&gt; DB0[(&quot;bucket 0&quot;)]
+    B1 --&gt; DB1[(&quot;bucket 1&quot;)]
+    BN --&gt; DBN[(&quot;bucket 99&quot;)]
+
+    style H fill:#e7f1ff
+    style B0 fill:#fff3cd
+    style B1 fill:#fff3cd
+    style BN fill:#fff3cd</pre></div>
+
+<p><strong>Redis Cluster 还能再放大收益</strong>：这 100 个 key 是 100 个独立热点，配合 Redis Cluster 可以把它们分布到不同节点上，把压力从&quot;单个 Redis 节点&quot;进一步分散到&quot;多个节点&quot;。</p>
+<h3 id="1-3-情况二：多商品-→-分库分表-按商品分片"><a href="#1-3-情况二：多商品-→-分库分表-按商品分片" class="headerlink" title="1.3 情况二：多商品 → 分库分表 &#x2F; 按商品分片"></a>1.3 情况二：多商品 → 分库分表 &#x2F; 按商品分片</h3><p>如果同时秒杀几百个商品，所有订单都写进同一个库，<strong>单库的写入能力和连接数都会成为瓶颈</strong>。这时要在<strong>商品维度</strong>做分片：</p>
+<ul>
+<li><strong>按商品 ID 分库分表</strong>：<code>goods_id % N</code> 决定订单落到哪个库</li>
+<li><strong>按商品 ID 分区消息</strong>：MQ 的队列分区也按商品切分，保证同一商品的消息有序</li>
+<li><strong>库存表同步分片</strong>：商品落在哪个库，它的库存行就在哪个库，避免跨库事务</li>
+</ul>
+<p><strong>核心原则</strong>：<strong>让&quot;同一个商品的所有操作&quot;落在同一个分片上</strong>，这样既保证了单商品的串行正确性，又把不同商品的压力分散开了。</p>
+<div class="mermaid-wrap"><pre class="mermaid-src" hidden>flowchart TD
+    P[&quot;商品 1&quot;] --&gt; S0[&quot;分片 0库存 + 订单&quot;]
+    P2[&quot;商品 2&quot;] --&gt; S1[&quot;分片 1库存 + 订单&quot;]
+    P3[&quot;商品 3&quot;] --&gt; S2[&quot;分片 2库存 + 订单&quot;]
+    P4[&quot;商品 N&quot;] --&gt; S3[&quot;分片 N库存 + 订单&quot;]
+
+    style S0 fill:#d4edda
+    style S1 fill:#d4edda
+    style S2 fill:#d4edda
+    style S3 fill:#d4edda</pre></div>
+
+<h3 id="1-4-分片最大的坑：分桶不均导致少卖"><a href="#1-4-分片最大的坑：分桶不均导致少卖" class="headerlink" title="1.4 分片最大的坑：分桶不均导致少卖"></a>1.4 分片最大的坑：分桶不均导致少卖</h3><p>这是分片绕不开的问题，必须重点讲。</p>
+<p>假设库存 100，分 10 个桶，每桶 10。如果流量集中在少数几个桶（hash 不均、或者某类用户 ID 集中），可能出现：</p>
+<ul>
+<li>桶 1、2、3 已经扣光（共 30 件）</li>
+<li>桶 4~10 还有 70 件</li>
+<li>但用户 hash 到桶 1 后直接返回&quot;<strong>售罄</strong>&quot;，尽管总库存还有</li>
+</ul>
+<p><strong>这就是&quot;总量还有、单桶已空&quot;的少卖问题。</strong></p>
+<p>再想深一层——<strong>为什么会出现&quot;有的桶空了、有的桶还满着&quot;？</strong></p>
+<p>因为<strong>桶的库存是预先固定分配的，但流量是动态且不均匀的</strong>。分桶只能保证&quot;每个桶初始库存一样&quot;，保证不了&quot;每个桶收到的请求一样多&quot;。只要 hash 分布有偏，或者某一类用户（比如同一批推广渠道进来的用户）ID 集中，就一定会有的桶先被抢光。这是分桶的<strong>固有缺陷</strong>，只能缓解、无法根除。</p>
+<p>既然它必然会发生，就得有应对方案。下面两种是工程上常用的。</p>
+<p><strong>解决方案一：预留兜底桶（同步兜底）</strong></p>
+<p><strong>核心思路</strong>：不指望每个桶永远有货，而是<strong>一开始就留出一部分库存当作公共备用金</strong>。当用户发现自己的桶空了，就去这个公共池里借一件。</p>
+<p>库存这样分配（总库存 10 万、100 个业务桶为例）：</p>
+<table>
+<thead>
+<tr>
+<th>用途</th>
+<th>对应的 key &#x2F; 行</th>
+<th>分配到的库存</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>业务桶</strong></td>
+<td><code>bucket 0 ~ 99</code></td>
+<td>9 万件，每桶 900 件</td>
+</tr>
+<tr>
+<td><strong>兜底桶</strong></td>
+<td><code>fallback</code></td>
+<td>1 万件（约 10%）</td>
+</tr>
+</tbody></table>
+<p>一次请求的完整执行过程：</p>
+<ol>
+<li>用 <code>BucketRouter.route(userId)</code> 算出用户自己的桶 <code>bucketNo</code>；</li>
+<li><strong>先在自己的桶里扣</strong>——扣成功就正常返回，这条路覆盖了绝大多数请求；</li>
+<li>自己的桶空了 → <strong>不立即返回售罄</strong>，而去兜底桶再试一次；</li>
+<li>兜底桶还有货 → 从兜底桶扣一件，本次请求算成功；</li>
+<li>兜底桶也空了 → 才真正返回&quot;已售罄&quot;。</li>
+</ol>
+<p>对应代码（在原来那段 Lua 上加一个分支即可）：</p>
+<figure class="highlight lua"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">-- KEYS[1]: 用户自己的桶   seckill:stock:&#123;goodsId&#125;:&#123;bucketNo&#125;</span></span><br><span class="line"><span class="comment">-- KEYS[2]: 兜底桶         seckill:stock:&#123;goodsId&#125;:fallback</span></span><br><span class="line"></span><br><span class="line"><span class="comment">-- 第 1 步：先看自己的桶</span></span><br><span class="line"><span class="keyword">local</span> stock = <span class="built_in">tonumber</span>(redis.call(<span class="string">&#x27;GET&#x27;</span>, KEYS[<span class="number">1</span>]))</span><br><span class="line"><span class="keyword">if</span> stock == <span class="literal">nil</span> <span class="keyword">then</span></span><br><span class="line">    <span class="keyword">return</span> <span class="number">-2</span>                        <span class="comment">-- key 不存在：预热失败，要告警</span></span><br><span class="line"><span class="keyword">end</span></span><br><span class="line"></span><br><span class="line"><span class="comment">-- 第 2 步：自己的桶有货，直接扣</span></span><br><span class="line"><span class="keyword">if</span> stock &gt; <span class="number">0</span> <span class="keyword">then</span></span><br><span class="line">    redis.call(<span class="string">&#x27;DECR&#x27;</span>, KEYS[<span class="number">1</span>])</span><br><span class="line">    <span class="keyword">return</span> stock - <span class="number">1</span></span><br><span class="line"><span class="keyword">end</span></span><br><span class="line"></span><br><span class="line"><span class="comment">-- 第 3 步：自己的桶空了，去看兜底桶</span></span><br><span class="line"><span class="keyword">local</span> fallback = <span class="built_in">tonumber</span>(redis.call(<span class="string">&#x27;GET&#x27;</span>, KEYS[<span class="number">2</span>]))</span><br><span class="line"><span class="keyword">if</span> fallback == <span class="literal">nil</span> <span class="keyword">then</span></span><br><span class="line">    <span class="keyword">return</span> <span class="number">-2</span></span><br><span class="line"><span class="keyword">end</span></span><br><span class="line"></span><br><span class="line"><span class="comment">-- 第 4 步：兜底桶有货，借一件</span></span><br><span class="line"><span class="keyword">if</span> fallback &gt; <span class="number">0</span> <span class="keyword">then</span></span><br><span class="line">    redis.call(<span class="string">&#x27;DECR&#x27;</span>, KEYS[<span class="number">2</span>])</span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>                         <span class="comment">-- 返回 0 表示&quot;从兜底桶成交&quot;</span></span><br><span class="line"><span class="keyword">end</span></span><br><span class="line"></span><br><span class="line"><span class="comment">-- 第 5 步：兜底桶也空了，才是真的售罄</span></span><br><span class="line"><span class="keyword">return</span> <span class="number">-1</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>这样做的代价</strong>：</p>
+<ul>
+<li><strong>兜底桶自己可能变成新热点</strong>——所有&quot;本桶已空&quot;的请求都会涌向它；</li>
+<li><strong>多一次 Redis 访问</strong>——本桶有货时只查 1 次，本桶空了要查 2 次，RT 会略升；</li>
+<li><strong>必须记录成交来源</strong>——订单里要标明&quot;这次是从业务桶扣的还是从兜底桶扣的&quot;，否则超时回补时还不回去。</li>
+</ul>
+<p>所以这个方案适合<strong>流量分布大体均匀、只是偶有偏差</strong>的场景。</p>
+<p><strong>解决方案二：桶间借调（异步再平衡）</strong></p>
+<p>方案一有个隐患：如果<strong>大部分桶都空了</strong>，那些请求会<strong>全部涌向兜底桶</strong>——而兜底桶本来只是个 1 万件的小池子，瞬间被挤爆，&quot;热点&quot;又回来了。</p>
+<p><strong>核心思路</strong>：与其让所有空桶的请求去挤同一个池子，不如<strong>让库存主动流动</strong>——后台任务定期扫描各桶余量，把&quot;富余桶&quot;的库存<strong>搬一部分到枯竭桶</strong>去。</p>
+<p>具体做法：</p>
+<ol>
+<li>起一个<strong>低频定时任务</strong>（比如每 5 秒一次），扫描该商品所有桶的剩余库存；</li>
+<li>找出<strong>枯竭桶</strong>（余量为 0 或低于阈值）和<strong>富余桶</strong>；</li>
+<li>从富余桶<strong>转移</strong>一部分库存到枯竭桶——<strong>先减源桶、再加目标桶</strong>，把两边拉平；</li>
+<li>转移完成后，用户再去自己的桶扣，就有货了。</li>
+</ol>
+<div class="mermaid-wrap"><pre class="mermaid-src" hidden>flowchart TD
+    T[&quot;定时任务每 5s 触发&quot;] --&gt; S[&quot;扫描所有桶的剩余库存&quot;]
+    S --&gt; J{&quot;存在&#39;枯竭桶&#39;且存在&#39;富余桶&#39;?&quot;}
+    J --&gt;|否| E[&quot;本轮结束&quot;]
+    J --&gt;|是| M[&quot;从富余桶减 N 件DECRBY source N&quot;]
+    M --&gt; N[&quot;给枯竭桶加 N 件INCRBY target N&quot;]
+    N --&gt; S
+
+    style J fill:#fff3cd
+    style M fill:#e7f1ff
+    style N fill:#d4edda</pre></div>
+
+<p><strong>和方案一的本质区别：</strong></p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>方案一：预留兜底桶</th>
+<th>方案二：桶间借调</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>库存怎么分</td>
+<td>预留 10% 做公共池</td>
+<td>不预留，全靠动态搬</td>
+</tr>
+<tr>
+<td>由谁来兜</td>
+<td><strong>用户的请求</strong>同步去兜底桶借</td>
+<td><strong>后台任务</strong>异步把库存搬过来</td>
+</tr>
+<tr>
+<td>兜底桶会成热点吗</td>
+<td>会（空桶请求全涌向它）</td>
+<td><strong>不会</strong>（库存被搬过来了，请求仍在自己的桶扣）</td>
+</tr>
+<tr>
+<td>实时性</td>
+<td>立刻生效</td>
+<td>有延迟（最长一个扫描周期）</td>
+</tr>
+<tr>
+<td>实现复杂度</td>
+<td>低</td>
+<td>中（要写扫描 + 转移任务）</td>
+</tr>
+</tbody></table>
+<p><strong>转移过程中要注意什么？</strong></p>
+<ul>
+<li><strong>用 <code>DECRBY</code> &#x2F; <code>INCRBY</code>，不要先读后写</strong>——搬库存这个动作本身也要原子，否则并发下会把库存搬丢；</li>
+<li><strong>每次转移设上限</strong>——比如每次只搬富余桶的一半，避免&quot;刚搬过去又被搬回来&quot;的来回震荡；</li>
+<li><strong>任务频率不能太高</strong>——它是兜底机制，不是主流程，跑太勤反而给 Redis 增加无谓压力。</li>
+</ul>
+<p><strong>实际怎么选？</strong></p>
+<ul>
+<li>流量分布<strong>大体均匀</strong> → 方案一就够了，简单直接；</li>
+<li>流量分布<strong>可能严重倾斜</strong>（比如某些渠道的用户 ID 高度集中） → 用方案二，或者<strong>两者叠加</strong>：先预留兜底桶保证实时兜底，再用借调任务把水分抹平。</li>
+</ul>
+<h3 id="1-5-分片的坑点总结"><a href="#1-5-分片的坑点总结" class="headerlink" title="1.5 分片的坑点总结"></a>1.5 分片的坑点总结</h3><table>
+<thead>
+<tr>
+<th>坑点</th>
+<th>说明</th>
+<th>应对</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>分桶不均</strong></td>
+<td>总量还有但单桶空了，导致少卖</td>
+<td>预留兜底桶 + 桶间借调</td>
+</tr>
+<tr>
+<td><strong>总量统计复杂</strong></td>
+<td>超卖判定从&quot;单 key&quot;变成&quot;跨桶求和&quot;</td>
+<td>定期对账 + 各桶独立判定</td>
+</tr>
+<tr>
+<td><strong>回补回哪一桶</strong></td>
+<td>超时未支付回补库存，必须回<strong>原桶</strong></td>
+<td>订单记录桶编号</td>
+</tr>
+<tr>
+<td><strong>对账困难</strong></td>
+<td>多桶数据分散，问题定位难</td>
+<td>全桶扫描 + 汇总校验</td>
+</tr>
+<tr>
+<td><strong>分桶数怎么定</strong></td>
+<td>太少没效果，太多管理复杂</td>
+<td>按&quot;单桶竞争压力&quot;估算</td>
+</tr>
+</tbody></table>
+<p><strong>关于分桶数的估算：</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">分桶数 N ≥ 预期扣减 QPS / 单桶可承受 QPS</span><br></pre></td></tr></table></figure>
+
+<p>举例：预期 5 万 QPS，单 Redis key 可承受 5000 QPS，则 <code>N ≥ 50000 / 5000 = 10</code>。实际要留余量，取 20~30。</p>
+<blockquote>
+<p><strong>重要提醒</strong>：分片是为了&quot;分散热点&quot;，不是为了&quot;增加库存&quot;。它的收益只有在<strong>单 key &#x2F; 单行 &#x2F; 单库真的成为瓶颈时</strong>才能体现，否则只是徒增复杂度。</p>
+</blockquote>
+<hr>
+<h2 id="二、容量规划：到底要几台机器"><a href="#二、容量规划：到底要几台机器" class="headerlink" title="二、容量规划：到底要几台机器"></a>二、容量规划：到底要几台机器</h2><p>前面讲了各种方案，但还有那个最实际的问题没回答：<strong>这些节点数是怎么算出来的？</strong> 这一章给出完整方法。</p>
+<h3 id="2-1-第一步：压测得出单机基线"><a href="#2-1-第一步：压测得出单机基线" class="headerlink" title="2.1 第一步：压测得出单机基线"></a>2.1 第一步：压测得出单机基线</h3><p>所有估算的前提，是先知道自己一台机器能扛多少。<strong>不能拍脑袋</strong>。</p>
+<p>需要针对<strong>每一层</strong>分别压测：</p>
+<table>
+<thead>
+<tr>
+<th>层级</th>
+<th>压测目标</th>
+<th>典型单机能力（参考值，需实测）</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Nginx</td>
+<td>纯转发 QPS</td>
+<td>3 万 ~ 5 万</td>
+</tr>
+<tr>
+<td>应用服务</td>
+<td>含业务的接口 QPS</td>
+<td>2000 ~ 5000（取决于业务复杂度）</td>
+</tr>
+<tr>
+<td>Redis</td>
+<td>单节点读写 QPS</td>
+<td>8 万 ~ 10 万</td>
+</tr>
+<tr>
+<td>MySQL</td>
+<td>单机写入 QPS</td>
+<td>3000 ~ 8000</td>
+</tr>
+</tbody></table>
+<p><strong>压测方法</strong>：用 JMeter &#x2F; wrk &#x2F; Gatling 逐层压测，<strong>逐步加压直到 RT 超过可接受阈值或错误率上升</strong>，记录此时 QPS 作为基线。</p>
+<p><strong>坑点</strong>：压测结果受数据量、索引、连接池配置、JVM 参数影响极大，<strong>必须在贴近生产的配置下压测</strong>，否则基线是假的。</p>
+<h3 id="2-2-第二步：留安全水位"><a href="#2-2-第二步：留安全水位" class="headerlink" title="2.2 第二步：留安全水位"></a>2.2 第二步：留安全水位</h3><p>压测出的基线是&quot;极限值&quot;，<strong>绝不能按极限值部署</strong>。必须在极限值上乘一个安全系数：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">有效单机能力 = 压测极限 × 安全水位</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><strong>安全水位 α 通常取 0.3 ~ 0.5</strong></li>
+<li>为什么留这么多？因为：<ul>
+<li>压测环境和生产环境有差异</li>
+<li>流量不是均匀的，会有局部热点</li>
+<li>需要预留容量应对节点故障（N+1 冗余）</li>
+<li>突发流量可能超过预估</li>
+</ul>
+</li>
+</ul>
+<p><strong>坑点</strong>：安全水位不是拍脑袋定的经验值，应该结合<strong>历史故障复盘</strong>和<strong>业务容错度</strong>调整。核心链路（如秒杀下单）应取更低的水位。</p>
+<h3 id="2-3-第三步：逐层估算节点数"><a href="#2-3-第三步：逐层估算节点数" class="headerlink" title="2.3 第三步：逐层估算节点数"></a>2.3 第三步：逐层估算节点数</h3><p><strong>公式：</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">该层所需节点数 N = ⌈ 该层峰值 QPS / (单机极限 QPS × 安全水位) ⌉</span><br></pre></td></tr></table></figure>
+
+<p><strong>关键认知：每一层的&quot;峰值 QPS&quot;不是同一个数，而是漏斗衰减后的值。</strong></p>
+<p>这就是为什么不能简单地说&quot;50 万 QPS 需要多少台机器&quot;——<strong>你必须逐层算</strong>。</p>
+<h3 id="2-4-漏斗衰减表"><a href="#2-4-漏斗衰减表" class="headerlink" title="2.4 漏斗衰减表"></a>2.4 漏斗衰减表</h3><p>还是用第一篇的场景：库存 100 件，峰值 50 万 QPS。</p>
+<table>
+<thead>
+<tr>
+<th>层级</th>
+<th>进入 QPS</th>
+<th>拦截手段</th>
+<th>流出 QPS</th>
+<th>衰减比</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>前端 &#x2F; CDN</td>
+<td>50 万</td>
+<td>静态化、按钮置灰</td>
+<td>50 万（有效请求↓）</td>
+<td>—</td>
+</tr>
+<tr>
+<td>LVS（四层）</td>
+<td>50 万</td>
+<td>转发（不限流）</td>
+<td>50 万</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Nginx（七层）</td>
+<td>50 万</td>
+<td><code>limit_req</code> IP 限流</td>
+<td>20 万</td>
+<td>60%</td>
+</tr>
+<tr>
+<td>应用层</td>
+<td>20 万</td>
+<td>令牌桶</td>
+<td>10 万</td>
+<td>50%</td>
+</tr>
+<tr>
+<td>Redis</td>
+<td>10 万</td>
+<td>库存仅 100</td>
+<td><strong>仅 100 次扣减成功</strong></td>
+<td>99.9%</td>
+</tr>
+<tr>
+<td>MQ</td>
+<td>100</td>
+<td>削峰缓冲</td>
+<td>100</td>
+<td>—</td>
+</tr>
+<tr>
+<td>MySQL</td>
+<td>100</td>
+<td>—</td>
+<td>100</td>
+<td>—</td>
+</tr>
+</tbody></table>
+<p><strong>注意最后两行</strong>：经过 Redis 之后，<strong>流量直接从 10 万掉到 100</strong>。这意味着：</p>
+<ul>
+<li>MySQL 只需要处理 <strong>100 次写入</strong>，完全不需要扩容</li>
+<li>MQ 只需要缓冲 <strong>100 条消息</strong>，压力极小</li>
+<li>真正的压力全在<strong>前四层</strong></li>
+</ul>
+<h3 id="2-5-示例计算"><a href="#2-5-示例计算" class="headerlink" title="2.5 示例计算"></a>2.5 示例计算</h3><p>按 11.3 的公式，逐层算一遍：</p>
+<p><strong>接入层（Nginx）：</strong></p>
+<ul>
+<li>进入峰值：50 万 QPS</li>
+<li>单机能力：5 万 QPS（纯转发）</li>
+<li>安全水位：0.5</li>
+<li><code>N = 500000 / (50000 × 0.5) = 20 台</code></li>
+</ul>
+<p><strong>应用层：</strong></p>
+<ul>
+<li>进入峰值：10 万 QPS（Nginx 限流后的值，<strong>不是 50 万</strong>）</li>
+<li>单机能力：5000 QPS（轻量化后，只做限流 + Redis 扣减 + 发 MQ，不做重业务）</li>
+<li>安全水位：0.5</li>
+<li><code>N = 100000 / (5000 × 0.5) = 40 台</code></li>
+</ul>
+<p><strong>Redis：</strong></p>
+<ul>
+<li>进入峰值：10 万 QPS</li>
+<li>单节点：8 万 QPS</li>
+<li>安全水位：0.5</li>
+<li><code>N = 100000 / (80000 × 0.5) = 3 台</code>（主从 + 哨兵，或直接用 Cluster）</li>
+</ul>
+<p><strong>MySQL：</strong></p>
+<ul>
+<li>进入峰值：100 QPS（<strong>只有 100</strong>）</li>
+<li>单机：3000 QPS</li>
+<li><code>N = 1 台</code>，还有巨大余量</li>
+</ul>
+<p><strong>结论</strong>：</p>
+<blockquote>
+<p>整个系统真正需要&quot;堆机器&quot;的只有 <strong>Nginx（20 台）和应用层（40 台）</strong>。Redis 3 台、MySQL 1 台就够了。</p>
+</blockquote>
+<p>这就是<strong>漏斗模型带来的成本优势</strong>：把所有资源都压在最外层，而不是均匀地堆在所有层。</p>
+<h3 id="2-6-木桶效应：逐层校验"><a href="#2-6-木桶效应：逐层校验" class="headerlink" title="2.6 木桶效应：逐层校验"></a>2.6 木桶效应：逐层校验</h3><p>估算完之后，必须做一次<strong>木桶效应校验</strong>：整体性能取决于<strong>最短的那块板</strong>。</p>
+<p>校验清单：</p>
+<ul>
+<li><input disabled="" type="checkbox"> 接入层带宽够不够？（20 台 Nginx 的出口带宽）</li>
+<li><input disabled="" type="checkbox"> 应用层之后连的 Redis，QPS 是否匹配？（3 台 Redis 能否扛 10 万 QPS）</li>
+<li><input disabled="" type="checkbox"> MQ 的写入吞吐是否匹配？</li>
+<li><input disabled="" type="checkbox"> 消费者并发度是否和 DB 能力匹配？</li>
+<li><input disabled="" type="checkbox"> DB 连接池是否够用？（每个应用节点都要连 DB，40 个节点 × 连接数）</li>
+</ul>
+<p><strong>坑点一：只算 QPS 不算连接数。</strong><br>40 个应用节点，每个配 20 个 DB 连接，就是 800 个连接打到 MySQL。MySQL 默认 <code>max_connections</code> 是 151，<strong>直接被打爆</strong>。必须同步核算连接数。</p>
+<p><strong>坑点二：忽略带宽。</strong><br>秒杀接口的响应体（含商品信息）可能有几 KB，50 万 QPS × 2KB &#x3D; 1GB&#x2F;s，<strong>带宽先于 CPU 成为瓶颈</strong>。所以推动静化、减小响应体才是关键。</p>
+<p><strong>坑点三：忘了预留冗余。</strong><br>算出来 40 台，实际要按 <strong>N+1 或 N+20%</strong> 部署。因为节点会故障、会有滚动发布、会有扩容需求。</p>
+<hr>
+<h2 id="三、总结"><a href="#三、总结" class="headerlink" title="三、总结"></a>三、总结</h2><h3 id="3-1-完整链路回顾"><a href="#3-1-完整链路回顾" class="headerlink" title="3.1 完整链路回顾"></a>3.1 完整链路回顾</h3><div class="mermaid-wrap"><pre class="mermaid-src" hidden>flowchart TD
+    A[&quot;前端静态化 + 按钮置灰&quot;] --&gt; B[&quot;Nginxlimit_req 限流&quot;]
+    B --&gt; C[&quot;应用层令牌桶（Redis+Lua）&quot;]
+    C --&gt; D[&quot;RedisLua 原子预减库存&quot;]
+    D --&gt; E[&quot;MQ异步削峰&quot;]
+    E --&gt; F[&quot;消费者分布式锁 + 事务&quot;]
+    F --&gt; G[(&quot;MySQL唯一索引兜底&quot;)]
+    G --&gt; H[&quot;对账任务最终一致&quot;]
+
+    style D fill:#fff3cd
+    style F fill:#ffe0e0
+    style G fill:#d4edda</pre></div>
+
+<h3 id="3-2-各方案定位与问题（总表）"><a href="#3-2-各方案定位与问题（总表）" class="headerlink" title="3.2 各方案定位与问题（总表）"></a>3.2 各方案定位与问题（总表）</h3><table>
+<thead>
+<tr>
+<th>方案</th>
+<th>解决的问题</th>
+<th>核心实现</th>
+<th><strong>主要问题 &#x2F; 坑点</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Nginx 限流</strong></td>
+<td>削减入口流量</td>
+<td><code>limit_req</code> &#x2F; <code>limit_conn</code></td>
+<td>单机限流不精确；<code>X-Forwarded-For</code> 可伪造；OpenResty 查 Redis 会阻塞 worker</td>
+</tr>
+<tr>
+<td><strong>负载均衡</strong></td>
+<td>分摊流量</td>
+<td>LVS + Nginx</td>
+<td>LB 自身是单点，需 keepalived；LB 是全局天花板；健康检查不能只看端口</td>
+</tr>
+<tr>
+<td><strong>令牌桶限流</strong></td>
+<td>业务级限速</td>
+<td>Redis + Lua</td>
+<td><strong>防不了超卖</strong>；key 维度难选；Redis 成新热点；需降级策略</td>
+</tr>
+<tr>
+<td><strong>Redis 预减库存</strong></td>
+<td><strong>挡流量 + 防超卖</strong></td>
+<td>Lua 原子扣减</td>
+<td>预热失败风险；不能用 DECR 后判断；发 MQ 失败必须回补</td>
+</tr>
+<tr>
+<td><strong>MQ 异步</strong></td>
+<td>削峰、解耦</td>
+<td>生产者 + 消费者</td>
+<td>重复消费（需幂等）；消息丢失；消费并行度要压测确定</td>
+</tr>
+<tr>
+<td><strong>CAS 原子 SQL</strong></td>
+<td>DB 层防超卖</td>
+<td><code>UPDATE ... WHERE stock &gt; 0</code></td>
+<td>无（首选方案）；但跨多步操作时不够用</td>
+</tr>
+<tr>
+<td><strong>DB 乐观锁</strong></td>
+<td>并发控制</td>
+<td><code>WHERE version = 旧值</code></td>
+<td><strong>秒杀场景不可用</strong>：冲突极高，大量更新失败并重试，形成活锁</td>
+</tr>
+<tr>
+<td><strong>分布式锁</strong></td>
+<td>跨节点互斥</td>
+<td>Redisson</td>
+<td><strong>锁必须在事务外</strong>；锁过期、误删、脑裂；粒度要细；性能开销</td>
+</tr>
+<tr>
+<td><strong>DB 行锁</strong></td>
+<td>并发控制</td>
+<td><code>SELECT ... FOR UPDATE</code></td>
+<td><strong>性能远不如 Redis 锁</strong>；持锁范围是整个事务；占连接；无索引会锁全表</td>
+</tr>
+<tr>
+<td><strong>库存分片</strong></td>
+<td>分散单 key &#x2F; 单行 &#x2F; 单库热点</td>
+<td>分桶 + hash 路由</td>
+<td>分桶不均导致少卖；总量统计复杂；回补必须回原桶；分桶数需估算</td>
+</tr>
+</tbody></table>
+<h3 id="3-3-三条最重要的结论"><a href="#3-3-三条最重要的结论" class="headerlink" title="3.3 三条最重要的结论"></a>3.3 三条最重要的结论</h3><p><strong>第一，秒杀靠&quot;漏斗&quot;，不靠&quot;堆机器&quot;。</strong></p>
+<p>真正需要扩容的是最外层（Nginx、应用层），因为 99.9% 的流量在 Redis 那一层就被拦掉了。DB 几乎不用扩容。</p>
+<p><strong>第二，解决顺序是&quot;先流量，后一致性&quot;。</strong></p>
+<p>数据库被打爆是&quot;生死问题&quot;，必须最先解决；超卖是&quot;正确性问题&quot;，排在第二位；一人一单和分片是进一步扩展。顺序错了，方案就会东一榔头西一棒子。</p>
+<p><strong>第三，能用原子操作，就不要用锁。</strong></p>
+<ul>
+<li>Redis 层：用 <strong>Lua</strong> 替代锁</li>
+<li>DB 层：用 <strong>CAS 原子 SQL</strong>（<code>UPDATE ... WHERE stock &gt; 0</code>）替代锁</li>
+<li>只有当操作<strong>跨越多个资源、无法用一个原子操作表达</strong>时（比如桶间借调、跨表复合操作），才引入分布式锁</li>
+<li>而<strong>一旦用锁，必须保证锁包住事务</strong>，并用<strong>唯一索引兜底</strong></li>
+</ul>
+<h3 id="3-4-延伸方向"><a href="#3-4-延伸方向" class="headerlink" title="3.4 延伸方向"></a>3.4 延伸方向</h3><p>整个系列覆盖了秒杀系统的主干设计，还可以继续深挖的方向：</p>
+<ul>
+<li><strong>缓存预热与热点探测</strong>：如何在大促前自动完成预热，如何识别突发热点 key（京东 hotkey、有赞 TMC 思路）</li>
+<li><strong>库存超卖的业务风控</strong>：技术防超卖之外，业务层面的限购、黑名单、设备指纹</li>
+<li><strong>全链路压测</strong>：如何在不污染生产数据的前提下做全链路压测</li>
+<li><strong>多级缓存</strong>：JVM 本地缓存 + Redis 二级缓存，进一步降低 Redis 压力</li>
+</ul>
+<hr>
+<blockquote>
+<p>最后留一句话作为整个系列的收尾：<strong>秒杀系统的设计，本质上是在回答&quot;如何让一个注定失败的请求，以最快的速度、最低的成本失败&quot;，同时让那少数成功的请求绝对不出错。</strong> 想清楚这句话，前面所有的分层、限流、异步、分片，就都有了统一的解释。</p>
+</blockquote>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://LI-S-H.github.io">青山木</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://li-s-h.github.io/2026/10/03/%E7%A7%92%E6%9D%80%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%EF%BC%88%E4%B8%89%EF%BC%89%EF%BC%9A%E8%A7%84%E6%A8%A1%E6%89%A9%E5%B1%95/">https://li-s-h.github.io/2026/10/03/%E7%A7%92%E6%9D%80%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%EF%BC%88%E4%B8%89%EF%BC%89%EF%BC%9A%E8%A7%84%E6%A8%A1%E6%89%A9%E5%B1%95/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://LI-S-H.github.io" target="_blank">青山木</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E7%A7%92%E6%9D%80/">秒杀</a><a class="post-meta__tags" href="/tags/%E9%AB%98%E5%B9%B6%E5%8F%91/">高并发</a><a class="post-meta__tags" href="/tags/%E5%BA%93%E5%AD%98%E5%88%86%E7%89%87/">库存分片</a><a class="post-meta__tags" href="/tags/%E5%88%86%E6%A1%B6/">分桶</a><a class="post-meta__tags" href="/tags/%E5%85%9C%E5%BA%95%E6%A1%B6/">兜底桶</a><a class="post-meta__tags" href="/tags/%E6%A1%B6%E9%97%B4%E5%80%9F%E8%B0%83/">桶间借调</a><a class="post-meta__tags" href="/tags/%E5%88%86%E5%BA%93%E5%88%86%E8%A1%A8/">分库分表</a><a class="post-meta__tags" href="/tags/%E5%AE%B9%E9%87%8F%E8%A7%84%E5%88%92/">容量规划</a><a class="post-meta__tags" href="/tags/QPS/">QPS</a><a class="post-meta__tags" href="/tags/%E5%8E%8B%E6%B5%8B/">压测</a><a class="post-meta__tags" href="/tags/%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1/">负载均衡</a></div><div class="post-share"><div class="social-share" data-image="/img/title-picture/%E7%A7%92%E6%9D%80%E8%AE%BE%E8%AE%A1%E4%B8%89.jpg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/2026/10/02/%E7%A7%92%E6%9D%80%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9A%E6%95%B0%E6%8D%AE%E6%AD%A3%E7%A1%AE%E6%80%A7/" title="秒杀系统设计（二）：数据正确性——防超卖、分布式锁与一人一单"><img class="cover" src="/img/title-picture/%E7%A7%92%E6%9D%80%E8%AE%BE%E8%AE%A1%E4%BA%8C.jpg" onerror="onerror=null;src='/img/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">秒杀系统设计（二）：数据正确性——防超卖、分布式锁与一人一单</div></div><div class="info-2"><div class="info-item-1">流量问题解决后，系统活下来了，但不代表数据是对的。作为系列第二篇，本文解决秒杀里两件"必须正确"的事：一是库存不能超卖——从 Redis 侧的 Lua 原子扣减，到数据库侧的四种并发控制方案（悲观锁、乐观锁、CAS 原子 SQL、分布式锁）、三种锁的等待机制，以及"锁必须放在事务外"等三个坑点；二是一人只能有一单——三种实现方案、幂等设计，以及超时未支付的库存回补。</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/2026/10/01/%E7%A7%92%E6%9D%80%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9A%E9%9C%80%E6%B1%82%E6%8B%86%E8%A7%A3%E4%B8%8E%E6%B5%81%E9%87%8F%E6%B2%BB%E7%90%86/" title="秒杀系统设计（一）：需求拆解与流量治理"><img class="cover" src="/img/title-picture/%E7%A7%92%E6%9D%80%E8%AE%BE%E8%AE%A1%E4%B8%80.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-01</div><div class="info-item-2">秒杀系统设计（一）：需求拆解与流量治理</div></div><div class="info-2"><div class="info-item-1">秒杀的本质是漏斗，不是堆机器。作为系列第一篇，本文先拆解秒杀的功能与非功能需求（一人一单、防超卖、支持海量用户抢购），再用一段朴素代码暴露三类高并发问题，然后按"由外到内"的顺序逐层削流量：接入层的架构层次设计（单机 Nginx → 集群 → LVS/F5 → DNS 轮询）、Nginx 限流与 OpenResty、应用层令牌桶、Redis 挡量与 MQ 削峰，并给出 MQ 选型建议与每一层的坑点。</div></div></div></a><a class="pagination-related" href="/2026/10/02/%E7%A7%92%E6%9D%80%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9A%E6%95%B0%E6%8D%AE%E6%AD%A3%E7%A1%AE%E6%80%A7/" title="秒杀系统设计（二）：数据正确性——防超卖、分布式锁与一人一单"><img class="cover" src="/img/title-picture/%E7%A7%92%E6%9D%80%E8%AE%BE%E8%AE%A1%E4%BA%8C.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-02</div><div class="info-item-2">秒杀系统设计（二）：数据正确性——防超卖、分布式锁与一人一单</div></div><div class="info-2"><div class="info-item-1">流量问题解决后，系统活下来了，但不代表数据是对的。作为系列第二篇，本文解决秒杀里两件"必须正确"的事：一是库存不能超卖——从 Redis 侧的 Lua 原子扣减，到数据库侧的四种并发控制方案（悲观锁、乐观锁、CAS 原子 SQL、分布式锁）、三种锁的等待机制，以及"锁必须放在事务外"等三个坑点；二是一人只能有一单——三种实现方案、幂等设计，以及超时未支付的库存回补。</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/%E5%A4%B4%E5%83%8F.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">青山木</div><div class="author-info-description">正在学习Java后端开发＋智能体开发，希望能与大家多多交流</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">114</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">244</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">6</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/LI-S-H"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/LI-S-H" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">欢迎来到我的博客，记录学习与成长的点滴。</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%80%E3%80%81%E5%BA%93%E5%AD%98%E5%88%86%E7%89%87"><span class="toc-number">1.</span> <span class="toc-text">一、库存分片</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1-1-%E4%BB%80%E4%B9%88%E6%97%B6%E5%80%99%E9%9C%80%E8%A6%81%E5%88%86%E7%89%87"><span class="toc-number">1.1.</span> <span class="toc-text">1.1 什么时候需要分片</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-2-%E6%83%85%E5%86%B5%E4%B8%80%EF%BC%9A%E5%A4%A7%E5%BA%93%E5%AD%98-%E2%86%92-%E5%BA%93%E5%AD%98%E5%88%86%E6%A1%B6"><span class="toc-number">1.2.</span> <span class="toc-text">1.2 情况一：大库存 → 库存分桶</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-3-%E6%83%85%E5%86%B5%E4%BA%8C%EF%BC%9A%E5%A4%9A%E5%95%86%E5%93%81-%E2%86%92-%E5%88%86%E5%BA%93%E5%88%86%E8%A1%A8-%E6%8C%89%E5%95%86%E5%93%81%E5%88%86%E7%89%87"><span class="toc-number">1.3.</span> <span class="toc-text">1.3 情况二：多商品 → 分库分表 &#x2F; 按商品分片</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-4-%E5%88%86%E7%89%87%E6%9C%80%E5%A4%A7%E7%9A%84%E5%9D%91%EF%BC%9A%E5%88%86%E6%A1%B6%E4%B8%8D%E5%9D%87%E5%AF%BC%E8%87%B4%E5%B0%91%E5%8D%96"><span class="toc-number">1.4.</span> <span class="toc-text">1.4 分片最大的坑：分桶不均导致少卖</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-5-%E5%88%86%E7%89%87%E7%9A%84%E5%9D%91%E7%82%B9%E6%80%BB%E7%BB%93"><span class="toc-number">1.5.</span> <span class="toc-text">1.5 分片的坑点总结</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%8C%E3%80%81%E5%AE%B9%E9%87%8F%E8%A7%84%E5%88%92%EF%BC%9A%E5%88%B0%E5%BA%95%E8%A6%81%E5%87%A0%E5%8F%B0%E6%9C%BA%E5%99%A8"><span class="toc-number">2.</span> <span class="toc-text">二、容量规划：到底要几台机器</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#2-1-%E7%AC%AC%E4%B8%80%E6%AD%A5%EF%BC%9A%E5%8E%8B%E6%B5%8B%E5%BE%97%E5%87%BA%E5%8D%95%E6%9C%BA%E5%9F%BA%E7%BA%BF"><span class="toc-number">2.1.</span> <span class="toc-text">2.1 第一步：压测得出单机基线</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-2-%E7%AC%AC%E4%BA%8C%E6%AD%A5%EF%BC%9A%E7%95%99%E5%AE%89%E5%85%A8%E6%B0%B4%E4%BD%8D"><span class="toc-number">2.2.</span> <span class="toc-text">2.2 第二步：留安全水位</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-3-%E7%AC%AC%E4%B8%89%E6%AD%A5%EF%BC%9A%E9%80%90%E5%B1%82%E4%BC%B0%E7%AE%97%E8%8A%82%E7%82%B9%E6%95%B0"><span class="toc-number">2.3.</span> <span class="toc-text">2.3 第三步：逐层估算节点数</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-4-%E6%BC%8F%E6%96%97%E8%A1%B0%E5%87%8F%E8%A1%A8"><span class="toc-number">2.4.</span> <span class="toc-text">2.4 漏斗衰减表</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-5-%E7%A4%BA%E4%BE%8B%E8%AE%A1%E7%AE%97"><span class="toc-number">2.5.</span> <span class="toc-text">2.5 示例计算</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-6-%E6%9C%A8%E6%A1%B6%E6%95%88%E5%BA%94%EF%BC%9A%E9%80%90%E5%B1%82%E6%A0%A1%E9%AA%8C"><span class="toc-number">2.6.</span> <span class="toc-text">2.6 木桶效应：逐层校验</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%89%E3%80%81%E6%80%BB%E7%BB%93"><span class="toc-number">3.</span> <span class="toc-text">三、总结</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#3-1-%E5%AE%8C%E6%95%B4%E9%93%BE%E8%B7%AF%E5%9B%9E%E9%A1%BE"><span class="toc-number">3.1.</span> <span class="toc-text">3.1 完整链路回顾</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-2-%E5%90%84%E6%96%B9%E6%A1%88%E5%AE%9A%E4%BD%8D%E4%B8%8E%E9%97%AE%E9%A2%98%EF%BC%88%E6%80%BB%E8%A1%A8%EF%BC%89"><span class="toc-number">3.2.</span> <span class="toc-text">3.2 各方案定位与问题（总表）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-3-%E4%B8%89%E6%9D%A1%E6%9C%80%E9%87%8D%E8%A6%81%E7%9A%84%E7%BB%93%E8%AE%BA"><span class="toc-number">3.3.</span> <span class="toc-text">3.3 三条最重要的结论</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-4-%E5%BB%B6%E4%BC%B8%E6%96%B9%E5%90%91"><span class="toc-number">3.4.</span> <span class="toc-text">3.4 延伸方向</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/2026/10/03/%E7%A7%92%E6%9D%80%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%EF%BC%88%E4%B8%89%EF%BC%89%EF%BC%9A%E8%A7%84%E6%A8%A1%E6%89%A9%E5%B1%95/" title="秒杀系统设计（三）：规模扩展——库存分片与容量规划"><img src="/img/title-picture/%E7%A7%92%E6%9D%80%E8%AE%BE%E8%AE%A1%E4%B8%89.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="秒杀系统设计（三）：规模扩展——库存分片与容量规划"/></a><div class="content"><a class="title" href="/2026/10/03/%E7%A7%92%E6%9D%80%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%EF%BC%88%E4%B8%89%EF%BC%89%EF%BC%9A%E8%A7%84%E6%A8%A1%E6%89%A9%E5%B1%95/" title="秒杀系统设计（三）：规模扩展——库存分片与容量规划">秒杀系统设计（三）：规模扩展——库存分片与容量规划</a><time datetime="2026-10-03T02:00:00.000Z" title="发表于 2026-10-03 10:00:00">2026-10-03</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/10/02/%E7%A7%92%E6%9D%80%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9A%E6%95%B0%E6%8D%AE%E6%AD%A3%E7%A1%AE%E6%80%A7/" title="秒杀系统设计（二）：数据正确性——防超卖、分布式锁与一人一单"><img src="/img/title-picture/%E7%A7%92%E6%9D%80%E8%AE%BE%E8%AE%A1%E4%BA%8C.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="秒杀系统设计（二）：数据正确性——防超卖、分布式锁与一人一单"/></a><div class="content"><a class="title" href="/2026/10/02/%E7%A7%92%E6%9D%80%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9A%E6%95%B0%E6%8D%AE%E6%AD%A3%E7%A1%AE%E6%80%A7/" title="秒杀系统设计（二）：数据正确性——防超卖、分布式锁与一人一单">秒杀系统设计（二）：数据正确性——防超卖、分布式锁与一人一单</a><time datetime="2026-10-02T02:00:00.000Z" title="发表于 2026-10-02 10:00:00">2026-10-02</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/10/01/%E7%A7%92%E6%9D%80%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9A%E9%9C%80%E6%B1%82%E6%8B%86%E8%A7%A3%E4%B8%8E%E6%B5%81%E9%87%8F%E6%B2%BB%E7%90%86/" title="秒杀系统设计（一）：需求拆解与流量治理"><img src="/img/title-picture/%E7%A7%92%E6%9D%80%E8%AE%BE%E8%AE%A1%E4%B8%80.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="秒杀系统设计（一）：需求拆解与流量治理"/></a><div class="content"><a class="title" href="/2026/10/01/%E7%A7%92%E6%9D%80%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9A%E9%9C%80%E6%B1%82%E6%8B%86%E8%A7%A3%E4%B8%8E%E6%B5%81%E9%87%8F%E6%B2%BB%E7%90%86/" title="秒杀系统设计（一）：需求拆解与流量治理">秒杀系统设计（一）：需求拆解与流量治理</a><time datetime="2026-10-01T02:00:00.000Z" title="发表于 2026-10-01 10:00:00">2026-10-01</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/09/29/Hot%20100%20---%20%E5%AF%BB%E6%89%BE%E9%87%8D%E5%A4%8D%E6%95%B0/" title="Hot 100 --- 寻找重复数"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 寻找重复数"/></a><div class="content"><a class="title" href="/2026/09/29/Hot%20100%20---%20%E5%AF%BB%E6%89%BE%E9%87%8D%E5%A4%8D%E6%95%B0/" title="Hot 100 --- 寻找重复数">Hot 100 --- 寻找重复数</a><time datetime="2026-09-29T14:30:00.000Z" title="发表于 2026-09-29 22:30:00">2026-09-29</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/09/28/Hot%20100%20---%20%E4%B8%8B%E4%B8%80%E4%B8%AA%E6%8E%92%E5%88%97/" title="Hot 100 --- 下一个排列"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 下一个排列"/></a><div class="content"><a class="title" href="/2026/09/28/Hot%20100%20---%20%E4%B8%8B%E4%B8%80%E4%B8%AA%E6%8E%92%E5%88%97/" title="Hot 100 --- 下一个排列">Hot 100 --- 下一个排列</a><time datetime="2026-09-28T15:30:00.000Z" title="发表于 2026-09-28 23:30:00">2026-09-28</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By 青山木</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.5.4"></script><script src="/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script>
+(function() {
+  /* 仅在首页标题上方插入头像 */
+  if (window.location.pathname !== '/' && !window.location.pathname.endsWith('/index.html')) return;
+  var siteTitle = document.getElementById('site-title');
+  if (siteTitle) {
+    var avatar = document.createElement('img');
+    avatar.src = '/img/头像.jpg';
+    avatar.alt = 'avatar';
+    avatar.className = 'avatar-img';
+    siteTitle.parentNode.insertBefore(avatar, siteTitle);
+  }
+})();
+</script>
+<script>
+(function() {
+  function initMermaid() {
+    if (window.mermaid) return Promise.resolve();
+    return new Promise(function(resolve, reject) {
+      var script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/mermaid@11.12.2/dist/mermaid.min.js';
+      script.onload = function() {
+        mermaid.initialize({
+          startOnLoad: false,
+          // 图表主题固定，避免站点深浅色切换时重新解析整篇文章的所有 Mermaid 图。
+          theme: 'dark',
+          securityLevel: 'loose'
+        });
+        resolve();
+      };
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  }
+
+  // Mermaid 会异步改变文章高度；目录跳转必须等所有图表完成布局后再读取标题位置。
+  window.mermaidReady = Promise.resolve();
+  var renderSequence = 0;
+
+  function waitForStableLayout() {
+    return new Promise(function(resolve) {
+      requestAnimationFrame(function() {
+        requestAnimationFrame(function() {
+          // 让 SVG 内的 foreignObject 完成一次实际布局，再刷新 Butterfly 的标题位置缓存。
+          setTimeout(resolve, 50);
+        });
+      });
+    });
+  }
+
+  function showMermaidSource(pre) {
+    pre.hidden = false;
+    pre.style.display = 'block';
+    pre.style.color = '#d32f2f';
+    pre.style.whiteSpace = 'pre-wrap';
+    pre.style.fontSize = '13px';
+  }
+
+  function refreshTocPositions() {
+    // Butterfly 只在 resize 时重新缓存标题坐标。
+    window.dispatchEvent(new Event('resize'));
+    document.dispatchEvent(new CustomEvent('mermaid:rendered'));
+  }
+
+  function renderMermaidDiagrams() {
+    var wraps = document.querySelectorAll('#article-container .mermaid-wrap');
+    if (wraps.length === 0) {
+      window.mermaidReady = Promise.resolve();
+      return window.mermaidReady;
+    }
+
+    var renderTask = initMermaid().then(function() {
+      return Promise.all(Array.prototype.map.call(wraps, function(wrap, index) {
+        var pre = wrap.querySelector('pre.mermaid-src');
+        if (!pre || pre.dataset.rendered === 'true') return Promise.resolve();
+
+        var code = pre.textContent;
+        var id = 'mermaid-' + index + '-' + (++renderSequence);
+        return Promise.resolve().then(function() {
+          return mermaid.render(id, code);
+        }).then(function(result) {
+          pre.dataset.rendered = 'true';
+          pre.style.display = 'none';
+          var div = document.createElement('div');
+          div.innerHTML = result.svg;
+          wrap.insertBefore(div.firstChild, pre.nextSibling);
+        }).catch(function(err) {
+          console.error('[Mermaid] Block #' + index + ' render failed:', err);
+          showMermaidSource(pre);
+        });
+      }));
+    }).then(function() {
+      return waitForStableLayout();
+    }).then(function() {
+      refreshTocPositions();
+    }).catch(function(err) {
+      console.error('[Mermaid] Failed to load mermaid.js:', err);
+      wraps.forEach(function(wrap) {
+        var pre = wrap.querySelector('pre.mermaid-src');
+        if (pre) showMermaidSource(pre);
+      });
+    });
+
+    window.mermaidReady = renderTask;
+    return renderTask;
+  }
+
+  // 页面加载完成后渲染
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', renderMermaidDiagrams);
+  } else {
+    renderMermaidDiagrams();
+  }
+
+  // 拦截目录点击：若图表仍在渲染，等待布局稳定后按实时坐标滚动。
+  // 使用捕获阶段，避免 Butterfly 先按渲染前的坐标启动平滑滚动。
+  var tocNavigationSequence = 0;
+  document.addEventListener('click', function(e) {
+    var link = e.target.closest('#card-toc .toc-link');
+    if (!link) return;
+
+    var href = link.getAttribute('href') || '';
+    var hashIndex = href.indexOf('#');
+    if (hashIndex < 0) return;
+
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    var navigationSequence = ++tocNavigationSequence;
+    var headingId = decodeURI(href.slice(hashIndex + 1));
+
+    (window.mermaidReady || Promise.resolve()).then(function() {
+      return waitForStableLayout();
+    }).then(function() {
+      if (navigationSequence !== tocNavigationSequence) return;
+      var heading = document.getElementById(headingId);
+      if (!heading) return;
+
+      // 使用点击时的实际位置，避免异步 SVG 插入改变标题高度后跳错章节。
+      var top = heading.getBoundingClientRect().top + window.scrollY;
+      if (window.btf && window.btf.scrollToDest) {
+        window.btf.scrollToDest(top, 300);
+      } else {
+        window.scrollTo({ top: top, behavior: 'smooth' });
+      }
+    });
+  }, true);
+
+})();
+</script>
+<script id="canvas_nest" defer="defer" color="107,159,255" opacity="0.6" zIndex="-1" count="99" mobile="false" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/dist/canvas-nest.min.js"></script></div></body></html>
