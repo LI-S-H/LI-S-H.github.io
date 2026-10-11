@@ -1,0 +1,1529 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="dark"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>Redis 为什么又快又省内存？五大类型底层结构与编码切换全解 | 青山木</title><meta name="author" content="青山木"><meta name="copyright" content="青山木"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#0d1117"><meta name="description" content="Redis 的快和省，藏在&quot;一套接口、多套内核&quot;的设计里：数据小用紧凑结构省内存，数据大自动切换高性能结构。本文拆解 SDS、跳表、哈希表、listpack 等八种底层结构的来龙去脉，给出五大类型完整的编码切换阈值表与版本演进脉络，并配全命令示例和业务场景。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Redis 为什么又快又省内存？五大类型底层结构与编码切换全解">
+<meta property="og:url" content="https://li-s-h.github.io/2026/10/11/Redis%20%E4%B8%BA%E4%BB%80%E4%B9%88%E5%8F%88%E5%BF%AB%E5%8F%88%E7%9C%81%E5%86%85%E5%AD%98%EF%BC%9A%E4%BA%94%E5%A4%A7%E7%B1%BB%E5%9E%8B%E5%BA%95%E5%B1%82%E7%BB%93%E6%9E%84%E4%B8%8E%E7%BC%96%E7%A0%81%E5%88%87%E6%8D%A2%E5%85%A8%E8%A7%A3/index.html">
+<meta property="og:site_name" content="青山木">
+<meta property="og:description" content="Redis 的快和省，藏在&quot;一套接口、多套内核&quot;的设计里：数据小用紧凑结构省内存，数据大自动切换高性能结构。本文拆解 SDS、跳表、哈希表、listpack 等八种底层结构的来龙去脉，给出五大类型完整的编码切换阈值表与版本演进脉络，并配全命令示例和业务场景。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://li-s-h.github.io/img/title-picture/Redis%20%E4%B8%BA%E4%BB%80%E4%B9%88%E5%8F%88%E5%BF%AB%E5%8F%88%E7%9C%81%E5%86%85%E5%AD%98.jpg">
+<meta property="article:published_time" content="2026-10-11T15:00:00.000Z">
+<meta property="article:modified_time" content="2026-10-11T11:59:15.450Z">
+<meta property="article:author" content="青山木">
+<meta property="article:tag" content="双向链表">
+<meta property="article:tag" content="Redis">
+<meta property="article:tag" content="数据类型">
+<meta property="article:tag" content="底层数据结构">
+<meta property="article:tag" content="SDS">
+<meta property="article:tag" content="ziplist">
+<meta property="article:tag" content="listpack">
+<meta property="article:tag" content="quicklist">
+<meta property="article:tag" content="hashtable">
+<meta property="article:tag" content="intset">
+<meta property="article:tag" content="跳表">
+<meta property="article:tag" content="编码转换">
+<meta property="article:tag" content="Stream">
+<meta property="article:tag" content="Geo">
+<meta property="article:tag" content="HyperLogLog">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://li-s-h.github.io/img/title-picture/Redis%20%E4%B8%BA%E4%BB%80%E4%B9%88%E5%8F%88%E5%BF%AB%E5%8F%88%E7%9C%81%E5%86%85%E5%AD%98.jpg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Redis 为什么又快又省内存？五大类型底层结构与编码切换全解",
+  "url": "https://li-s-h.github.io/2026/10/11/Redis%20%E4%B8%BA%E4%BB%80%E4%B9%88%E5%8F%88%E5%BF%AB%E5%8F%88%E7%9C%81%E5%86%85%E5%AD%98%EF%BC%9A%E4%BA%94%E5%A4%A7%E7%B1%BB%E5%9E%8B%E5%BA%95%E5%B1%82%E7%BB%93%E6%9E%84%E4%B8%8E%E7%BC%96%E7%A0%81%E5%88%87%E6%8D%A2%E5%85%A8%E8%A7%A3/",
+  "image": "https://li-s-h.github.io/img/title-picture/Redis%20%E4%B8%BA%E4%BB%80%E4%B9%88%E5%8F%88%E5%BF%AB%E5%8F%88%E7%9C%81%E5%86%85%E5%AD%98.jpg",
+  "datePublished": "2026-10-11T15:00:00.000Z",
+  "dateModified": "2026-10-11T11:59:15.450Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "青山木",
+      "url": "https://LI-S-H.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/%E5%A4%B4%E5%83%8F.jpg"><link rel="canonical" href="https://li-s-h.github.io/2026/10/11/Redis%20%E4%B8%BA%E4%BB%80%E4%B9%88%E5%8F%88%E5%BF%AB%E5%8F%88%E7%9C%81%E5%86%85%E5%AD%98%EF%BC%9A%E4%BA%94%E5%A4%A7%E7%B1%BB%E5%9E%8B%E5%BA%95%E5%B1%82%E7%BB%93%E6%9E%84%E4%B8%8E%E7%BC%96%E7%A0%81%E5%88%87%E6%8D%A2%E5%85%A8%E8%A7%A3/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="stylesheet" href="/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d1117')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', 'ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: 'Redis 为什么又快又省内存？五大类型底层结构与编码切换全解',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><style>
+  #site-title { font-size: 1.76em !important; }
+  #subtitle { font-size: 0.88em !important; }
+
+  /* 卡片悬停放大 + 辉光 */
+  #recent-posts .recent-post-item {
+    transition: transform .3s ease, box-shadow .3s ease, border-color .3s ease;
+  }
+  #recent-posts .recent-post-item:hover {
+    transform: scale(1.025) !important;
+    border-color: rgba(107,159,255,0.5) !important;
+    box-shadow: 0 0 0 1px rgba(107,159,255,0.15),
+                0 0 45px rgba(107,159,255,0.12),
+                0 8px 30px rgba(0,0,0,0.4) !important;
+  }
+
+  /* 首页标题上方头像 */
+  #site-info .avatar-img {
+    display: block;
+    width: 144px;
+    height: 144px;
+    border-radius: 50%;
+    margin: 0 auto 20px;
+    border: 3px solid rgba(107,159,255,0.6);
+    box-shadow: 0 0 30px rgba(107,159,255,0.35),
+                0 0 60px rgba(107,159,255,0.15),
+                0 4px 20px rgba(0,0,0,0.25);
+    object-fit: cover;
+    transition: box-shadow .4s ease, border-color .4s ease;
+  }
+  #site-info .avatar-img:hover {
+    border-color: rgba(107,159,255,0.9);
+    box-shadow: 0 0 40px rgba(107,159,255,0.5),
+                0 0 80px rgba(107,159,255,0.25),
+                0 4px 20px rgba(0,0,0,0.25);
+  }
+
+  /* Mermaid 图表容器样式 */
+  .mermaid-wrap {
+    position: relative;
+    /* 图表固定使用深色画布，主题切换无需销毁并重绘所有 SVG。 */
+    background: #1e1e1e !important;
+    padding: 12px !important;
+    border-radius: 8px !important;
+    border: 1px solid #444 !important;
+    text-align: center;
+    margin: 0 0 20px 0;
+    overflow-x: auto;
+  }
+  .mermaid-wrap > svg {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+  }
+  /* 深色图表画布在两种站点主题下保持一致，避免切换时重排。 */
+  [data-theme="dark"] .mermaid-wrap {
+    background: #1e1e1e !important;
+    border-color: #444 !important;
+  }
+</style>
+<meta name="generator" content="Hexo 7.3.0"></head><body><div class="bg-animation" id="web_bg" style="background-image: url(/img/%E8%83%8C%E6%99%AF%E5%9B%BE2.webp);"></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(/img/title-picture/Redis%20%E4%B8%BA%E4%BB%80%E4%B9%88%E5%8F%88%E5%BF%AB%E5%8F%88%E7%9C%81%E5%86%85%E5%AD%98.jpg);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">青山木</span></a><a class="nav-page-title" href="/"><span class="site-name">Redis 为什么又快又省内存？五大类型底层结构与编码切换全解</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">Redis 为什么又快又省内存？五大类型底层结构与编码切换全解</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-10-11T15:00:00.000Z" title="发表于 2026-10-11 23:00:00">2026-10-11</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-10-11T11:59:15.450Z" title="更新于 2026-10-11 19:59:15">2026-10-11</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/Redis/">Redis</a></span></div><div class="meta-secondline"></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><blockquote>
+<p>同一个 <code>SET</code>、同一个 <code>HSET</code>，底层用的可能完全是两种数据结构——这正是 Redis&quot;一套接口、多套内核&quot;的设计。本文把八种底层结构、五种类型的编码切换阈值、版本演进和真实业务场景一次讲透，读完你能说清每个 <code>OBJECT ENCODING</code> 背后到底是什么。</p>
+</blockquote>
+<hr>
+<h2 id="阅读路线"><a href="#阅读路线" class="headerlink" title="阅读路线"></a>阅读路线</h2><p>本文分四块，可以按需跳读：</p>
+<ul>
+<li><strong>第一章</strong>：type 与 encoding 的设计思想、编码切换阈值总表、版本演进总表。</li>
+<li><strong>第二章</strong>：八种底层结构详解——SDS、双向链表、ziplist、listpack、quicklist、hashtable、intset、跳表。</li>
+<li><strong>第三、四章</strong>：五大基本类型与三种扩展类型的编码、完整命令与业务场景。</li>
+<li><strong>第五章</strong>：配置参数默认值与调优思路；<strong>第六章</strong>为总结。</li>
+</ul>
+<hr>
+<h2 id="一、一套接口，多套内核：type-与-encoding"><a href="#一、一套接口，多套内核：type-与-encoding" class="headerlink" title="一、一套接口，多套内核：type 与 encoding"></a>一、一套接口，多套内核：type 与 encoding</h2><p>在深入每种结构之前，先把 Redis 的设计思路说清楚，后面看每种结构时才知道它为什么要长成那样。</p>
+<h3 id="1-1-type-和-encoding-是两件事"><a href="#1-1-type-和-encoding-是两件事" class="headerlink" title="1.1 type 和 encoding 是两件事"></a>1.1 type 和 encoding 是两件事</h3><p>Redis 里每存一个值，都会被包成一个 <code>redisObject</code>，其中最关键的两个字段是：</p>
+<ul>
+<li><strong>type（类型）</strong>：对外暴露的类型，就是 <code>TYPE key</code> 返回的东西，五种基本类型分别是 String、List、Hash、Set、ZSet。<strong>对使用者是固定的</strong>。</li>
+<li><strong>encoding（编码）</strong>：真正的底层实现，就是 <code>OBJECT ENCODING key</code> 返回的东西。<strong>对使用者透明，会随数据量和数据大小自动变化</strong>。</li>
+</ul>
+<p>用一组命令直观感受一下——同一个 <code>SET</code>，底层可能完全不同：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; SET num 100</span><br><span class="line">OK</span><br><span class="line">127.0.0.1:6379&gt; OBJECT ENCODING num</span><br><span class="line"><span class="string">&quot;int&quot;</span>                       <span class="comment"># 值是整数，直接内嵌在对象里</span></span><br><span class="line"></span><br><span class="line">127.0.0.1:6379&gt; SET name <span class="string">&quot;hello redis, this is a long long string...&quot;</span></span><br><span class="line">OK</span><br><span class="line">127.0.0.1:6379&gt; OBJECT ENCODING name</span><br><span class="line"><span class="string">&quot;raw&quot;</span>                       <span class="comment"># 长字符串，用 SDS</span></span><br><span class="line"></span><br><span class="line">127.0.0.1:6379&gt; HSET user:1 name tom</span><br><span class="line">(<span class="built_in">integer</span>) 1</span><br><span class="line">127.0.0.1:6379&gt; OBJECT ENCODING user:1</span><br><span class="line"><span class="string">&quot;listpack&quot;</span>                  <span class="comment"># 字段很少，用紧凑结构</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 再往里塞很多字段之后……</span></span><br><span class="line">127.0.0.1:6379&gt; OBJECT ENCODING user:1</span><br><span class="line"><span class="string">&quot;hashtable&quot;</span>                 <span class="comment"># 字段变多，自动换成哈希表</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="1-2-为什么同一个类型要有多种实现"><a href="#1-2-为什么同一个类型要有多种实现" class="headerlink" title="1.2 为什么同一个类型要有多种实现"></a>1.2 为什么同一个类型要有多种实现</h3><p>因为&quot;省内存&quot;和&quot;快&quot;在数据结构上往往是矛盾的：</p>
+<ul>
+<li><strong>连续内存的紧凑结构</strong>（ziplist &#x2F; listpack &#x2F; intset）：内存利用率高、CPU 缓存友好，但元素多了查找是 O(N)，插入还可能触发整块搬移。</li>
+<li><strong>指针式的复杂结构</strong>（hashtable &#x2F; skiplist）：哈希表的增删查改是 O(1)，跳表是 O(log N)（对数复杂度，元素翻倍只多查常数次），都远快于线性遍历；代价是每个元素都要额外的指针开销，小数据量下&quot;杀鸡用牛刀&quot;。</li>
+</ul>
+<p>Redis 的策略是动态权衡：<strong>数据量小的时候用紧凑结构省内存，数据量大了自动切换成高性能结构</strong>。这就是&quot;编码转换&quot;的由来，也是全文要反复解释的主线。</p>
+<h3 id="1-3-五种类型的底层结构概览（新旧版本对比）"><a href="#1-3-五种类型的底层结构概览（新旧版本对比）" class="headerlink" title="1.3 五种类型的底层结构概览（新旧版本对比）"></a>1.3 五种类型的底层结构概览（新旧版本对比）</h3><p>底层结构随版本演进变化不小，先用两张图把新旧版本的关系看清楚。</p>
+<p><strong>旧版（Redis 3.0 &#x2F; 《Redis 设计与实现》所讲版本）：</strong></p>
+<div class="mermaid-wrap"><pre class="mermaid-src" hidden>graph LR
+    S[String] --&gt; S1[int]
+    S --&gt; S2[SDS: embstr &#x2F; raw]
+    L[List] --&gt; L1[ziplist 压缩列表]
+    L --&gt; L2[linkedlist 双向链表]
+    H[Hash] --&gt; H1[ziplist]
+    H --&gt; H2[hashtable]
+    SE[Set] --&gt; SE1[intset]
+    SE --&gt; SE2[hashtable]
+    Z[ZSet] --&gt; Z1[ziplist]
+    Z --&gt; Z2[skiplist + hashtable]</pre></div>
+
+<p><strong>新版（Redis 7.x）：</strong></p>
+<div class="mermaid-wrap"><pre class="mermaid-src" hidden>graph LR
+    S[String] --&gt; S1[int]
+    S --&gt; S2[SDS: embstr &#x2F; raw]
+    L[List] --&gt; L1[listpack 小 List]
+    L --&gt; L2[quicklist 内含 listpack]
+    H[Hash] --&gt; H1[listpack]
+    H --&gt; H2[hashtable]
+    SE[Set] --&gt; SE1[intset]
+    SE --&gt; SE2[listpack 7.2+]
+    SE --&gt; SE3[hashtable]
+    Z[ZSet] --&gt; Z1[listpack]
+    Z --&gt; Z2[skiplist + hashtable]</pre></div>
+
+<h3 id="1-4-编码切换阈值总表（含正确默认值）"><a href="#1-4-编码切换阈值总表（含正确默认值）" class="headerlink" title="1.4 编码切换阈值总表（含正确默认值）"></a>1.4 编码切换阈值总表（含正确默认值）</h3><p>这张表是全篇的&quot;索引&quot;，后文每种结构都会解释这些数字的来历。<strong>符合左侧条件就用紧凑编码，一旦超过阈值就升级成右侧编码，且基本不可逆</strong>。</p>
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>紧凑编码</th>
+<th>触发升级的条件（Redis 7.x 默认值）</th>
+<th>升级后编码</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>String</td>
+<td><code>int</code> &#x2F; <code>embstr</code></td>
+<td>值为 64 位整数 → <code>int</code>；否则长度 &gt; <strong>44</strong> 字节 → <code>raw</code></td>
+<td><code>raw</code></td>
+</tr>
+<tr>
+<td>List</td>
+<td><code>listpack</code></td>
+<td>由 <code>list-max-listpack-size</code>（默认 <code>-2</code> &#x3D; 8KB）控制每个 quicklist 节点大小</td>
+<td><code>quicklist</code></td>
+</tr>
+<tr>
+<td>Hash</td>
+<td><code>listpack</code></td>
+<td>字段数 &gt; <code>hash-max-listpack-entries</code>（默认 <strong>512</strong>）<strong>或</strong>任一 field&#x2F;value 长度 &gt; <code>hash-max-listpack-value</code>（默认 64）</td>
+<td><code>hashtable</code></td>
+</tr>
+<tr>
+<td>Set</td>
+<td><code>intset</code> → <code>listpack</code></td>
+<td>出现非整数，或数量 &gt; <code>set-max-intset-entries</code>（默认 <strong>512</strong>）→ 触发编码转化：满足 ≤ <code>set-max-listpack-entries</code>（默认 128）且元素 ≤ 64 字节 → 转化为 listpack（7.2+）；否则转化为 hashtable</td>
+<td><code>hashtable</code></td>
+</tr>
+<tr>
+<td>ZSet</td>
+<td><code>listpack</code></td>
+<td>元素数 &gt; <code>zset-max-listpack-entries</code>（默认 <strong>128</strong>）<strong>或</strong>成员长度 &gt; <code>zset-max-listpack-value</code>（默认 64）</td>
+<td><code>skiplist</code> + <code>hashtable</code></td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>记住三个关键数字：<strong>44</strong>（String 的长度阈值）、<strong>512</strong>（Hash 的字段数上限、Set 的 intset 元素上限）、<strong>128</strong>（ZSet 的元素上限、Set 的 listpack 元素上限）。</p>
+<p>⚠️ 注意一个常见误区：<strong>Hash 的 entries 默认是 512，不是 128</strong>；ZSet 才是 128。网上不少文章把这两个数字记混了。</p>
+</blockquote>
+<p>关于&quot;不可逆&quot;：编码转换<strong>基本是单向的</strong>——从紧凑编码转成 <code>hashtable</code> &#x2F; <code>skiplist</code> 后，即便之后元素减少，也不会转回来。因为降级要重新遍历、搬移数据，而且降完可能很快又升回去，来回折腾不划算，牺牲一点空间换实现简单与性能稳定。</p>
+<h3 id="1-5-底层结构的版本演进总表"><a href="#1-5-底层结构的版本演进总表" class="headerlink" title="1.5 底层结构的版本演进总表"></a>1.5 底层结构的版本演进总表</h3><p>Redis 在版本迭代中替换过不少底层结构，这也是面试常问的点：</p>
+<table>
+<thead>
+<tr>
+<th>对象</th>
+<th>Redis ≤ 6.2</th>
+<th>Redis 7.0</th>
+<th>Redis 7.2</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Hash &#x2F; ZSet 的紧凑编码</td>
+<td><code>ziplist</code></td>
+<td>换成 <code>listpack</code></td>
+<td><code>listpack</code></td>
+</tr>
+<tr>
+<td>List 的紧凑容器</td>
+<td>≤3.0：<code>ziplist</code> &#x2F; <code>linkedlist</code> 二选一；3.2–6.2：<code>quicklist</code>（节点内是 <code>ziplist</code>）</td>
+<td><code>quicklist</code>（节点内换成 <code>listpack</code>），小 List 可直接 <code>listpack</code></td>
+<td>同 7.0</td>
+</tr>
+<tr>
+<td>Set 的紧凑编码</td>
+<td><code>intset</code> &#x2F; <code>hashtable</code></td>
+<td>同 6.2</td>
+<td>新增 <code>listpack</code> 一档</td>
+</tr>
+<tr>
+<td>配置参数名</td>
+<td><code>hash-max-ziplist-entries</code> 等</td>
+<td>改名为 <code>hash-max-listpack-entries</code> 等</td>
+<td>新增 <code>set-max-listpack-entries</code></td>
+</tr>
+</tbody></table>
+<p>一条主线：<strong>Redis 7.0 用 listpack 全面替换了 ziplist</strong>，原因是 ziplist 有一个叫&quot;连锁更新&quot;的致命缺陷，下面会详细讲。</p>
+<hr>
+<h2 id="二、八种底层数据结构详解"><a href="#二、八种底层数据结构详解" class="headerlink" title="二、八种底层数据结构详解"></a>二、八种底层数据结构详解</h2><h3 id="2-1-SDS：动态字符串"><a href="#2-1-SDS：动态字符串" class="headerlink" title="2.1 SDS：动态字符串"></a>2.1 SDS：动态字符串</h3><h4 id="它要解决-C-字符串的什么问题"><a href="#它要解决-C-字符串的什么问题" class="headerlink" title="它要解决 C 字符串的什么问题"></a>它要解决 C 字符串的什么问题</h4><p>Redis 没有直接用 C 语言的原生字符串（<code>char *</code>），而是自研了 SDS（Simple Dynamic String，简单动态字符串）。原因是 C 字符串有几个硬伤：</p>
+<ul>
+<li>**获取长度是 O(N)**：C 字符串靠末尾的 <code>\0</code> 判断结束，求长度只能从头遍历到尾。</li>
+<li><strong>非二进制安全</strong>：一旦数据中间出现 <code>\0</code>，就会被当成字符串结束，导致<strong>提前截断、长度算错</strong>，没法存图片、视频这类二进制数据。</li>
+<li><strong>容易缓冲区溢出</strong>：比如 <code>char *strcat(char *dest, const char *src);</code> 把 <code>src</code> 拼到 <code>dest</code> 后面，它<strong>默认你已经为 dest 分配了足够的内存，不会做二次分配</strong>。如果 dest 的连续内存不够，就会越界溢出，甚至导致程序崩溃。</li>
+<li><strong>拼接效率低</strong>：<code>strcat</code> 还是要先遍历找到第一个字符串的结尾，再拼接，复杂度高。</li>
+</ul>
+<h4 id="结构"><a href="#结构" class="headerlink" title="结构"></a>结构</h4><p>SDS 的解法是：<strong>在字符串前面加一个头部，用元数据换性能</strong>。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> __<span class="title">attribute__</span> ((__<span class="title">packed__</span>)) <span class="title">sdshdr8</span> &#123;</span></span><br><span class="line">    <span class="type">uint8_t</span> len;         <span class="comment">// 已使用长度</span></span><br><span class="line">    <span class="type">uint8_t</span> alloc;       <span class="comment">// 已分配空间长度（不含头部和末尾的 \0）</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">char</span> flags; <span class="comment">// 低 3 位标识类型，高 5 位预留</span></span><br><span class="line">    <span class="type">char</span> buf[];          <span class="comment">// 柔性数组，真正保存数据</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><img src="/redis-sds-layout.jpg" alt="SDS 内存布局"></p>
+<p>四个关键属性：</p>
+<ul>
+<li>**<code>len</code><strong>：记录字符串长度。求长度时直接返回这个值即可，</strong>时间复杂度 O(1)**。</li>
+<li><strong><code>alloc</code><strong>：记录分配给字符数组的空间长度。修改字符串时用 <code>alloc - len</code> 就能算出剩余空间，判断是否够用；不够就自动扩展，</strong>所以既不需要手动扩容，也不会出现缓冲区溢出</strong>。</li>
+<li><strong>flags</strong>：标识 SDS 类型，一共 5 种：<code>sdshdr5</code>、<code>sdshdr8</code>、<code>sdshdr16</code>、<code>sdshdr32</code>、<code>sdshdr64</code>。</li>
+<li>**buf[]**：字节数组，保存实际数据。既能存字符串，也能存二进制数据。</li>
+</ul>
+<h4 id="三个核心优势"><a href="#三个核心优势" class="headerlink" title="三个核心优势"></a>三个核心优势</h4><p><strong>① O(1) 求长度</strong>：<code>len</code> 是 SDS 结构体里的一个属性，本身就记录了当前字符串的长度，求长度时直接读取这个属性即可，不需要遍历，<code>STRLEN</code> 命令也因此是 O(1)。</p>
+<p><strong>② 二进制安全</strong>：不再用 <code>\0</code> 标识结尾，而是用 <code>len</code> 记录长度，所以可以存包含 <code>\0</code> 的数据。同时为了兼容 C 标准库函数（如 <code>printf</code>），<strong>末尾仍会补一个 <code>\0</code><strong>，但长度并不依赖它。并且 SDS 对传入的二进制数据</strong>不做任何修改、原样存储</strong>，因此能保存各种类型的数据。</p>
+<p><strong>③ 动态扩容，杜绝缓冲区溢出</strong>：扩容逻辑在 <code>sdsMakeRoomFor</code> 里：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">sds <span class="title function_">sdsMakeRoomFor</span><span class="params">(sds s, <span class="type">size_t</span> addlen)</span> &#123;</span><br><span class="line">    ...</span><br><span class="line">    <span class="comment">// s 目前的剩余空间已足够，无需扩展，直接返回</span></span><br><span class="line">    <span class="keyword">if</span> (avail &gt;= addlen) <span class="keyword">return</span> s;</span><br><span class="line">    <span class="comment">// 获取目前 s 的长度</span></span><br><span class="line">    len = sdslen(s);</span><br><span class="line">    sh = (<span class="type">char</span> *)s - sdsHdrSize(oldtype);</span><br><span class="line">    <span class="comment">// 扩展之后 s 至少需要的长度</span></span><br><span class="line">    newlen = (len + addlen);</span><br><span class="line">    <span class="comment">// 根据新长度，为 s 分配新空间所需要的大小</span></span><br><span class="line">    <span class="keyword">if</span> (newlen &lt; SDS_MAX_PREALLOC)</span><br><span class="line">        <span class="comment">// 新长度 &lt; SDS_MAX_PREALLOC（1MB），则分配所需空间 * 2 的空间</span></span><br><span class="line">        newlen *= <span class="number">2</span>;</span><br><span class="line">    <span class="keyword">else</span></span><br><span class="line">        <span class="comment">// 否则，分配长度为 目前长度 + 1MB</span></span><br><span class="line">        newlen += SDS_MAX_PREALLOC;</span><br><span class="line">    ...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>简单说：新长度小于 1MB 时容量翻倍，超过 1MB 时新空间 &#x3D; 需要长度 + 1MB。</strong></p>
+<p>这个&quot;多分配一点&quot;的好处是：<strong>减少连续修改（尤其是 append 拼接）时的内存重分配次数</strong>。比如连续追加 N 次字符串，如果不预留，每次都要 <code>realloc</code> 一次，共 N 次；预留一倍空间后，可能只需要扩容 log 次。另外，SDS 缩短时也不立即释放多余空间（惰性释放），把空间记在 <code>alloc - len</code> 里留着下次复用，进一步减少重分配开销。</p>
+<h4 id="类型分档：用不同精度的头部省内存"><a href="#类型分档：用不同精度的头部省内存" class="headerlink" title="类型分档：用不同精度的头部省内存"></a>类型分档：用不同精度的头部省内存</h4><p>SDS 有 5 种头部，<strong>区别在于 <code>len</code> 和 <code>alloc</code> 的数据类型不同</strong>，从而头部大小不同：</p>
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>len&#x2F;alloc 类型</th>
+<th>头部大小</th>
+<th>适用长度</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>sdshdr5</code></td>
+<td>无独立 len&#x2F;alloc，长度存在 flags 高 5 位</td>
+<td>1 字节</td>
+<td>&lt; 32（实际已基本不再用于新建）</td>
+</tr>
+<tr>
+<td><code>sdshdr8</code></td>
+<td><code>uint8_t</code></td>
+<td>3 字节</td>
+<td>&lt; 256</td>
+</tr>
+<tr>
+<td><code>sdshdr16</code></td>
+<td><code>uint16_t</code></td>
+<td>5 字节</td>
+<td>&lt; 2^16</td>
+</tr>
+<tr>
+<td><code>sdshdr32</code></td>
+<td><code>uint32_t</code></td>
+<td>9 字节</td>
+<td>&lt; 2^32</td>
+</tr>
+<tr>
+<td><code>sdshdr64</code></td>
+<td><code>uint64_t</code></td>
+<td>17 字节</td>
+<td>&lt; 2^64</td>
+</tr>
+</tbody></table>
+<p><strong>为什么这样设计？</strong> 如果只有一种头部（比如统一用 8 字节的 <code>uint64_t</code> 存长度），那存一个 &quot;age&#x3D;18&quot; 这种 6 字节的短字符串，头部反而比数据还大。<strong>根据字符串实际长度选择&quot;最小够用&quot;的头部，能省下大量内存</strong>。以 <code>sdshdr16</code> 和 <code>sdshdr32</code> 为例：前者的 <code>len</code>&#x2F;<code>alloc</code> 都是 <code>uint16_t</code>，上限 2^16；后者都是 <code>uint32_t</code>，上限 2^32。按需取用即可。</p>
+<h4 id="编译优化：-attribute-packed"><a href="#编译优化：-attribute-packed" class="headerlink" title="编译优化：__attribute__ ((packed))"></a>编译优化：<code>__attribute__ ((packed))</code></h4><p>除了设计多种头部，Redis 还用了一个编译层面的技巧——在 <code>struct</code> 声明上加 <code>__attribute__ ((packed))</code>。它的作用是<strong>告诉编译器取消结构体的内存对齐优化，按实际占用字节数来对齐</strong>。</p>
+<p>举个例子：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 不加 packed：编译器为对齐会插入填充字节</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">A</span> &#123;</span> <span class="type">char</span> c; <span class="type">int</span> i; &#125;;</span><br><span class="line"><span class="comment">// sizeof(struct A) == 8（c 后面填充了 3 字节）</span></span><br><span class="line"></span><br><span class="line"><span class="comment">// 加 packed：取消对齐填充</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> __<span class="title">attribute__</span>((<span class="title">packed</span>)) <span class="title">B</span> &#123;</span> <span class="type">char</span> c; <span class="type">int</span> i; &#125;;</span><br><span class="line"><span class="comment">// sizeof(struct B) == 5</span></span><br></pre></td></tr></table></figure>
+
+<p>SDS 的头部不需要按机器字对齐，用 <code>packed</code> 把填充字节去掉，头部更紧凑，也就更省内存。</p>
+<blockquote>
+<p><strong>版本差异</strong>：<code>embstr</code> 的长度阈值在 Redis 3.2 前后不同——3.2 之前是 39 字节，3.2 及以后是 44 字节（因为 SDS 头部结构改了）。字符串的三种编码详细对比见第三章。</p>
+</blockquote>
+<h3 id="2-2-双向链表"><a href="#2-2-双向链表" class="headerlink" title="2.2 双向链表"></a>2.2 双向链表</h3><p>双向链表本身没什么特殊的设计，就是标准的链表节点：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">listNode</span> &#123;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">listNode</span> *<span class="title">prev</span>;</span> <span class="comment">// 前置节点</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">listNode</span> *<span class="title">next</span>;</span> <span class="comment">// 后置节点</span></span><br><span class="line">    <span class="type">void</span> *value;           <span class="comment">// 节点的值</span></span><br><span class="line">&#125; listNode;</span><br></pre></td></tr></table></figure>
+
+<p>在此基础上，Redis 又封装了一层 <code>list</code>，方便快速获取链表的各种属性：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">list</span> &#123;</span></span><br><span class="line">    listNode *head;              <span class="comment">// 链表头节点</span></span><br><span class="line">    listNode *tail;              <span class="comment">// 链表尾节点</span></span><br><span class="line">    <span class="type">void</span> *(*dup)(<span class="type">void</span> *ptr);     <span class="comment">// 节点值复制函数</span></span><br><span class="line">    <span class="type">void</span> (*<span class="built_in">free</span>)(<span class="type">void</span> *ptr);     <span class="comment">// 节点值释放函数</span></span><br><span class="line">    <span class="type">int</span> (*match)(<span class="type">void</span> *ptr, <span class="type">void</span> *key); <span class="comment">// 节点值比较函数</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span> len;           <span class="comment">// 链表节点数量</span></span><br><span class="line">&#125; <span class="built_in">list</span>;</span><br></pre></td></tr></table></figure>
+
+<p><img src="/redis-linkedlist.jpg" alt="双向链表结构"></p>
+<p><strong>优点与原因：</strong></p>
+<ul>
+<li>**获取前后节点是 O(1)**：因为节点里直接存了 <code>prev</code> &#x2F; <code>next</code> 指针，想找相邻节点直接跳过去就行。</li>
+<li>**头尾节点、链表长度都是 O(1)**：因为外层 <code>list</code> 结构体直接缓存了 <code>head</code>、<code>tail</code>、<code>len</code>，读取是常量时间。</li>
+<li><strong>可保存任意类型值</strong>：因为 <code>listNode</code> 用 <code>void *</code> 保存节点值，并且通过 <code>list</code> 的 <code>dup</code>、<code>free</code>、<code>match</code> 函数指针为节点设置类型特定的函数，所以同一套链表能装不同类型的数据。</li>
+</ul>
+<p><strong>缺点与原因：</strong></p>
+<ul>
+<li><strong>内存不连续、碎片多</strong>：因为每个节点都是单独 malloc 出来的，地址分散，容易产生内存碎片，<strong>CPU 缓存也无法很好地利用</strong>。</li>
+<li><strong>指针开销大</strong>：每新增一个节点就要构造一个链表节点结构，很多时候<strong>值本身还没两个前后指针占的空间大</strong>。</li>
+</ul>
+<p>正因为这两个缺点，Redis 在<strong>元素量比较少、且各元素内存占用不大</strong>的时候，会改用压缩列表（ziplist）来存储——也就是下面要讲的。</p>
+<p><strong>版本差异</strong>：双向链表（<code>linkedlist</code> 编码）在 Redis 3.2 引入 quicklist 后不再作为 List 的编码使用。不过源码里的 <code>adlist.h</code>（双向链表实现）仍然保留，作为 Redis 内部的通用结构服务于其他场景（如维护客户端列表、慢日志等）。</p>
+<h3 id="2-3-ziplist：压缩列表，以及它如何-不用指针也能当链表用"><a href="#2-3-ziplist：压缩列表，以及它如何-不用指针也能当链表用" class="headerlink" title="2.3 ziplist：压缩列表，以及它如何&quot;不用指针也能当链表用&quot;"></a>2.3 ziplist：压缩列表，以及它如何&quot;不用指针也能当链表用&quot;</h3><p>压缩列表是 Redis 为了<strong>节约内存</strong>而开发的，它由<strong>连续内存块</strong>组成的顺序型数据结构，类似于数组。</p>
+<h4 id="整体结构"><a href="#整体结构" class="headerlink" title="整体结构"></a>整体结构</h4><p><img src="/redis-ziplist.jpg" alt="压缩列表 ziplist 结构"></p>
+<ul>
+<li><strong>zlbytes</strong>：记录整个压缩列表占用的内存字节数。</li>
+<li><strong><code>zltail</code><strong>：记录压缩列表「尾部」节点距离起始地址有多少字节，也就是</strong>列表尾的偏移量</strong>。</li>
+<li><strong>zllen</strong>：记录压缩列表包含的节点数量。</li>
+<li><strong>zlend</strong>：标记压缩列表的结束点，固定值 <code>0xFF</code>（十进制 255）。</li>
+<li>**<code>entry</code>**：真正的数据节点。</li>
+</ul>
+<p><strong>查找效率</strong>：如果要定位<strong>第一个元素和最后一个元素</strong>，可以通过表头字段做到 <strong>O(1)<strong>（<code>zltail</code> 直接给出尾部偏移）；而查找</strong>其他元素</strong>就只能逐个遍历，复杂度是 <strong>O(N)<strong>。因此压缩列表</strong>不适合保存过多的元素</strong>。</p>
+<h4 id="entry-的结构"><a href="#entry-的结构" class="headerlink" title="entry 的结构"></a>entry 的结构</h4><p>entry 由 <code>prevlen</code>、<code>encoding</code>、<code>data</code> 三段组成：</p>
+<ul>
+<li><strong><code>prevlen</code><strong>：记录</strong>「前一个节点」的长度</strong>。</li>
+<li><strong>encoding</strong>：记录当前节点实际数据的「类型和长度」，类型主要有两种：<strong>字符串和整数</strong>，长度由 encoding 的具体值决定。</li>
+<li>**<code>data</code>**：当前节点的实际数据。</li>
+</ul>
+<p><code>prevlen</code> 和 <code>encoding</code> 都会<strong>根据数据大小进行变长分配</strong>，这本身就是一种省内存的优化：</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>变长规则</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>prevlen</code></td>
+<td>前一个节点 &lt; 254 字节 → 占 1 字节；≥ 254 字节 → 占 5 字节（首字节固定 <code>0xFE</code>，后跟 4 字节真实长度）</td>
+</tr>
+<tr>
+<td><code>encoding</code></td>
+<td>整数 → 占 1 字节（由编码类型确定 data 大小，如 int16 则 data 占 2 字节）；字符串 → 按长度占 1 &#x2F; 2 &#x2F; 5 字节</td>
+</tr>
+</tbody></table>
+<p>简单说：<strong>encoding 的前两个 bit 标识数据类型（整数&#x2F;字符串），后续 bit 标识字符串的实际长度</strong>。这样小数据只占很少的编码字节，非常省内存。</p>
+<blockquote>
+<p>分界值取 254 而不是 255，是因为 255 已经被 <code>zlend</code> 用作结束标记了。</p>
+</blockquote>
+<h4 id="它是怎么-不用指针也能当链表用-的"><a href="#它是怎么-不用指针也能当链表用-的" class="headerlink" title="它是怎么&quot;不用指针也能当链表用&quot;的"></a>它是怎么&quot;不用指针也能当链表用&quot;的</h4><p>这是理解 ziplist 最关键的一点。ziplist 是<strong>一整块连续内存</strong>，节点之间<strong>没有任何 prev&#x2F;next 指针</strong>，那它凭什么还能像链表一样前后遍历？答案是：**用&quot;长度信息&quot;替代了&quot;指针&quot;**。</p>
+<ul>
+<li><strong>从前往后遍历</strong>：靠当前 entry 的 <code>encoding</code> 就能算出这个 entry 有多长，把指针往后挪这么多字节，就跳到下一个 entry。</li>
+<li><strong>从后往前遍历</strong>：靠当前 entry 的 <code>prevlen</code>。它记录了前一个 entry 的长度，用<strong>当前 entry 的起始地址 − prevlen</strong>，就得到前一个 entry 的起始地址，于是可以一路往前走。</li>
+</ul>
+<p>一句话概括：<strong>正向遍历 &#x3D; 当前地址 + 本 entry 长度；反向遍历 &#x3D; 当前地址 − 前一个 entry 长度</strong>。</p>
+<p>所以我们前面说&quot;<code>prevlen</code> 是为了实现从后向前遍历&quot;——这正是它存在的<strong>根本原因</strong>：<strong>没有指针的紧凑结构，只能靠记录长度来实现双向遍历（链表功能）</strong>。它用 1～5 字节的长度信息，替掉了指针式链表每个节点两个指针（8～16 字节）的开销，这就是 ziplist 省内存的核心来源。</p>
+<h4 id="致命缺陷：连锁更新"><a href="#致命缺陷：连锁更新" class="headerlink" title="致命缺陷：连锁更新"></a>致命缺陷：连锁更新</h4><p>这套&quot;记录前一个节点长度&quot;的设计初衷是好的（方便反向遍历），但会引出一个严重问题——<strong>连锁更新</strong>。</p>
+<p>假设现在这个压缩链表里，多个<strong>连续的 entry 长度都在 250～253 字节之间</strong>。因为每个 entry 都小于 254 字节，所以它们的 <code>prevlen</code> 都只用 1 个字节就够了。此时往<strong>最前面</strong>插入一个长度<strong>大于等于 254 字节</strong>的新节点，就会触发连锁扩张：</p>
+<p><img src="/redis-ziplist-cascade.jpg" alt="ziplist 连锁更新过程示意图"></p>
+<p>如上图所示：一次插入，<strong>可能引发整条链上所有 entry 的空间扩张与数据搬移</strong>，这就是<strong>连锁更新</strong>。虽然触发条件比较苛刻（需要连续多个 entry 长度卡在 250～253），但最坏情况下性能开销很大。<strong>所以压缩列表只适合保存节点不多、且单个元素内存占用不大的场景</strong>。</p>
+<blockquote>
+<p><strong>版本差异</strong>：ziplist 从 Redis 早期一直用到 6.2，作为 Hash &#x2F; ZSet 的紧凑编码，以及 3.2～6.x 里 quicklist 节点的内部容器。到 <strong>Redis 7.0，它被 listpack 全面替换</strong>，原因就是上面这个连锁更新缺陷。</p>
+</blockquote>
+<h3 id="2-4-listpack：紧凑列表，以及它是怎么把-补丁-打上的"><a href="#2-4-listpack：紧凑列表，以及它是怎么把-补丁-打上的" class="headerlink" title="2.4 listpack：紧凑列表，以及它是怎么把&quot;补丁&quot;打上的"></a>2.4 listpack：紧凑列表，以及它是怎么把&quot;补丁&quot;打上的</h3><p>为了解决 ziplist 的连锁更新缺陷，Redis 引入了新结构体 <strong>listpack</strong>。它沿用了压缩列表的很多优秀设计：<strong>同样用一块连续内存紧凑地保存数据，同样为不同大小的数据采用不同编码</strong>。</p>
+<h4 id="整体结构-1"><a href="#整体结构-1" class="headerlink" title="整体结构"></a>整体结构</h4><p><img src="/redis-listpack.jpg" alt="紧凑列表 listpack 结构"></p>
+<ul>
+<li>**<code>tot-bytes</code>**：整个 listpack 的总字节数（4 字节，最大 4GB）。</li>
+<li><strong><code>num-elements</code><strong>：元素个数（2 字节）。注意：</strong>这不代表最多只能存 65535 个</strong>，当元素数 ≥ 65535 时该字段被置为 65535，此时要获取真实个数需要遍历整个 listpack。</li>
+<li>**<code>end-byte</code>**：结束标识，固定 <code>0xFF</code>。</li>
+</ul>
+<h4 id="entry-的结构-1"><a href="#entry-的结构-1" class="headerlink" title="entry 的结构"></a>entry 的结构</h4><p>listpack 的 entry 由 <code>encoding</code>、<code>data</code>、<code>element-tot-len</code> 三段组成：</p>
+<ul>
+<li><strong>encoding</strong>：定义该元素的编码类型，会对不同长度的整数和字符串进行编码。</li>
+<li>**<code>data</code>**：实际存放的数据。</li>
+<li><strong><code>element-tot-len</code><strong>：<code>encoding + data</code> 的总长度（</strong>不包含 <code>element-tot-len</code> 自身</strong>），最多占 5 字节。</li>
+</ul>
+<p><strong>关键区别就在于：listpack 的每个节点只记录「自己的长度」，而不是「前一个节点的长度」。</strong> 这样一来，新增或修改元素时只会涉及节点自己的操作，<strong>不会影响后续节点的长度变化，连锁更新问题就被彻底消除了</strong>。</p>
+<h4 id="那它还能像链表一样从后往前遍历吗"><a href="#那它还能像链表一样从后往前遍历吗" class="headerlink" title="那它还能像链表一样从后往前遍历吗"></a>那它还能像链表一样从后往前遍历吗</h4><p>去掉 <code>prevlen</code> 之后，一个自然的问题就来了：<strong>listpack 不再记录前一个节点有多长，那它还怎么从后往前走？如果不能前后遍历，它就没法当链表用，也就不能替代 ziplist 了。</strong></p>
+<p>Redis 的解法是末尾那个 <code>element-tot-len</code>（源码里叫 backlen），它用了一种<strong>特殊的变长编码</strong>：每个字节的最高位是<strong>延续标识</strong>——<code>0</code> 表示这是长度字段的最后一个字节，<code>1</code> 表示还要继续往前读；每个字节只有低 7 bit 是有效数据。正因为带了延续标识，才能从后往前一个字节一个字节地把长度解析出来。</p>
+<p>于是反向遍历的完整过程是（对应源码里的 <code>lpPrev</code> + <code>lpDecodeBacklen</code>）：</p>
+<ol>
+<li>给定<strong>当前 entry 的起始地址 p</strong>，先往前退 1 个字节到 <code>p-1</code>——这个位置是<strong>上一个 entry 的 backlen 字段的最后一个字节</strong>；</li>
+<li>从 <code>p-1</code> 开始<strong>逐字节往前解码</strong>：读一个字节，若最高位是 1 就继续往前读下一个，直到遇到最高位为 0 的字节为止，拼出上一个 entry 的总长度 backlen，同时也知道了 backlen 字段自己占了几字节（1～5 字节）；</li>
+<li>用 <code>p − 1 − backlen 字段的字节数 − backlen</code>，就落到<strong>上一个 entry 的起始地址</strong>；</li>
+<li>在这个起始地址上读 <code>encoding</code>，就能解析出这个 entry 存的数据（value）；</li>
+<li>把&quot;上一个 entry 的起始地址 − 1&quot;作为新一轮的 <code>p-1</code>，重复上述过程，即可一路从后往前遍历。</li>
+</ol>
+<p>一句话概括：<strong>先解码出&quot;上一个 entry 有多长&quot;，再按这个长度往前跳，落到它的开头读数据；而它开头的前一个字节，正好又是再上一个 entry 的 backlen 末尾</strong>——就这样一环扣一环地往前走。而正向遍历更简单——靠 <code>encoding</code> 算出整个 entry 的长度，往后跳即可。</p>
+<p><strong>所以 listpack 和 ziplist 的区别，可以概括成一句话：</strong></p>
+<table>
+<thead>
+<tr>
+<th>对比项</th>
+<th>ziplist</th>
+<th>listpack</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>节点记录的是</td>
+<td><strong>前一个</strong>节点的长度（<code>prevlen</code>）</td>
+<td><strong>自己</strong>的长度（<code>element-tot-len</code>）</td>
+</tr>
+<tr>
+<td>反向遍历</td>
+<td>靠 <code>prevlen</code></td>
+<td>靠 <code>element-tot-len</code> 的延续位逐字节解析</td>
+</tr>
+<tr>
+<td>连锁更新</td>
+<td>存在</td>
+<td><strong>不存在</strong></td>
+</tr>
+<tr>
+<td>关系</td>
+<td>老方案</td>
+<td>在不牺牲反向遍历的前提下，把 ziplist 最疼的那个缺陷修掉</td>
+</tr>
+</tbody></table>
+<p>这是一次典型的&quot;<strong>补丁式</strong>&quot;演进：<strong>没有推翻&quot;连续内存 + 紧凑编码&quot;这条路，只把&quot;记录前一个长度&quot;改成&quot;记录自己的长度&quot;，既保住了双向遍历，又根除了连锁更新</strong>。</p>
+<blockquote>
+<p><strong>版本差异</strong>：listpack 在 Redis 5.0 先被用于 Stream；<strong>7.0 起取代 ziplist</strong>，成为 Hash、ZSet 的紧凑编码以及 quicklist 节点的内部容器；<strong>7.2 起又新增为 Set 的紧凑编码</strong>。</p>
+</blockquote>
+<h3 id="2-5-quicklist：列表的折中方案"><a href="#2-5-quicklist：列表的折中方案" class="headerlink" title="2.5 quicklist：列表的折中方案"></a>2.5 quicklist：列表的折中方案</h3><h4 id="为什么需要-quicklist"><a href="#为什么需要-quicklist" class="headerlink" title="为什么需要 quicklist"></a>为什么需要 quicklist</h4><p>对于 List 类型来说，纯双向链表和纯 ziplist 都不完美：</p>
+<ul>
+<li><strong>纯双向链表</strong>：两端操作快，但每个元素两个指针，内存开销大、碎片多。</li>
+<li><strong>纯 ziplist</strong>：省内存，但元素一多查找慢、插入还可能触发连锁更新。</li>
+</ul>
+<p>quicklist 的思路是把两者结合：<strong>外层是一个双向链表，链表的每个节点内部装一个 ziplist（7.0 起换成 listpack）</strong>。</p>
+<h4 id="结构-1"><a href="#结构-1" class="headerlink" title="结构"></a>结构</h4><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">quicklist</span> &#123;</span></span><br><span class="line">    quicklistNode *head;    <span class="comment">// quicklist 的链表头</span></span><br><span class="line">    quicklistNode *tail;    <span class="comment">// quicklist 的链表尾</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span> count;    <span class="comment">// 所有压缩列表中的总元素个数</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span> len;      <span class="comment">// quicklistNode 的个数</span></span><br><span class="line">    ...</span><br><span class="line">&#125; quicklist;</span><br><span class="line"></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">quicklistNode</span> &#123;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">quicklistNode</span> *<span class="title">prev</span>;</span>   <span class="comment">// 前一个 quicklistNode</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">quicklistNode</span> *<span class="title">next</span>;</span>   <span class="comment">// 后一个 quicklistNode</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">char</span> *zl;            <span class="comment">// 指向压缩列表（Redis 7.0 之前）</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span> sz;              <span class="comment">// 压缩列表的字节大小</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span> count : <span class="number">16</span>;      <span class="comment">// 该压缩列表中的元素个数</span></span><br><span class="line">    ...</span><br><span class="line">&#125; quicklistNode;</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>⚠️ <strong>版本差异</strong>：上面 <code>zl</code> 是 <strong>Redis 7.0 之前</strong>的字段；<strong>Redis 7.0 的节点改用 <code>entry</code> 指针</strong>，普通 packed 节点保存的是 <strong>listpack</strong>。代码按旧版（ziplist）说明，理解思路一致。</p>
+</blockquote>
+<p>结构示意（含 7.0 前后对比）：</p>
+<p><img src="/redis-quicklist.jpg" alt="快速列表 quicklist 结构"></p>
+<h4 id="它怎么缓解-解决连锁更新"><a href="#它怎么缓解-解决连锁更新" class="headerlink" title="它怎么缓解 &#x2F; 解决连锁更新"></a>它怎么缓解 &#x2F; 解决连锁更新</h4><p><strong>7.0 之前</strong>：靠控制<strong>每个 quicklistNode 的压缩列表大小和元素数量</strong>，让单个 ziplist 不会太大，从而把连锁更新的影响范围限制在<strong>单个节点内部</strong>，降低整体影响。但本质上并没有完全消除。</p>
+<p><strong>7.0 之后</strong>：节点内部换成 listpack，<strong>listpack 本身就没有连锁更新问题</strong>，于是彻底解决。</p>
+<p><strong>添加元素时的处理逻辑也是关键</strong>：向 quicklist 添加元素时，不会像普通链表那样直接新建一个链表节点，而是<strong>先检查插入位置的压缩列表能否容纳该元素</strong>——能容纳就直接存进去，不能容纳才新建一个 quicklistNode。</p>
+<h4 id="quicklist-的演进"><a href="#quicklist-的演进" class="headerlink" title="quicklist 的演进"></a>quicklist 的演进</h4><p>一路变化可概括为三个阶段：<strong>≤ 3.0</strong> List 的编码是 <code>ziplist</code> 或 <code>linkedlist</code>（二选一）；<strong>3.2～6.x</strong> 统一成 quicklist，即「双向链表，节点是 ziplist」；<strong>7.0+</strong> 仍是 quicklist，但节点内部换成了 listpack（小 List 也可直接用 listpack）。</p>
+<p>一句话总结这一路的演进：<strong>从&quot;链表 + 压缩列表&quot;到 quicklist（把压缩列表切成小段挂在链表上，缓解连锁更新），再到把压缩列表整体换成 listpack（彻底消除连锁更新），最后 List 的底层全部统一到 listpack 系结构上</strong>。</p>
+<h3 id="2-6-hashtable：哈希表"><a href="#2-6-hashtable：哈希表" class="headerlink" title="2.6 hashtable：哈希表"></a>2.6 hashtable：哈希表</h3><p>数据量一大，查找效率必须提上来，这时就要用哈希表（<code>dict</code>）。</p>
+<h4 id="结构-2"><a href="#结构-2" class="headerlink" title="结构"></a>结构</h4><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">dictht</span> &#123;</span></span><br><span class="line">    dictEntry **table;      <span class="comment">// 哈希表数组</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span> size;     <span class="comment">// 哈希表大小</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span> sizemask; <span class="comment">// 哈希表大小掩码，用于计算索引值（size - 1）</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span> used;     <span class="comment">// 该哈希表已有的节点数量</span></span><br><span class="line">&#125; dictht;</span><br><span class="line"></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">dictEntry</span> &#123;</span></span><br><span class="line">    <span class="type">void</span> *key;              <span class="comment">// 键值对中的键</span></span><br><span class="line">    <span class="class"><span class="keyword">union</span> &#123;</span></span><br><span class="line">        <span class="type">void</span> *val;</span><br><span class="line">        <span class="type">uint64_t</span> u64;</span><br><span class="line">        <span class="type">int64_t</span> s64;</span><br><span class="line">        <span class="type">double</span> d;</span><br><span class="line">    &#125; v;                    <span class="comment">// 键值对中的值</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">dictEntry</span> *<span class="title">next</span>;</span> <span class="comment">// 指向下一个哈希表节点，形成链表</span></span><br><span class="line">&#125; dictEntry;</span><br></pre></td></tr></table></figure>
+
+<p>结构示意（上半部分为哈希桶数组 + 链地址法，下半部分为 dict 的双表结构）：</p>
+<p><img src="/redis-hashtable.jpg" alt="哈希表 hashtable（dict）结构"></p>
+<h4 id="值为什么用联合体"><a href="#值为什么用联合体" class="headerlink" title="值为什么用联合体"></a>值为什么用联合体</h4><p><code>dictEntry</code> 里的值不是简单的 <code>void *</code>，而是一个<strong>联合体 <code>v</code><strong>，可以是 <code>void *</code> 指针，也可以直接是无符号&#x2F;有符号 64 位整数或 double。</strong>好处是省内存</strong>：当「值」是整数或浮点数时，可以直接把值内嵌在 <code>dictEntry</code> 结构里，不必再用一个指针去指向另一块内存。</p>
+<h4 id="哈希冲突与链地址法"><a href="#哈希冲突与链地址法" class="headerlink" title="哈希冲突与链地址法"></a>哈希冲突与链地址法</h4><p>哈希表用一个哈希函数把任意长度的 key 映射到有限大小的桶数组上，<strong>不同的 key 算出同一个下标是必然的</strong>——这就是哈希冲突。Redis 解决冲突用的是<strong>链地址法（拉链法）</strong>：<code>dictEntry</code> 里的 <code>next</code> 指针把同一个桶上的多个节点串成一条单链表。</p>
+<p>举个具体的例子。假设哈希表 <code>size = 8</code>，那么 <code>sizemask = 7</code>，某个 key 落在哪个桶由 <code>hash(key) &amp; 7</code> 决定：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">hash(&quot;user1&quot;) &amp; 7 = 3</span><br><span class="line">hash(&quot;user9&quot;) &amp; 7 = 3     ← 两者算出来都是桶 3，冲突了</span><br></pre></td></tr></table></figure>
+
+<p>于是桶 3 上就形成一条链表：<strong>桶[3] → user9 → user1 → ∅</strong>（新节点插在链表头部，保证插入是 O(1)）。</p>
+<p>之后查找 <code>user1</code> 时，流程是：先用 <code>hash(&quot;user1&quot;) &amp; 7</code> 定位到桶 3，再沿着这条链表逐个比较 key，直到找到 <code>user1</code>。**所以链地址法的查找复杂度 &#x3D; 定位桶 O(1) + 遍历链表 O(k)**，<code>k</code> 是这条链的长度。</p>
+<p>这就引出了下一个问题：如果冲突太多，链表越拉越长，查找就会退化成 O(N)。这时就需要<strong>扩容</strong>，而扩容的关键机制就是 Redis 非常巧妙的<strong>渐进式 rehash</strong>。</p>
+<h4 id="渐进式-rehash"><a href="#渐进式-rehash" class="headerlink" title="渐进式 rehash"></a>渐进式 rehash</h4><p>先看 <code>dict</code> 的结构：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">dict</span> &#123;</span></span><br><span class="line">    ...</span><br><span class="line">    dictht ht[<span class="number">2</span>];    <span class="comment">// 两个哈希表，交替使用，用于 rehash 操作</span></span><br><span class="line">    <span class="type">long</span> rehashidx;  <span class="comment">// 记录 rehash 进度：-1 表示未迁移，≥0 表示正在迁移且代表当前迁移到哪个桶</span></span><br><span class="line">    ...</span><br><span class="line">&#125; dict;</span><br></pre></td></tr></table></figure>
+
+<p>其中 <code>ht[0]</code>、<code>ht[1]</code> 与 <code>rehashidx</code> 的含义见上文哈希表结构图的下半部分。</p>
+<p><strong>普通&quot;一次性拷贝&quot;的问题</strong>：如果直接把一张哈希表里所有值逐个重新运算、插入到新表，当哈希表数据量很大时，会进行<strong>大量的数据拷贝</strong>，导致 Redis 主进程被阻塞。Redis 是单线程模型，这种卡顿对线上影响很大。</p>
+<p><strong>渐进式 rehash 的优化</strong>：</p>
+<ol>
+<li>触发 rehash 时，<strong>先给 <code>ht[1]</code> 分配好空间</strong>，此时 <code>rehashidx</code> 不再是 -1。</li>
+<li>之后<strong>每次对这个哈希表进行操作</strong>时，Redis 除了执行对应命令，还会**顺带按顺序把 <code>ht[0]</code> 里的数据迁移一部分到 <code>ht[1]</code>**，并把 <code>rehashidx</code> 往前推。</li>
+<li><strong>查找操作在两张表中都进行查询</strong>（先查 <code>ht[0]</code>，再查 <code>ht[1]</code>）；<strong>新增只在新哈希表 <code>ht[1]</code> 做</strong>。</li>
+<li>随着操作越来越多，最终整个 <code>ht[0]</code> 完成迁移，再把 <code>ht[1]</code> 提升为 <code>ht[0]</code>，回收旧表。</li>
+</ol>
+<p>流程如下：</p>
+<div class="mermaid-wrap"><pre class="mermaid-src" hidden>flowchart TD
+    A[触发 rehash] --&gt; B[给 ht1 分配新空间]
+    B --&gt; C[rehashidx 置 0，开始逐步迁移]
+    C --&gt; D{每次对 dict 的增删改查}
+    D --&gt; E[顺带迁移 ht0 中若干桶到 ht1]
+    E --&gt; F[rehashidx 前移]
+    F --&gt; G{ht0 是否迁移完?}
+    G --&gt;|否| D
+    G --&gt;|是| H[ht1 提升为 ht0，释放旧表]
+    H --&gt; I[rehashidx 置 -1]</pre></div>
+
+<p>这样就把昂贵的迁移成本<strong>摊薄到了每一次操作上</strong>，避免了一次性阻塞——这就是&quot;渐进式&quot;的精髓。</p>
+<h4 id="rehash-的触发条件与负载因子"><a href="#rehash-的触发条件与负载因子" class="headerlink" title="rehash 的触发条件与负载因子"></a>rehash 的触发条件与负载因子</h4><p>rehash 是否触发，和<strong>负载因子</strong>有关：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">负载因子 = 哈希表已存的节点数量 / 哈希表大小（used / size）</span><br></pre></td></tr></table></figure>
+
+<table>
+<thead>
+<tr>
+<th>场景</th>
+<th>触发条件</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>扩容</strong></td>
+<td>负载因子 ≥ 1，且<strong>没有</strong>在执行 <code>BGSAVE</code> &#x2F; <code>BGREWRITEAOF</code></td>
+<td>也就是没有在执行 RDB 快照或 AOF 重写时，才扩容</td>
+</tr>
+<tr>
+<td><strong>强制扩容</strong></td>
+<td>负载因子 ≥ 5</td>
+<td>哈希冲突非常严重了，<strong>不管有没有</strong>在执行 RDB&#x2F;AOF，都强制 rehash</td>
+</tr>
+<tr>
+<td><strong>缩容</strong></td>
+<td>负载因子 &lt; 0.1</td>
+<td>空间浪费太多时收缩</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>为什么&quot;执行 BGSAVE &#x2F; BGREWRITEAOF 时尽量不扩容&quot;？因为这两个命令会 fork 子进程，父子进程通过写时复制（Copy-On-Write）共享内存页。如果此时扩容，会大量修改内存，触发大量页复制，<strong>反而更费内存</strong>。所以负载因子不到 5 时，Redis 会尽量不扩容。</p>
+</blockquote>
+<h3 id="2-7-intset：整数集合"><a href="#2-7-intset：整数集合" class="headerlink" title="2.7 intset：整数集合"></a>2.7 intset：整数集合</h3><h4 id="结构-3"><a href="#结构-3" class="headerlink" title="结构"></a>结构</h4><p>如果 Set 里存的都是整数，用哈希表就太浪费了——每个整数都要一个 <code>dictEntry</code>（两个指针 + next 指针）。用一个<strong>有序的整数数组</strong>就够了，既省内存，又能二分查找。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">intset</span> &#123;</span></span><br><span class="line">    <span class="type">uint32_t</span> encoding;  <span class="comment">// 编码方式</span></span><br><span class="line">    <span class="type">uint32_t</span> length;    <span class="comment">// 集合包含的元素数量</span></span><br><span class="line">    <span class="type">int8_t</span> contents[];  <span class="comment">// 保存元素的数组</span></span><br><span class="line">&#125; intset;</span><br></pre></td></tr></table></figure>
+
+<p>结构示意：</p>
+<p><img src="/redis-intset.jpg" alt="整数集合 intset 的结构"></p>
+<p>它也是一块<strong>连续内存</strong>。注意：<code>contents</code> 虽然被声明为 <code>int8_t</code> 数组，但<strong>实际上并不保存任何 <code>int8_t</code> 类型的元素</strong>——数组的真正类型取决于 <code>encoding</code> 的值：</p>
+<table>
+<thead>
+<tr>
+<th>encoding</th>
+<th>contents 实际类型</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>INTSET_ENC_INT16</code></td>
+<td><code>int16_t</code> 数组，每个元素 16 位</td>
+</tr>
+<tr>
+<td><code>INTSET_ENC_INT32</code></td>
+<td><code>int32_t</code> 数组，每个元素 32 位</td>
+</tr>
+<tr>
+<td><code>INTSET_ENC_INT64</code></td>
+<td><code>int64_t</code> 数组，每个元素 64 位</td>
+</tr>
+</tbody></table>
+<h4 id="升级机制"><a href="#升级机制" class="headerlink" title="升级机制"></a>升级机制</h4><p>整数集合有一条<strong>升级规则</strong>：当往集合里加入一个新元素，<strong>如果新元素的类型比集合现有所有元素的类型都要长</strong>（例如现有都是 <code>int16_t</code>，新元素是 <code>int32_t</code>），整数集合需要先<strong>升级</strong>——按新元素的类型扩展 <code>contents</code> 数组的空间大小，然后才能把新元素加进去，并且升级过程中要<strong>维持元素的有序性</strong>。</p>
+<p><strong>关键点：升级不会重新分配一个新类型的数组，而是在原本的数组上扩展空间</strong>，再把每个元素按新类型大小重新分割、挪位。</p>
+<h4 id="升级过程举例（原地转换）"><a href="#升级过程举例（原地转换）" class="headerlink" title="升级过程举例（原地转换）"></a>升级过程举例（原地转换）</h4><p>假设现在有一个整数集合，里面有 3 个 <code>int16_t</code> 元素：<code>[1, 3, 5]</code>。现在要插入 <code>70000</code>，它超过了 16 位的表示范围（<code>int16_t</code> 最大 32767），需要升级为 <code>int32_t</code>——整个过程如下图所示：</p>
+<p><img src="/redis-intset-upgrade.jpg" alt="intset 升级过程：插入 70000 触发原地转换"></p>
+<p>如图分三步：① 原数组每个元素只占 2 字节；② 按新类型把数组扩展成每元素 4 字节（共 4 个元素 16 字节）；③ <strong>从后往前</strong>把原元素按 4 字节间隔重新排位（从后往前是为了防止覆盖还没搬移的元素），腾出的最后一位放入新元素，<code>encoding</code> 更新为 <code>INTSET_ENC_INT32</code>。</p>
+<p>升级的步骤归纳为：</p>
+<ol>
+<li>根据新元素类型，<strong>扩展</strong> <code>contents</code> 数组空间；</li>
+<li>把原有元素<strong>从后往前</strong>依次转换成新类型并放到正确位置（从后往前是为了防止覆盖）；</li>
+<li>修改 <code>encoding</code> 字段为新类型。</li>
+</ol>
+<h4 id="为什么只升级、不降级"><a href="#为什么只升级、不降级" class="headerlink" title="为什么只升级、不降级"></a>为什么只升级、不降级</h4><p>整数集合<strong>升级之后不支持降级</strong>：即使你删掉了那个 <code>int64</code> 的元素，整个集合只剩 <code>int32</code> 了，也<strong>不会降级</strong>。</p>
+<p>原因：降级需要重新遍历、搬移数据，成本不低；而且如果之后又插入大数，还得再升回来，来回折腾不划算。所以设计成&quot;只升不降&quot;，牺牲一点空间换实现简单与性能稳定。</p>
+<h4 id="适用场景"><a href="#适用场景" class="headerlink" title="适用场景"></a>适用场景</h4><table>
+<thead>
+<tr>
+<th>维度</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>省内存</td>
+<td>相比哈希表，省掉了大量指针和额外属性开销</td>
+</tr>
+<tr>
+<td>缓存友好</td>
+<td>连续内存，CPU 缓存利用率高</td>
+</tr>
+<tr>
+<td>适用前提</td>
+<td><strong>数据量比较小、且必须是整数</strong></td>
+</tr>
+<tr>
+<td>转换</td>
+<td>一旦出现非整数元素或数量超限，转为 hashtable（或 7.2+ 的 listpack），且不可逆</td>
+</tr>
+</tbody></table>
+<h3 id="2-8-跳表：ZSet-的核心结构"><a href="#2-8-跳表：ZSet-的核心结构" class="headerlink" title="2.8 跳表：ZSet 的核心结构"></a>2.8 跳表：ZSet 的核心结构</h3><h4 id="问题：既要-O-log-N-查找，又要支持范围查询"><a href="#问题：既要-O-log-N-查找，又要支持范围查询" class="headerlink" title="问题：既要 O(log N) 查找，又要支持范围查询"></a>问题：既要 O(log N) 查找，又要支持范围查询</h4><p>ZSet（有序集合）需要同时满足：按 score 排序、支持 <code>ZRANGE</code> 这类范围查询、支持 <code>ZRANK</code> 查排名，并且增删查改都是 O(log N)。</p>
+<p>有序数组查询快但插入慢；普通链表插入快但查询慢。<strong>跳表（skiplist）就是在两者之间找平衡的方案</strong>。</p>
+<h4 id="结构：多层链表-随机层高"><a href="#结构：多层链表-随机层高" class="headerlink" title="结构：多层链表 + 随机层高"></a>结构：多层链表 + 随机层高</h4><p>先用一张直观的图理解跳表的核心思想——**在链表上&quot;加索引&quot;**：</p>
+<p><img src="/redis-skiplist.jpg" alt="跳表 skiplist 结构"></p>
+<ul>
+<li>最底层（level 0）是完整的、有序的全量链表；</li>
+<li>上面每一层都是下一层的&quot;抽样索引&quot;，<strong>层数越高节点越稀疏</strong>；</li>
+<li>查询时<strong>从最高层开始，能往右就往右，走不动就下降一层</strong>，平均复杂度 O(log N)。</li>
+</ul>
+<p>先看它的节点结构体：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">zskiplistNode</span> &#123;</span></span><br><span class="line">    sds ele;                        <span class="comment">// Sorted Set 中的元素（member）</span></span><br><span class="line">    <span class="type">double</span> score;                   <span class="comment">// 元素权重值（score）</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">zskiplistNode</span> *<span class="title">backward</span>;</span> <span class="comment">// 后向指针，支持从尾结点倒序查找</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">zskiplistLevel</span> &#123;</span></span><br><span class="line">        <span class="class"><span class="keyword">struct</span> <span class="title">zskiplistNode</span> *<span class="title">forward</span>;</span> <span class="comment">// 前向指针</span></span><br><span class="line">        <span class="type">unsigned</span> <span class="type">long</span> span;            <span class="comment">// 跨度：到下一个节点的距离</span></span><br><span class="line">    &#125; level[];                      <span class="comment">// 柔性数组，每层的前向指针与跨度</span></span><br><span class="line">&#125; zskiplistNode;</span><br><span class="line"></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">zskiplist</span> &#123;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">zskiplistNode</span> *<span class="title">header</span>, *<span class="title">tail</span>;</span> <span class="comment">// 头结点、尾结点</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">long</span> length;                <span class="comment">// 节点数量</span></span><br><span class="line">    <span class="type">int</span> level;                           <span class="comment">// 当前最大层数</span></span><br><span class="line">&#125; zskiplist;</span><br></pre></td></tr></table></figure>
+
+<p>对照结构体可以看到，Redis 在标准跳表上做了三处改造：</p>
+<ol>
+<li><strong><code>backward</code> 后向指针</strong>：普通跳表只有前向指针，Redis 额外加了后向指针，方便从尾结点反向遍历（支撑 <code>ZREVRANGE</code>）。</li>
+<li><strong><code>span</code> 跨度字段</strong>：每层除了 <code>forward</code> 还记录&quot;到下一个节点跨过了几个节点&quot;，查排名时靠它累加即可（支撑 <code>ZRANK</code>）。</li>
+<li><strong>随机层高</strong>：每个节点有几层，是插入时随机决定的，下一节详细说。</li>
+</ol>
+<h4 id="节点层数是怎么来的（这一点很重要）"><a href="#节点层数是怎么来的（这一点很重要）" class="headerlink" title="节点层数是怎么来的（这一点很重要）"></a>节点层数是怎么来的（这一点很重要）</h4><p>首先要澄清一个关键点：<strong>随机只发生在&quot;插入某个新节点&quot;的那一刻，且只决定这一个节点自己的层数</strong>——不是每次插入都对整个跳表重新随机，已有节点的层数在插入后就固定不变了。</p>
+<p>随机的过程类似&quot;逐层抛硬币&quot;，以插入元素 5 为例：</p>
+<ol>
+<li><strong>第 1 层必中</strong>——任何节点都一定存在于第 1 层（也就是结构图里的 level 0）；</li>
+<li>以 1&#x2F;4 的概率决定<strong>有没有第 2 层</strong>：命中就继续；</li>
+<li>再以 1&#x2F;4 的概率决定<strong>有没有第 3 层</strong>：命中就继续；</li>
+<li>……如此反复，直到某次没命中、或达到最大层数 32 为止。</li>
+</ol>
+<p>假设元素 5 一路命中到第 3 层、第 4 次没命中，那么<strong>这个节点就同时存在于第 1、2、3 层</strong>——level 0、1、2 上都有它，其他节点完全不受影响：</p>
+<p><img src="/redis-skiplist-level.jpg" alt="skiplist 节点层数的随机决定过程（以插入元素 5 为例）"></p>
+<p>源码里对应 <code>zslRandomLevel</code>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">define</span> ZSKIPLIST_P 0.25       <span class="comment">// 每层向上提升的概率 = 1/4</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> ZSKIPLIST_MAXLEVEL 32  <span class="comment">// 最大层数</span></span></span><br><span class="line"></span><br><span class="line"><span class="type">int</span> <span class="title function_">zslRandomLevel</span><span class="params">(<span class="type">void</span>)</span> &#123;</span><br><span class="line">    <span class="type">int</span> level = <span class="number">1</span>;</span><br><span class="line">    <span class="comment">// 每次以 25% 的概率再加一层，直到不中或达到上限</span></span><br><span class="line">    <span class="keyword">while</span> ((random() &amp; <span class="number">0xFFFF</span>) &lt; (ZSKIPLIST_P * <span class="number">0xFFFF</span>))</span><br><span class="line">        level += <span class="number">1</span>;</span><br><span class="line">    <span class="keyword">return</span> (level &lt; ZSKIPLIST_MAXLEVEL) ? level : ZSKIPLIST_MAXLEVEL;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>也就是：<strong>新节点初始 1 层，然后以 <code>1/4</code> 的概率往上加一层，一直叠加，最多到 32 层</strong>——随机出的层高是多少，这个节点就出现在从第 1 层到第 N 层的<strong>每一层</strong>上。</p>
+<blockquote>
+<p>⚠️ 这里要纠正一个常见记法：这个概率是 <strong>1&#x2F;4，不是 1&#x2F;2</strong>。有些资料（尤其是其他语言的跳表实现）用的是 0.5，但 <strong>Redis 用的是 0.25</strong>。</p>
+</blockquote>
+<p>举一组例子，假设依次插入 5 个节点，随机到的层数分别是：</p>
+<table>
+<thead>
+<tr>
+<th>节点</th>
+<th>随机层数</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>node1</td>
+<td>3</td>
+</tr>
+<tr>
+<td>node2</td>
+<td>1</td>
+</tr>
+<tr>
+<td>node3</td>
+<td>2</td>
+</tr>
+<tr>
+<td>node4</td>
+<td>1</td>
+</tr>
+<tr>
+<td>node5</td>
+<td>4</td>
+</tr>
+</tbody></table>
+<p>可以看到<strong>大部分节点只有 1 层，少数节点被&quot;提拔&quot;到更高的层</strong>。因为每往上一层概率都乘 1&#x2F;4，所以越高层节点越稀疏，自然形成了&quot;索引层&quot;。按这个概率分布，<strong>平均每个节点约 1.33 个指针</strong>。</p>
+<p><strong>为什么这样设计？</strong></p>
+<ul>
+<li>如果改用&quot;严格每两个节点抽一个做索引&quot;，节点个数会严格减半、索引结构非常规整，但一旦插入&#x2F;删除节点，就要<strong>重新调整后面所有节点</strong>来维持这个比例，复杂度直接退化到 O(N)。</li>
+<li>用随机化的概率提升，<strong>插入&#x2F;删除只需要改动局部指针</strong>，不需要全局重排；同时概率分布又保证了&quot;高层稀疏&quot;，让查找期望复杂度稳定在 O(log N)。这就是跳表把&quot;严格平衡&quot;换成&quot;概率平衡&quot;的核心原因。</li>
+<li>至于为什么概率取 1&#x2F;4 而不是 1&#x2F;2：P 越大，节点平均层数越高、索引越密，指针开销越大（P&#x3D;1&#x2F;2 时平均约 2 个指针&#x2F;节点）。取 1&#x2F;4 是<strong>内存与查询速度的折中</strong>，平均 1.33 个指针就能达到 O(log N)。</li>
+<li>最大层数定为 32：源码注释称足以支撑 2^64 量级的元素规模；早期 Redis 5 是 64，Redis 6&#x2F;7 降为 32，避免为极端规模浪费内存。</li>
+</ul>
+<h4 id="查询过程（举例）"><a href="#查询过程（举例）" class="headerlink" title="查询过程（举例）"></a>查询过程（举例）</h4><p>光看结构不好理解&quot;能往右就往右，走不动就下降一层&quot;，用一个具体例子走一遍。假设底层有序链表是 <code>1 → 11 → 21 → 31 → 41 → 51 → 61</code>，它的索引层是：</p>
+<ul>
+<li>level 2：<code>1 → 41</code></li>
+<li>level 1：<code>1 → 21 → 41 → 61</code></li>
+<li>level 0：<code>1 → 11 → 21 → 31 → 41 → 51 → 61</code></li>
+</ul>
+<p>现在要查 <code>51</code>，从最高层（level 2）的头节点出发：</p>
+<ol>
+<li><strong>level 2</strong>：当前在 <code>1</code>，往右是 <code>41</code>，<code>41 &lt; 51</code>，继续往右；再往右是 NULL，往右走不动了 → <strong>下降一层</strong>；</li>
+<li><strong>level 1</strong>：当前在 <code>41</code>，往右是 <code>61</code>，<code>61 &gt; 51</code>（越过了目标），不能往右 → <strong>下降一层</strong>；</li>
+<li><strong>level 0</strong>：当前在 <code>41</code>，往右是 <code>51</code>，命中！</li>
+</ol>
+<p>整个过程的比较路径是 <code>1 → 41 → 61 → 51</code>，大约 <strong>4 步</strong>。而如果直接在底层普通链表上从头找，要走 <code>1 → 11 → 21 → 31 → 41 → 51</code> 共 <strong>6 步</strong>。数据量越大，这个差距越明显——这就是&quot;多层索引把查找近似成二分&quot;的效果。</p>
+<h4 id="跳表在-ZSet-里负责什么"><a href="#跳表在-ZSet-里负责什么" class="headerlink" title="跳表在 ZSet 里负责什么"></a>跳表在 ZSet 里负责什么</h4><p>ZSet 的编码是 <code>skiplist + hashtable</code>，两者分工，跳表主要承担&quot;有序 &#x2F; 范围&quot;这一类操作——而它能做到，正是因为上文那三个字段：</p>
+<ul>
+<li><strong>按 score 的范围查询</strong>（<code>ZRANGE</code>、<code>ZRANGEBYSCORE</code>）：level 0 本身就是一条有序链表，范围查找顺着这条链表扫即可。</li>
+<li><strong>排名查询</strong>（<code>ZRANK</code>）：靠 <code>span</code> 在查找路径上累加，就能算出这个元素排第几，不用真的遍历一遍。</li>
+<li><strong>倒序遍历</strong>（<code>ZREVRANGE</code>）：靠 <code>backward</code> 后向指针，从尾结点往回走。</li>
+</ul>
+<h4 id="为什么选跳表而不是红黑树"><a href="#为什么选跳表而不是红黑树" class="headerlink" title="为什么选跳表而不是红黑树"></a>为什么选跳表而不是红黑树</h4><p>这是高频面试题，本质上是在问&quot;有序结构为什么不用平衡树&quot;。四点原因，每一点都对应 ZSet 的实际需求：</p>
+<ul>
+<li><strong>范围查询更自然</strong>：跳表的 level 0 是<strong>物理相邻的有序链表</strong>，范围查询顺着走即可；红黑树是树形结构，节点之间没有相邻关系，做范围查询要走中序遍历、还要反复找前驱&#x2F;后继，实现更绕、常数更大。</li>
+<li><strong>实现更简单</strong>：红黑树插入&#x2F;删除要处理左旋、右旋、节点变色、双黑修正等一整套规则；跳表只改查找路径上的<strong>局部指针</strong>，不需要全局再平衡，代码量和出错面都小得多。Redis 作者 antirez 也公开表示过，跳表更简单、更易维护和扩展。</li>
+<li><strong>内存更省</strong>：红黑树每个节点要存颜色（以及父&#x2F;孩子指针）来维持平衡；跳表靠 1&#x2F;4 概率的层高分布控制指针数量，平均约 1.33 个&#x2F;节点。</li>
+<li><strong>可维护、并发友好</strong>：跳表逻辑直观、易调试，修改更&quot;局部&quot;（只动相邻几个节点），并发时锁的范围更小，这也是 LevelDB 等系统选择跳表的原因之一。</li>
+</ul>
+<p>一句话总结：<strong>不是红黑树做不到，而是在&quot;需要频繁范围查询和排名&quot;这个前提下，跳表实现更简单、内存更省、范围扫描更自然，综合胜出。</strong></p>
+<h4 id="为什么-ZSet-同时用跳表和哈希表"><a href="#为什么-ZSet-同时用跳表和哈希表" class="headerlink" title="为什么 ZSet 同时用跳表和哈希表"></a>为什么 ZSet 同时用跳表和哈希表</h4><p>ZSet 的编码写的是&quot;skiplist + hashtable&quot;，因为两个结构各司其职：</p>
+<ul>
+<li><strong>跳表</strong>：负责<strong>按 score 的范围查询和排名</strong>（<code>ZRANGE</code>、<code>ZRANK</code>），O(log N)；</li>
+<li><strong>哈希表 dict</strong>：负责<strong>按 member 查 score</strong>（<code>ZSCORE</code>），O(1)。</li>
+</ul>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">zset</span> &#123;</span></span><br><span class="line">    dict *dict;      <span class="comment">// member -&gt; score 的映射，支持 O(1) 查分数</span></span><br><span class="line">    zskiplist *zsl;  <span class="comment">// 按 score 排序，支持范围查询与排名</span></span><br><span class="line">&#125; zset;</span><br></pre></td></tr></table></figure>
+
+<p>如果只有跳表，<code>ZSCORE</code> 就得 O(log N)；如果只有哈希表，范围查询就没法做。<strong>两者结合，才能同时高效支持范围查询和单点查询</strong>——这是单一索引结构很难达到的效果。</p>
+<hr>
+<h2 id="三、五大基本类型：编码、命令与业务场景"><a href="#三、五大基本类型：编码、命令与业务场景" class="headerlink" title="三、五大基本类型：编码、命令与业务场景"></a>三、五大基本类型：编码、命令与业务场景</h2><p>前面讲了八种&quot;积木&quot;，这一节把它们拼回五大基本类型，并补上<strong>完整命令示例</strong>和<strong>真实业务场景</strong>——学底层不是为了炫技，而是为了选对工具。</p>
+<h3 id="3-1-String（字符串）"><a href="#3-1-String（字符串）" class="headerlink" title="3.1 String（字符串）"></a>3.1 String（字符串）</h3><h4 id="底层编码"><a href="#底层编码" class="headerlink" title="底层编码"></a>底层编码</h4><p>SDS。三种编码——<code>int</code>（整数，直接内嵌在 <code>ptr</code> 里）、<code>embstr</code>（≤ 44 字节）、<code>raw</code>（&gt; 44 字节）。</p>
+<p><strong>编码切换</strong>：整数走 <code>int</code>；长度 ≤ 44 字节走 <code>embstr</code>；超过 44 字节转 <code>raw</code>（可用 <code>OBJECT ENCODING key</code> 验证）。</p>
+<p><img src="/redis-string-encoding.jpg" alt="String 的 int / embstr / raw 三种编码内存布局"></p>
+<p>三种编码的内存布局各有不同：</p>
+<ul>
+<li><strong><code>int</code><strong>：值本身就是一个 64 位有符号整数（如 <code>SET age 20</code>），Redis 直接把这个整数塞进 <code>redisObject</code> 的 <code>ptr</code> 指针字段里（把指针当 8 字节的 long 用），</strong>不再分配任何 SDS</strong>。所以 <code>int</code> 编码的对象只有 <code>redisObject</code> 本身，没有第二块内存。</li>
+<li><strong><code>embstr</code><strong>：值是 ≤ 44 字节的短字符串。Redis 用</strong>一次内存分配</strong>拿下一块连续内存，里面依次放着 <code>redisObject</code>（16 字节）+ SDS 头 <code>sdshdr8</code>（3 字节）+ 字符串内容 + 结尾 <code>\0</code>，<code>ptr</code> 直接指向同一块内存里的 SDS。之所以上限是 44，是因为 jemalloc 按 64 字节的规格分配，64 − 16 − 3 − 1 &#x3D; 44。</li>
+<li><strong><code>raw</code><strong>：值 &gt; 44 字节。一块 64 字节的内存装不下 SDS 了，Redis 改为</strong>两次分配</strong>：一块给 <code>redisObject</code>，另一块（按需扩容）给 SDS，<code>ptr</code> 在两者之间做桥梁。</li>
+</ul>
+<h4 id="为什么这样设计"><a href="#为什么这样设计" class="headerlink" title="为什么这样设计"></a>为什么这样设计</h4><p>三种编码本质上是在&quot;为不同大小的值匹配不同成本的内存方案&quot;：</p>
+<ul>
+<li><strong>整数为什么单独走 <code>int</code><strong>：计数器、年龄、库存这类值几乎全是整数，如果也走 SDS，就要为&quot;存一个 8 字节的数字&quot;额外分配一块带头部的字符串内存，还要在读取时做一次指针解引用。直接内嵌进 <code>ptr</code> 后，</strong>零额外分配、零解引用</strong>，<code>INCR</code> 时改的就是指针本身。</li>
+<li><strong>短字符串为什么用 <code>embstr</code><strong>：短字符串数量最庞大（用户名、状态标记、JSON 里的小字段），<code>embstr</code> 把对象头和 SDS 拼成一块连续内存，带来三个好处——创建&#x2F;释放只调一次分配器；对象头和数据的内存地址相邻，CPU 缓存一次就能全部载入；没有指针跳转。而且 embstr 被设计为</strong>只读</strong>：<code>SET</code> 之后不做原地修改，要改就整个重建，省掉了 SDS 里 <code>alloc</code> 预分配那套动态扩容逻辑的开销。</li>
+<li>**长字符串为什么退回 <code>raw</code>**：超过 44 字节后连续小块装不下，而且长文本往往还会继续增长（追加、修改），这时 SDS 的空间预分配和惰性释放就有价值了，两次分配的固定开销相对于数据本身已经可以忽略。</li>
+</ul>
+<h4 id="完整命令示例"><a href="#完整命令示例" class="headerlink" title="完整命令示例"></a>完整命令示例</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 1) 存整数 → int 编码</span></span><br><span class="line">SET user:1:age 20</span><br><span class="line">OBJECT ENCODING user:1:age      <span class="comment"># &quot;int&quot;</span></span><br><span class="line">INCR user:1:age                 <span class="comment"># 21，原子自增</span></span><br><span class="line">INCRBY user:1:age 10            <span class="comment"># 31</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 2) 存短字符串 → embstr</span></span><br><span class="line">SET user:1:name <span class="string">&quot;tom&quot;</span></span><br><span class="line">OBJECT ENCODING user:1:name     <span class="comment"># &quot;embstr&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 3) 存长字符串 → raw</span></span><br><span class="line">SET article:1:content <span class="string">&quot;……一段超过 44 字节的长文本……&quot;</span></span><br><span class="line">OBJECT ENCODING article:1:content   <span class="comment"># &quot;raw&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 4) 带过期的缓存 / 会话</span></span><br><span class="line">SETEX session:abc123 3600 <span class="string">&quot;uid=1001&quot;</span>     <span class="comment"># 3600 秒后自动过期</span></span><br><span class="line">SET cache:product:1001 <span class="string">&quot;&#123;...json...&#125;&quot;</span> EX 600</span><br><span class="line"></span><br><span class="line"><span class="comment"># 5) 分布式锁：NX 保证互斥，EX 防死锁</span></span><br><span class="line">SET lock:order:1001 <span class="string">&quot;uuid-xxx&quot;</span> NX EX 30</span><br><span class="line"></span><br><span class="line"><span class="comment"># 6) 批量读写</span></span><br><span class="line">MSET k1 v1 k2 v2</span><br><span class="line">MGET k1 k2</span><br><span class="line"></span><br><span class="line"><span class="comment"># 7) 判断是否存在后写入（不存在才写）</span></span><br><span class="line">SETNX coupon:1001:user:88 1</span><br></pre></td></tr></table></figure>
+
+<h4 id="业务场景"><a href="#业务场景" class="headerlink" title="业务场景"></a>业务场景</h4><table>
+<thead>
+<tr>
+<th>业务场景</th>
+<th>典型命令</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>商品详情页缓存：把整个商品对象序列化成 JSON 存一个 String，读时命中直接返回，避免每次都查 MySQL</td>
+<td><code>SET cache:product:1001 &quot;&#123;...&#125;&quot; EX 600</code> &#x2F; <code>GET</code></td>
+<td>读多写少时最省事</td>
+</tr>
+<tr>
+<td>文章阅读量&#x2F;视频播放量：每被访问一次就加一，要求并发下不丢计数</td>
+<td><code>INCR article:1001:views</code></td>
+<td>原子自增</td>
+</tr>
+<tr>
+<td>接口限流：限制某用户&#x2F;IP 每分钟最多请求 100 次</td>
+<td><code>INCR limit:user:88</code> + <code>EXPIRE limit:user:88 60</code></td>
+<td>固定窗口计数</td>
+</tr>
+<tr>
+<td>分布式锁：下单时保证同一订单不会被并发处理，且进程崩溃后锁能自动释放</td>
+<td><code>SET lock:order:1001 uuid NX EX 30</code></td>
+<td>NX + EX</td>
+</tr>
+<tr>
+<td>分布式 Session：多台机器共享登录态</td>
+<td><code>SETEX session:abc 3600 &quot;uid=1001&quot;</code></td>
+<td>集中存储会话</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>注意：String 存对象时<strong>部分更新不方便</strong>（要整体读出再写回）。如果一个对象经常只改某个字段，考虑用 Hash。</p>
+</blockquote>
+<h3 id="3-2-List（列表）"><a href="#3-2-List（列表）" class="headerlink" title="3.2 List（列表）"></a>3.2 List（列表）</h3><h4 id="底层编码-1"><a href="#底层编码-1" class="headerlink" title="底层编码"></a>底层编码</h4><p><code>listpack</code>（小 List）&#x2F; <code>quicklist</code>（大 List，双向链表 + listpack 节点）。</p>
+<p><strong>编码切换</strong>：小 List 直接用 <code>listpack</code>；元素变多、超出单个节点容量（由 <code>list-max-listpack-size</code> 控制）后由 <code>quicklist</code> 承载。</p>
+<p><img src="/redis-list-encoding.jpg" alt="List 的 listpack 与 quicklist 两种编码"></p>
+<p>两种编码的形态完全不同：</p>
+<ul>
+<li><strong><code>listpack</code><strong>：整个 List 就是</strong>一块连续内存</strong>，元素按插入顺序一个挨一个排着，每个 entry 只存数据本身加很少的编码开销。适合元素少的小 List。</li>
+<li><strong><code>quicklist</code><strong>：外层是一条</strong>双向链表</strong>，链表的每个节点（<code>quicklistNode</code>）内部装着一块 listpack。可以理解为&quot;把一条长 listpack 切成若干小段，再用链表把小段串起来&quot;。头尾节点挂着 <code>head</code>&#x2F;<code>tail</code> 指针，所以两端操作只碰头尾两块小内存。</li>
+</ul>
+<h4 id="为什么这样设计-1"><a href="#为什么这样设计-1" class="headerlink" title="为什么这样设计"></a>为什么这样设计</h4><p>List 的操作特点是<strong>两端快插快删</strong>（队列、最新动态），两种&quot;纯&quot;结构各有一头不行：</p>
+<ul>
+<li><strong>纯双向链表</strong>：<code>LPUSH</code>&#x2F;<code>RPOP</code> 确实 O(1)，但每个元素都要单独 malloc 一个节点，节点里除了值还有 prev&#x2F;next 两个指针——存一个几字节的值要付出十几字节的指针成本，而且节点内存不连续，缓存命中率差。</li>
+<li><strong>纯 listpack</strong>：省内存、缓存友好，但它本质是连续数组，<strong>任何一端插入都可能导致整块内存重分配和搬移</strong>；元素一多，单次插入的代价就失控了（旧版用 ziplist 时还有连锁更新风险）。</li>
+</ul>
+<p>quicklist 的折中正好掐住两者的优点：<strong>两端操作只发生在头尾节点上</strong>，往头节点里塞元素，塞满了才新建一个节点挂到链表头部——单次操作只涉及一个几 KB 的小 listpack，不会搬移整个 List；而节点内部又是紧凑的 listpack，指针开销只按&quot;节点&quot;付、不按&quot;元素&quot;付。<code>list-max-listpack-size</code>（默认 -2 &#x3D; 8KB）控制的就是每个节点的大小：节点越小，两端操作越轻快，但链表节点数越多；节点越大越省指针，但单节点内操作越重。</p>
+<h4 id="完整命令示例-1"><a href="#完整命令示例-1" class="headerlink" title="完整命令示例"></a>完整命令示例</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 1) 从右侧推入，模拟&quot;最新动态&quot;（越新越靠右）</span></span><br><span class="line">RPUSH feed:user:88 <span class="string">&quot;动态A&quot;</span> <span class="string">&quot;动态B&quot;</span> <span class="string">&quot;动态C&quot;</span></span><br><span class="line">LRANGE feed:user:88 0 -1        <span class="comment"># 取出全部</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 2) 只保留最近 100 条</span></span><br><span class="line">LPUSH feed:user:88 <span class="string">&quot;动态D&quot;</span></span><br><span class="line">LTRIM feed:user:88 0 99</span><br><span class="line"></span><br><span class="line"><span class="comment"># 3) 当栈用：左进左出（后进先出）</span></span><br><span class="line">LPUSH stack:demo a b c</span><br><span class="line">LPOP stack:demo                 <span class="comment"># &quot;c&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 4) 当简易队列用：左进右出（先进先出）+ 阻塞消费</span></span><br><span class="line">LPUSH queue:email <span class="string">&quot;mail1&quot;</span> <span class="string">&quot;mail2&quot;</span></span><br><span class="line">BRPOP queue:email 5             <span class="comment"># 阻塞等待最多 5 秒，取到就返回</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 5) 按下标取/改</span></span><br><span class="line">LINDEX mylist 0</span><br><span class="line">LSET mylist 0 <span class="string">&quot;newValue&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 6) 在某个元素前后插入</span></span><br><span class="line">LINSERT mylist BEFORE <span class="string">&quot;b&quot;</span> <span class="string">&quot;a2&quot;</span></span><br></pre></td></tr></table></figure>
+
+<h4 id="业务场景-1"><a href="#业务场景-1" class="headerlink" title="业务场景"></a>业务场景</h4><table>
+<thead>
+<tr>
+<th>业务场景</th>
+<th>典型命令</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>消息列表&#x2F;最新动态：用户主页只展示最近 100 条，新动态从左边插入、超出就从右边裁掉</td>
+<td><code>LPUSH</code> + <code>LTRIM</code></td>
+<td>天然有序</td>
+</tr>
+<tr>
+<td>简易消息队列：生产者 <code>LPUSH</code> 投递邮件任务，多个消费者 <code>BRPOP</code> 阻塞拉取</td>
+<td><code>LPUSH</code> + <code>BRPOP</code></td>
+<td>左进右出，FIFO</td>
+</tr>
+<tr>
+<td>浏览历史&#x2F;操作记录：按时间顺序保存最近看过的东西，超出长度自动截断</td>
+<td><code>RPUSH</code> + <code>LTRIM</code></td>
+<td>有序存储</td>
+</tr>
+<tr>
+<td>栈式回退：如「撤销」功能，最后一步最先回退</td>
+<td><code>LPUSH</code> + <code>LPOP</code></td>
+<td>LIFO</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>坑点：用 List 做消息队列<strong>没有 ACK 机制</strong>——消息被 <code>LPOP</code> 弹出后若消费失败就丢了。需要可靠性时应该用 Stream。</p>
+</blockquote>
+<h3 id="3-3-Hash（哈希）"><a href="#3-3-Hash（哈希）" class="headerlink" title="3.3 Hash（哈希）"></a>3.3 Hash（哈希）</h3><h4 id="底层编码-2"><a href="#底层编码-2" class="headerlink" title="底层编码"></a>底层编码</h4><p><code>listpack</code>（小 Hash）&#x2F; <code>hashtable</code>（大 Hash）。</p>
+<p><strong>编码切换</strong>：字段数 &gt; <code>hash-max-listpack-entries</code>（512）或任一 field&#x2F;value &gt; <code>hash-max-listpack-value</code>（64 字节）即转 <code>hashtable</code>，不可逆。</p>
+<p><img src="/redis-hash-encoding.jpg" alt="Hash 的 listpack 与 hashtable 两种编码"></p>
+<p>两种编码存&quot;field → value&quot;的方式不一样：</p>
+<ul>
+<li><strong>listpack</strong>：把 field 和 value <strong>交替排成一对一对</strong>存进一块连续内存——<code>field1, value1, field2, value2, …</code>。按 field 查 value 时，就从前往后一对一对比较 field，找到就返回对应的 value。</li>
+<li>**<code>hashtable</code>**：真正的哈希表（<code>dict</code>），每个 field 是一个 <code>dictEntry</code> 节点，对 field 做哈希直接定位到桶，再沿链表比较 key，查找是 O(1)。</li>
+</ul>
+<h4 id="为什么这样设计-2"><a href="#为什么这样设计-2" class="headerlink" title="为什么这样设计"></a>为什么这样设计</h4><p>Hash 的使用场景是&quot;一个对象多个字段&quot;（用户信息、购物车），操作特点是<strong>按 field 读写单个字段</strong>。两种结构在&quot;字段数&quot;这条轴上各有胜负：</p>
+<ul>
+<li><strong>字段少时 listpack 完胜</strong>：一个 5 个字段的 Hash 如果用 hashtable，要为每个 field&#x2F;value 分配 <code>dictEntry</code>（key 指针 + value 联合体 + next 指针，约 32 字节）再乘上哈希桶数组，固定开销是数据本身的几倍到十几倍；而 listpack 里 field 和 value 紧挨着连续存放，每个 entry 只多一两个字节的编码头。字段少时线性比较 5 对 field 的 O(N) 代价几乎可以忽略，还因为内存连续而缓存友好。</li>
+<li><strong>字段多时 listpack 撑不住</strong>：按 field 查找是 O(N)，字段到了几百个，每次 <code>HGET</code> 都要扫半张表，延迟明显上升；这时必须换 hashtable 拿回 O(1)。</li>
+<li><strong>为什么 value 超长也触发转换</strong>：listpack 的 entry 里 <code>encoding</code> 字段本身要为长数据付出更多字节，而且长 value 会让&quot;线性扫 field&quot;时每次比较的代价变大，紧凑优势被侵蚀，索性直接转 hashtable。</li>
+</ul>
+<p><strong>注意默认阈值是 entries ≤ 512 且 value ≤ 64 字节，不是 128</strong>（128 是 ZSet 的）。</p>
+<h4 id="完整命令示例-2"><a href="#完整命令示例-2" class="headerlink" title="完整命令示例"></a>完整命令示例</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 1) 存一个用户对象（多个字段）</span></span><br><span class="line">HSET user:1 name <span class="string">&quot;tom&quot;</span> age 20 city <span class="string">&quot;beijing&quot;</span></span><br><span class="line">HGET user:1 name                 <span class="comment"># &quot;tom&quot;</span></span><br><span class="line">HMGET user:1 name age            <span class="comment"># [&quot;tom&quot;, &quot;20&quot;]</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 2) 只改其中一个字段，不用整体读出再写回</span></span><br><span class="line">HINCRBY user:1 age 1             <span class="comment"># 21</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 3) 取全部字段</span></span><br><span class="line">HGETALL user:1</span><br><span class="line"></span><br><span class="line"><span class="comment"># 4) 购物车：商品 id 作为 field，数量作为 value</span></span><br><span class="line">HSET cart:user:88 item:1001 2 item:1002 1</span><br><span class="line">HINCRBY cart:user:88 item:1001 1     <span class="comment"># 数量 +1</span></span><br><span class="line">HGET cart:user:88 item:1001          <span class="comment"># 3</span></span><br><span class="line">HDEL cart:user:88 item:1002          <span class="comment"># 删除商品</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 5) 观察编码变化</span></span><br><span class="line">OBJECT ENCODING cart:user:88         <span class="comment"># &quot;listpack&quot;</span></span><br></pre></td></tr></table></figure>
+
+<h4 id="业务场景-2"><a href="#业务场景-2" class="headerlink" title="业务场景"></a>业务场景</h4><table>
+<thead>
+<tr>
+<th>业务场景</th>
+<th>典型命令</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>用户信息：把 name&#x2F;age&#x2F;city 等字段放在一个 Hash 里，可以只更新其中某个字段，比 String 存整段 JSON 更灵活</td>
+<td><code>HSET</code> &#x2F; <code>HGET</code> &#x2F; <code>HINCRBY</code></td>
+<td>字段级读写</td>
+</tr>
+<tr>
+<td>购物车：商品 id 当 field、数量当 value，加购就 +1、删除就 HDEL</td>
+<td><code>HSET</code> &#x2F; <code>HINCRBY</code> &#x2F; <code>HDEL</code></td>
+<td>天然表达「商品→数量」</td>
+</tr>
+<tr>
+<td>计数器分组：按维度（年月&#x2F;渠道）分别计数</td>
+<td><code>HINCRBY stats:2026 q1 1</code></td>
+<td>按维度分组</td>
+</tr>
+<tr>
+<td>配置项：一个业务的所有开关放在一个 Hash 里</td>
+<td><code>HSET config:app featureA on</code></td>
+<td>便于批量读取</td>
+</tr>
+</tbody></table>
+<h3 id="3-4-Set（集合）"><a href="#3-4-Set（集合）" class="headerlink" title="3.4 Set（集合）"></a>3.4 Set（集合）</h3><h4 id="底层编码-3"><a href="#底层编码-3" class="headerlink" title="底层编码"></a>底层编码</h4><p><code>intset</code>（全整数且 ≤ 512）&#x2F; <code>listpack</code>（7.2+，小集合）&#x2F; <code>hashtable</code>（大集合）。</p>
+<p><strong>编码切换</strong>：出现非整数或数量超 512 时，<code>intset</code> 就转化为 listpack（7.2+，≤ 128 个且元素 ≤ 64 字节）或 hashtable；再超限最终转为 <code>hashtable</code>，不可逆。</p>
+<p><img src="/redis-set-encoding.jpg" alt="Set 的 intset、listpack、hashtable 三种编码"></p>
+<p>三种编码分别对应三种数据形态：</p>
+<ul>
+<li><strong><code>intset</code><strong>：</strong>有序整数数组</strong>——元素从小到大排好、不重复，整块连续内存，没有任何指针。查找用二分（O(log N)）。</li>
+<li>**<strong>listpack</strong>（7.2+）：和 List 用的同一块紧凑列表，元素按插入顺序紧挨着存，不要求是整数。</li>
+<li>**<code>hashtable</code>**：哈希表，每个元素是一个 <code>dictEntry</code>（key 指针 + next 指针），value 为空——Set 只关心&quot;元素在不在&quot;。</li>
+</ul>
+<h4 id="为什么这样设计-3"><a href="#为什么这样设计-3" class="headerlink" title="为什么这样设计"></a>为什么这样设计</h4><p>Set 的核心操作是<strong>判断元素是否存在</strong>（<code>SISMEMBER</code>）和<strong>集合运算</strong>（<code>SINTER</code>&#x2F;<code>SUNION</code>），三种编码是&quot;按数据形态逐级退让&quot;：</p>
+<ul>
+<li><strong>全整数且数量少 → <code>intset</code><strong>：整数比较最便宜，有序数组二分查找 O(log N) 足够快，而且</strong>零指针开销</strong>——512 个 int16 元素只占 1KB 左右，换成 hashtable 光 <code>dictEntry</code> 就要十几 KB。这是省内存的极致形态。</li>
+<li>**出现非整数、但集合还小 → <strong>listpack</strong>：intset 只能存整数（比较和有序性都建立在数值上），一旦混入字符串就没法维持&quot;有序整数数组&quot;这个前提。7.2 之前的版本这时会直接跳到 hashtable；7.2 起先退到 listpack——非整数元素照样能紧凑存，查找退化为 O(N) 的线性扫描，但小集合下依然比 hashtable 省内存、缓存友好。</li>
+<li>**数量大 &#x2F; 元素长 → <strong>hashtable</strong>：无论 intset 的二分还是 listpack 的线性扫，元素一多都顶不住 <code>SISMEMBER</code> 的延迟要求，而且 <code>SINTER</code> 这类交集运算在哈希表上能做到&quot;遍历小集合 + 逐个 O(1) 探测大集合&quot;，必须靠哈希定位。</li>
+</ul>
+<h4 id="完整命令示例-3"><a href="#完整命令示例-3" class="headerlink" title="完整命令示例"></a>完整命令示例</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 1) 去重统计（UV）：同一用户多次访问只会算一次</span></span><br><span class="line">SADD uv:20261011 user:88 user:99 user:88</span><br><span class="line">SCARD uv:20261011                <span class="comment"># 2（自动去重）</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 2) 判断是否点过赞 / 是否在集合里</span></span><br><span class="line">SISMEMBER article:1001:liked user:88   <span class="comment"># 1 表示已点赞</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 3) 共同关注：交集</span></span><br><span class="line">SADD follow:user:88 <span class="string">&quot;A&quot;</span> <span class="string">&quot;B&quot;</span> <span class="string">&quot;C&quot;</span></span><br><span class="line">SADD follow:user:99 <span class="string">&quot;B&quot;</span> <span class="string">&quot;C&quot;</span> <span class="string">&quot;D&quot;</span></span><br><span class="line">SINTER follow:user:88 follow:user:99   <span class="comment"># [&quot;B&quot;, &quot;C&quot;]，共同关注</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 4) 可能认识的人：差集</span></span><br><span class="line">SDIFF follow:user:88 follow:user:99    <span class="comment"># [&quot;A&quot;]</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 5) 抽奖：随机取元素</span></span><br><span class="line">SRANDMEMBER lottery:pool 3             <span class="comment"># 随机取 3 个（不删除）</span></span><br><span class="line">SPOP lottery:pool 1                    <span class="comment"># 随机弹 1 个（删除）</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 6) 观察编码</span></span><br><span class="line">SADD nums 1 2 3</span><br><span class="line">OBJECT ENCODING nums                   <span class="comment"># &quot;intset&quot;</span></span><br><span class="line">SADD nums <span class="string">&quot;a&quot;</span></span><br><span class="line">OBJECT ENCODING nums                   <span class="comment"># &quot;listpack&quot;（7.2+）</span></span><br></pre></td></tr></table></figure>
+
+<h4 id="业务场景-3"><a href="#业务场景-3" class="headerlink" title="业务场景"></a>业务场景</h4><table>
+<thead>
+<tr>
+<th>业务场景</th>
+<th>典型命令</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>独立访客统计（UV）：统计某天有多少不同用户访问</td>
+<td><code>SADD</code> + <code>SCARD</code></td>
+<td>精确去重</td>
+</tr>
+<tr>
+<td>点赞&#x2F;收藏：用 <code>SISMEMBER</code> 判断「我是否赞过」，用 <code>SADD</code>&#x2F;<code>SREM</code> 点赞与取消</td>
+<td><code>SADD</code> &#x2F; <code>SISMEMBER</code> &#x2F; <code>SREM</code></td>
+<td>O(1) 判断</td>
+</tr>
+<tr>
+<td>共同好友&#x2F;共同关注：求两个用户关注列表的交集</td>
+<td><code>SINTER</code></td>
+<td>交集语义</td>
+</tr>
+<tr>
+<td>可能认识的人：把「他关注但你没关注」的人推给你</td>
+<td><code>SDIFF</code></td>
+<td>差集语义</td>
+</tr>
+<tr>
+<td>抽奖&#x2F;随机推荐：从奖品池随机抽一个且不重复</td>
+<td><code>SPOP</code> &#x2F; <code>SRANDMEMBER</code></td>
+<td>随机取元素</td>
+</tr>
+<tr>
+<td>标签系统：给文章打多个标签，支持按标签取文章</td>
+<td><code>SADD</code> + <code>SINTER</code></td>
+<td>标签集合</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>注意：<code>SINTER</code>&#x2F;<code>SUNION</code> 在大集合上是 O(N)，数据量大时慎用，别在热路径上做超大集合的交集。</p>
+</blockquote>
+<h3 id="3-5-ZSet（有序集合）"><a href="#3-5-ZSet（有序集合）" class="headerlink" title="3.5 ZSet（有序集合）"></a>3.5 ZSet（有序集合）</h3><h4 id="底层编码-4"><a href="#底层编码-4" class="headerlink" title="底层编码"></a>底层编码</h4><p><code>listpack</code>（小 ZSet）&#x2F; <code>skiplist + hashtable</code>（大 ZSet）。</p>
+<p><strong>编码切换</strong>：元素数 &gt; <code>zset-max-listpack-entries</code>（128）或成员 &gt; <code>zset-max-listpack-value</code>（64 字节）即转 <code>skiplist + hashtable</code>，不可逆。</p>
+<p><img src="/redis-zset-encoding.jpg" alt="ZSet 的 listpack 与 skiplist + hashtable 两种编码"></p>
+<p>两种编码的形态：</p>
+<ul>
+<li><strong><code>listpack</code><strong>：member 和 score <strong>成对交替</strong>存进一块连续内存（<code>member1, score1, member2, score2, …</code>），并且</strong>按 score 从小到大排好序</strong>。所以取 TopN 就是顺着链表往后数，查某人的分数就线性扫。</li>
+<li>**<code>skiplist + hashtable</code>**：同一批数据被两套索引各存一份——跳表按 score 排序，负责范围查询和排名；哈希表存 <code>member → score</code> 映射，负责按成员查分数。</li>
+</ul>
+<h4 id="为什么这样设计-4"><a href="#为什么这样设计-4" class="headerlink" title="为什么这样设计"></a>为什么这样设计</h4><p>ZSet 的操作需求比前几种都多：既要<strong>按 score 排序</strong>（排行榜、延时队列）、又要<strong>范围查询</strong>（<code>ZRANGE</code>）、还要<strong>按 member 查 score</strong>（<code>ZSCORE</code>）。编码选择同样按数据量分档：</p>
+<ul>
+<li><strong>元素少时 listpack 够用且最省</strong>：128 个以内的 ZSet，线性扫描找 score 或 member 的 O(N) 代价很小；而跳表每个节点要按层数挂 forward 指针 + span，哈希表每个成员要一个 <code>dictEntry</code>，固定开销是 listpack 的好几倍。小排行榜（比如一个群内积分前 50）用 listpack 明显更划算。</li>
+<li><strong>元素多后必须换跳表 + 哈希表</strong>：<code>ZRANGE</code>、<code>ZRANK</code> 这类操作在 listpack 上都是 O(N)，几百上千个元素时延迟不可接受。跳表把排序、范围查询、排名全部压到 O(log N)（靠底层有序链表 + span 累加）；但跳表按 score 查，<strong>按 member 查分数它不行</strong>（得 O(log N) 甚至更糟），所以再配一个哈希表专门做 <code>ZSCORE</code> 的 O(1) 查找。<strong>两套索引各管一类操作，合起来才是完整的 ZSet 语义。</strong></li>
+<li><strong>为什么成员过长也触发转换</strong>：listpack 里比较 member 是逐字节比字符串，成员越长线性扫描越慢；而且长成员的编码头开销上升，紧凑优势减弱，索性转成跳表 + 哈希表。</li>
+</ul>
+<h4 id="完整命令示例-4"><a href="#完整命令示例-4" class="headerlink" title="完整命令示例"></a>完整命令示例</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 1) 排行榜：score 是分数，member 是玩家</span></span><br><span class="line">ZADD rank:game 95 <span class="string">&quot;playerA&quot;</span> 88 <span class="string">&quot;playerB&quot;</span> 100 <span class="string">&quot;playerC&quot;</span></span><br><span class="line">ZREVRANGE rank:game 0 2 WITHSCORES     <span class="comment"># 取前 3 名（从高到低）</span></span><br><span class="line">ZSCORE rank:game playerA               <span class="comment"># 95 → 取某人分数 O(1)</span></span><br><span class="line">ZRANK rank:game playerA                <span class="comment"># 正序排名</span></span><br><span class="line">ZINCRBY rank:game 5 <span class="string">&quot;playerA&quot;</span>          <span class="comment"># 给玩家加分</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 2) 延时队列：score 存&quot;到期执行的时间戳&quot;</span></span><br><span class="line">ZADD delay:queue 1696800000 <span class="string">&quot;task:1001&quot;</span></span><br><span class="line">ZRANGEBYSCORE delay:queue 0 1696800001 <span class="comment"># 取出已到期的任务</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 3) 滑动窗口限流：score 存请求时间戳</span></span><br><span class="line">ZADD <span class="built_in">limit</span>:user:88 1696800000123 <span class="string">&quot;req1&quot;</span></span><br><span class="line">ZREMRANGEBYSCORE <span class="built_in">limit</span>:user:88 0 1696799940000   <span class="comment"># 移除窗口外的记录</span></span><br><span class="line">ZCARD <span class="built_in">limit</span>:user:88                              <span class="comment"># 窗口内请求数</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 4) 观察编码</span></span><br><span class="line">ZADD z 1 a</span><br><span class="line">OBJECT ENCODING z                      <span class="comment"># &quot;listpack&quot;</span></span><br></pre></td></tr></table></figure>
+
+<h4 id="业务场景-4"><a href="#业务场景-4" class="headerlink" title="业务场景"></a>业务场景</h4><table>
+<thead>
+<tr>
+<th>业务场景</th>
+<th>典型命令</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>游戏&#x2F;直播排行榜：按分数排序，随时取 TopN、查某人排名</td>
+<td><code>ZADD</code> + <code>ZREVRANGE</code> + <code>ZRANK</code></td>
+<td>排序 + 排名</td>
+</tr>
+<tr>
+<td>延时任务队列：把任务的执行时间当 score，定时轮询取出到期的任务</td>
+<td><code>ZADD</code> + <code>ZRANGEBYSCORE</code></td>
+<td>时间驱动</td>
+</tr>
+<tr>
+<td>滑动窗口限流：用时间戳做 score，移除窗口外的请求后统计数量</td>
+<td><code>ZADD</code> + <code>ZREMRANGEBYSCORE</code> + <code>ZCARD</code></td>
+<td>比固定窗口更平滑</td>
+</tr>
+<tr>
+<td>带权重的推荐&#x2F;优先级队列：按权重出队</td>
+<td><code>ZADD</code> + <code>ZREVRANGE</code></td>
+<td>score 即优先级</td>
+</tr>
+</tbody></table>
+<h3 id="五大类型速查"><a href="#五大类型速查" class="headerlink" title="五大类型速查"></a>五大类型速查</h3><table>
+<thead>
+<tr>
+<th>类型</th>
+<th>是否有序</th>
+<th>是否去重</th>
+<th>底层编码（7.x）</th>
+<th>一句话场景</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>String</td>
+<td>——</td>
+<td>——</td>
+<td>int &#x2F; embstr &#x2F; raw</td>
+<td>缓存、计数、锁</td>
+</tr>
+<tr>
+<td>List</td>
+<td>有序（插入序）</td>
+<td>可重复</td>
+<td>listpack &#x2F; quicklist</td>
+<td>队列、最新列表</td>
+</tr>
+<tr>
+<td>Hash</td>
+<td>无序</td>
+<td>field 唯一</td>
+<td>listpack &#x2F; hashtable</td>
+<td>对象、购物车</td>
+</tr>
+<tr>
+<td>Set</td>
+<td>无序</td>
+<td>去重</td>
+<td>intset &#x2F; listpack &#x2F; hashtable</td>
+<td>去重、共同好友</td>
+</tr>
+<tr>
+<td>ZSet</td>
+<td>有序（score）</td>
+<td>member 唯一</td>
+<td>listpack &#x2F; skiplist</td>
+<td>排行榜、延时队列</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="四、三种扩展类型：Geo、HyperLogLog、Stream"><a href="#四、三种扩展类型：Geo、HyperLogLog、Stream" class="headerlink" title="四、三种扩展类型：Geo、HyperLogLog、Stream"></a>四、三种扩展类型：Geo、HyperLogLog、Stream</h2><p>这三种属于 Redis 的&quot;特殊用途&quot;类型。它们的底层实现相对独立，这里只讲<strong>概念与怎么用</strong>。</p>
+<h3 id="4-1-Geo：地理位置计算"><a href="#4-1-Geo：地理位置计算" class="headerlink" title="4.1 Geo：地理位置计算"></a>4.1 Geo：地理位置计算</h3><h4 id="概念"><a href="#概念" class="headerlink" title="概念"></a>概念</h4><p>Geo 用于存储经纬度并做<strong>距离计算、范围查找</strong>。它底层基于 ZSet 实现，因此天然带有排序能力，但使用上完全是地理语义。</p>
+<p><strong>它是怎么把&quot;地球上的一个点&quot;存进 ZSet 的？</strong> 核心是 <strong>GeoHash 编码</strong>，分三步：</p>
+<ol>
+<li>对<strong>经度区间 [-180, 180] 和纬度区间 [-90, 90] 各自不断二分</strong>：每二分一次落进左半区间记 0、右半记 1，经度和纬度各产生一串二进制位；</li>
+<li>把两串二进制<strong>交错合并</strong>（经度一位、纬度一位交替排列），得到一个 <strong>52 位整数</strong>；</li>
+<li>这个 52 位整数作为 <strong>ZSet 的 score</strong>，位置名称作为 member 存入。</li>
+</ol>
+<p>这样就把&quot;二维平面上的一个点&quot;<strong>铺平成了一维整数</strong>：编码前缀越相近的点，物理位置通常也越接近，范围查询因此可以复用 ZSet 的有序性（GEOSEARCH 的官方文档也写明 score 就是 52 位 geohash 整数）。</p>
+<p><strong>临界（边界）问题是怎么解决的？</strong> 铺平成一维是有代价的，先看一个具体例子就明白了。</p>
+<p>经度 0° 这条线（本初子午线）是第一次二分左右的分界：<strong>东经的编码首位是 1，西经的首位是 0</strong>。现在有两个点——A 点在东经 0.0001°、B 点在西经 0.0001°，两者实际只隔十几米，几乎是&quot;面对面&quot;。但编码出来：A 是 <code>1xxxx…</code>（首位 1），B 是 <code>0xxxx…</code>（首位 0），这两个 52 位整数的<strong>数值相差约 2^51</strong>，在一维数轴上一个在天上、一个在地下。如果查&quot;A 附近 1 公里&quot;时只按编码值找&quot;A 的编码 + 一个小偏移量&quot;范围内的点，B 就会被直接漏掉——<strong>明明近在咫尺，编码却远隔万里</strong>，这就是边界漏点问题。</p>
+<p>Redis 的解法分两步：</p>
+<ol>
+<li><strong>粗筛时多查邻格（9 宫格）</strong>：范围查找时，Redis 先根据&quot;中心点 + 半径&quot;算出一个<strong>矩形包围盒</strong>（能罩住这个圆的最小方框），再找出这个包围盒覆盖到的<strong>所有 geohash 格子</strong>——不是只查中心点自己那一个格子，而是把中心点周围 3×3 一共 9 个格子（自身 + 上下左右 + 四个对角）全部纳入候选。为什么 9 个格子就不会漏？回到上面的例子：A 在 0°E、B 在 0.0001°W，它们分属左右相邻的两个格子；只要把 A 左右两侧、上下四角的邻格都查了，<strong>B 所在的那个格子必然在 9 宫格之内</strong>，就被捞进候选集了。半径再大一些，包围盒会盖住更多格子，Redis 会按包围盒实际覆盖的范围取格子（不止 9 个），原理相同：<strong>把二维上&quot;挨着&quot;的格子全部圈进来，就不存在&quot;隔壁格子查不到&quot;的死角</strong>。</li>
+<li><strong>精筛按真实距离过滤</strong>：9 宫格（或包围盒）圈进来的候选是&quot;宁滥勿缺&quot;的——方框四个角上的点其实离中心比半径远。所以第二步对每个候选点用 <strong>Haversine 公式</strong>（一种根据两点经纬度算球面距离的公式，官方文档确认 Redis 采用，把地球近似为球体）算出精确距离，超出半径的剔除，剩下的按距离排序返回。<code>GEODIST</code> 算两点距离用的也是这套公式。</li>
+</ol>
+<p>简单说：<strong>GeoHash 负责快速缩小范围，邻格全覆盖负责解决边界漏点，Haversine 负责精确距离</strong>——粗筛保证&quot;不漏&quot;，精筛保证&quot;不多&quot;。</p>
+<h4 id="完整命令示例-5"><a href="#完整命令示例-5" class="headerlink" title="完整命令示例"></a>完整命令示例</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 添加位置（经度 纬度 名称）</span></span><br><span class="line">GEOADD cities 116.40 39.90 <span class="string">&quot;Beijing&quot;</span></span><br><span class="line">GEOADD cities 121.47 31.23 <span class="string">&quot;Shanghai&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 计算两地距离（单位 km）</span></span><br><span class="line">GEODIST cities Beijing Shanghai km      <span class="comment"># 约 1067 km</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 查某个位置的坐标</span></span><br><span class="line">GEOPOS cities Beijing                    <span class="comment"># 116.40, 39.90</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 查找某点附近 100km 内的城市，按距离升序</span></span><br><span class="line">GEOSEARCH cities FROMLONLAT 116.40 39.90 BYRADIUS 100 km ASC</span><br></pre></td></tr></table></figure>
+
+<h4 id="业务场景-5"><a href="#业务场景-5" class="headerlink" title="业务场景"></a>业务场景</h4><p>附近的人、附近的商户、打车派单、同城推荐等 LBS（基于位置的服务）场景。例如打车 App 里查&quot;我附近 3 公里内有哪些司机&quot;，就是 <code>GEOSEARCH ... BYRADIUS 3 km</code>。</p>
+<h3 id="4-2-HyperLogLog：基数统计"><a href="#4-2-HyperLogLog：基数统计" class="headerlink" title="4.2 HyperLogLog：基数统计"></a>4.2 HyperLogLog：基数统计</h3><h4 id="概念-1"><a href="#概念-1" class="headerlink" title="概念"></a>概念</h4><p>HyperLogLog（HLL）是一种<strong>概率性基数统计算法</strong>，用来估算一个集合中<strong>不重复元素的个数</strong>（基数）。Redis 的三个命令 <code>PFADD</code> &#x2F; <code>PFCOUNT</code> &#x2F; <code>PFMERGE</code> 基于它实现，前缀 PF 正是致敬算法作者 Philippe Flajolet。</p>
+<p><strong>它凭什么能&quot;数出&quot;不重复的个数？</strong> 核心是一个概率规律：</p>
+<ol>
+<li>对每个元素做哈希，得到一个二进制串；</li>
+<li><strong>哈希值开头连续 0 的个数越多，出现概率越低</strong>——出现 1 个前导 0 的概率是 1&#x2F;2，2 个是 1&#x2F;4，k 个是 1&#x2F;2^k。反过来，当你观察到的&quot;最大前导 0 个数&quot;是 k 时，就可以反推集合里大约有 2^k 量级个不同元素；</li>
+<li>只用单个&quot;最大前导 0&quot;估计方差太大（运气好坏影响结果），所以 Redis <strong>分桶降低误差</strong>：用哈希值的低 14 位决定落入 16384 个桶中的哪一个，剩下的高位用来数前导 0，每个桶只记录自己见过的最大前导 0 数；</li>
+<li>最终对所有桶的估计值做<strong>调和平均</strong>，得到基数估算值。</li>
+</ol>
+<p><strong>内存为什么恒定</strong>：16384 个桶 × 每桶 6 bit ≈ <strong>12KB</strong>——不管统计 1 千个还是 1 亿个元素，都只是往这 16384 个寄存器里更新&quot;最大前导 0 数&quot;。16384 个桶对应的标准误差约为 1.04&#x2F;√16384 ≈ **0.81%**。</p>
+<p>特点归纳：</p>
+<ul>
+<li><strong>极省内存</strong>：无论统计多少元素，最多只占约 <strong>12KB</strong>（元素很少时用稀疏编码，占用更小）；</li>
+<li><strong>有误差</strong>：标准误差约 **0.81%**，是估算不是精确值；</li>
+<li><strong>只能统计基数，不能取出元素</strong>：它不存原始数据，只维护概率模型。</li>
+</ul>
+<h4 id="完整命令示例-6"><a href="#完整命令示例-6" class="headerlink" title="完整命令示例"></a>完整命令示例</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 添加元素（首页 UV）</span></span><br><span class="line">PFADD uv:20261011:home user1 user2 user3</span><br><span class="line"></span><br><span class="line"><span class="comment"># 统计基数（估算 UV）</span></span><br><span class="line">PFCOUNT uv:20261011:home</span><br><span class="line"></span><br><span class="line"><span class="comment"># 合并多个 HLL，统计跨天/跨页的总 UV</span></span><br><span class="line">PFMERGE uv:20261011:all uv:20261011:home uv:20261011:detail</span><br><span class="line">PFCOUNT uv:20261011:all</span><br></pre></td></tr></table></figure>
+
+<p><strong>与 Set 的对比</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>方案</th>
+<th>精确度</th>
+<th>内存</th>
+<th>能否取元素</th>
+<th>适用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Set</td>
+<td>精确</td>
+<td>随元素线性增长</td>
+<td>能</td>
+<td>数据量小、需精确</td>
+</tr>
+<tr>
+<td>HyperLogLog</td>
+<td>约 0.81% 误差</td>
+<td>最多约 12KB</td>
+<td>不能</td>
+<td>海量 UV、可接受误差</td>
+</tr>
+</tbody></table>
+<h4 id="业务场景-6"><a href="#业务场景-6" class="headerlink" title="业务场景"></a>业务场景</h4><p>海量数据的 <strong>UV（独立访客）统计</strong>、搜索关键词去重计数等&quot;只要数量、不要明细&quot;的场景。例如统计一个上亿用户产品的日活，用 Set 会撑爆内存，用 HLL 最多也只占约 12KB。</p>
+<h3 id="4-3-Stream：可当消息队列用"><a href="#4-3-Stream：可当消息队列用" class="headerlink" title="4.3 Stream：可当消息队列用"></a>4.3 Stream：可当消息队列用</h3><h4 id="概念-2"><a href="#概念-2" class="headerlink" title="概念"></a>概念</h4><p>Stream 是 Redis 5.0 引入的<strong>日志型（append-only）数据结构</strong>，用来解决 List 做消息队列&quot;没有 ACK、不支持多消费者&quot;的问题。核心概念有：</p>
+<ul>
+<li><strong>消息 ID</strong>：格式为 <code>时间戳-序号</code>，如 <code>1696800000000-0</code>，天然递增、可排序；</li>
+<li><strong>消费组（Consumer Group）</strong>：多个消费者组成一组，消息在组内<strong>分摊消费</strong>，互不重复；</li>
+<li><strong>PEL（Pending Entries List，待处理列表）</strong>：记录已投递但未确认（ACK）的消息，消费者崩溃后可重新领取，实现<strong>可靠性</strong>；</li>
+<li><strong>ACK 机制</strong>：消费完用 <code>XACK</code> 确认，未确认的消息留在 PEL 里。</li>
+</ul>
+<h4 id="完整命令示例-7"><a href="#完整命令示例-7" class="headerlink" title="完整命令示例"></a>完整命令示例</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 生产消息</span></span><br><span class="line">XADD mystream * name tom age 20</span><br><span class="line"></span><br><span class="line"><span class="comment"># 创建消费组（从头部开始读）</span></span><br><span class="line">XGROUP CREATE mystream group1 0</span><br><span class="line"></span><br><span class="line"><span class="comment"># 消费者读取消息（&gt; 表示只读新消息）</span></span><br><span class="line">XREADGROUP GROUP group1 consumer1 COUNT 10 STREAMS mystream &gt;</span><br><span class="line"></span><br><span class="line"><span class="comment"># 消费成功，确认消息</span></span><br><span class="line">XACK mystream group1 1696800000000-0</span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看未确认（待处理）消息</span></span><br><span class="line">XPENDING mystream group1</span><br></pre></td></tr></table></figure>
+
+<h4 id="业务场景-7"><a href="#业务场景-7" class="headerlink" title="业务场景"></a>业务场景</h4><p>需要<strong>可靠投递 + 消费组 + 消息回溯</strong>的轻量级消息队列。比如订单超时取消、通知推送这类&quot;不能丢消息&quot;的场景，用 Stream 的消费组 + ACK 就能保证宕机后消息可重新领取。相比 Kafka &#x2F; RocketMQ，它胜在部署简单、与 Redis 一体；劣势是持久化和吞吐能力有限，不适合超大规模。</p>
+<p><strong>三种扩展类型速查</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>一句话概念</th>
+<th>核心命令</th>
+<th>典型场景</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Geo</td>
+<td>地理位置存储与距离计算</td>
+<td><code>GEOADD</code> &#x2F; <code>GEODIST</code> &#x2F; <code>GEOSEARCH</code></td>
+<td>附近的人&#x2F;店</td>
+</tr>
+<tr>
+<td>HyperLogLog</td>
+<td>概率性基数估算，最多约 12KB</td>
+<td><code>PFADD</code> &#x2F; <code>PFCOUNT</code> &#x2F; <code>PFMERGE</code></td>
+<td>海量 UV 统计</td>
+</tr>
+<tr>
+<td>Stream</td>
+<td>日志型消息队列，支持消费组与 ACK</td>
+<td><code>XADD</code> &#x2F; <code>XREADGROUP</code> &#x2F; <code>XACK</code></td>
+<td>可靠消息队列</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="五、配置参数与版本演进"><a href="#五、配置参数与版本演进" class="headerlink" title="五、配置参数与版本演进"></a>五、配置参数与版本演进</h2><p>前面反复提到的切换阈值，全部由 <code>redis.conf</code> 里的参数控制。理解它们，才能按业务特点调优。</p>
+<h3 id="5-1-参数默认值（含版本差异）"><a href="#5-1-参数默认值（含版本差异）" class="headerlink" title="5.1 参数默认值（含版本差异）"></a>5.1 参数默认值（含版本差异）</h3><table>
+<thead>
+<tr>
+<th>参数（7.x）</th>
+<th>默认值</th>
+<th>6.2 及以前的参数名</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>hash-max-listpack-entries</code></td>
+<td><strong>512</strong></td>
+<td><code>hash-max-ziplist-entries</code>（512）</td>
+<td>Hash 用紧凑编码的最大字段数</td>
+</tr>
+<tr>
+<td><code>hash-max-listpack-value</code></td>
+<td>64</td>
+<td><code>hash-max-ziplist-value</code>（64）</td>
+<td>Hash 单个 field&#x2F;value 的最大字节数</td>
+</tr>
+<tr>
+<td><code>list-max-listpack-size</code></td>
+<td><code>-2</code>（8KB）</td>
+<td><code>list-max-ziplist-size</code>（-2）</td>
+<td>每个 quicklist 节点的最大大小</td>
+</tr>
+<tr>
+<td><code>set-max-intset-entries</code></td>
+<td>512</td>
+<td><code>set-max-intset-entries</code>（512）</td>
+<td>Set 用 intset 的最大整数个数</td>
+</tr>
+<tr>
+<td><code>set-max-listpack-entries</code></td>
+<td>128（7.2+ 才有）</td>
+<td>——</td>
+<td>Set 用 listpack 的最大元素数</td>
+</tr>
+<tr>
+<td><code>set-max-listpack-value</code></td>
+<td>64（7.2+ 才有）</td>
+<td>——</td>
+<td>Set 元素用 listpack 的最大字节数</td>
+</tr>
+<tr>
+<td><code>zset-max-listpack-entries</code></td>
+<td>128</td>
+<td><code>zset-max-ziplist-entries</code>（128）</td>
+<td>ZSet 用紧凑编码的最大元素数</td>
+</tr>
+<tr>
+<td><code>zset-max-listpack-value</code></td>
+<td>64</td>
+<td><code>zset-max-ziplist-value</code>（64）</td>
+<td>ZSet 成员用紧凑编码的最大字节数</td>
+</tr>
+</tbody></table>
+<h3 id="5-2-调优思路"><a href="#5-2-调优思路" class="headerlink" title="5.2 调优思路"></a>5.2 调优思路</h3><ul>
+<li><strong>内存敏感、元素不大且不常做范围查询</strong>：可以适当调大阈值，让更多对象留在紧凑编码里省内存；</li>
+<li><strong>读多、要低延迟</strong>：不要盲目调大，紧凑结构里查找是 O(N)，大对象会拖慢单次操作；</li>
+<li><strong>转换不可逆</strong>：一旦转成 hashtable&#x2F;skiplist 就<strong>不会再转回来</strong>（即使后来元素减少了）。如果业务有&quot;先塞满再删空&quot;的模式，要留意这一点；</li>
+<li><strong>改参数是 CPU&#x2F;内存的权衡</strong>：官方建议改大阈值前先做基准测试，确认转换耗时可以接受。</li>
+</ul>
+<blockquote>
+<p>实用技巧：用 <code>redis-cli --bigkeys</code> 或 <code>MEMORY USAGE key</code> 观察大对象的实际编码。如果发现本该小的对象变成了 <code>hashtable</code>，检查是不是 value 长度超了 <code>*-listpack-value</code>，或者元素数超了阈值。</p>
+</blockquote>
+<hr>
+<h2 id="六、总结"><a href="#六、总结" class="headerlink" title="六、总结"></a>六、总结</h2><p>最后把整条主线收口。Redis 的数据类型体系，本质上就是 <strong>&quot;type 一层皮 + 多套底层结构内核&quot;</strong> 的多态设计：数据量小的时候用紧凑结构省内存，数据量大了自动切换成高性能结构。</p>
+<p><strong>八种底层结构要点回顾：</strong></p>
+<table>
+<thead>
+<tr>
+<th>结构</th>
+<th>主打</th>
+<th>关键设计</th>
+<th>解决问题</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>SDS</td>
+<td>省内存 &#x2F; 安全</td>
+<td>len&#x2F;alloc&#x2F;flags + 预分配惰性释放 + packed</td>
+<td>C 字符串长度 O(N)、非二进制安全、缓冲区溢出</td>
+</tr>
+<tr>
+<td>双向链表</td>
+<td>灵活</td>
+<td>prev&#x2F;next + list 封装</td>
+<td>任意类型存储、O(1) 前后访问</td>
+</tr>
+<tr>
+<td>ziplist</td>
+<td>省内存</td>
+<td>连续内存 + prevlen&#x2F;encoding 变长，用长度替代指针实现双向遍历</td>
+<td>小数据紧凑存储（但存在连锁更新）</td>
+</tr>
+<tr>
+<td>listpack</td>
+<td>省内存</td>
+<td>记录自身长度 element-tot-len</td>
+<td>保住双向遍历、根除连锁更新，7.0 全面取代 ziplist</td>
+</tr>
+<tr>
+<td>quicklist</td>
+<td>折中</td>
+<td>双向链表 + listpack 节点</td>
+<td>List 内存与两端操作性能的平衡</td>
+</tr>
+<tr>
+<td>hashtable</td>
+<td>快</td>
+<td>链地址法 + 渐进式 rehash</td>
+<td>O(1) 查找、大集合</td>
+</tr>
+<tr>
+<td>intset</td>
+<td>省内存</td>
+<td>有序整数数组 + 原地升级</td>
+<td>小整数集合</td>
+</tr>
+<tr>
+<td>跳表</td>
+<td>有序</td>
+<td>多层链表 + span + 随机层高(1&#x2F;4)</td>
+<td>范围查询、排名，ZSet 核心</td>
+</tr>
+</tbody></table>
+<p><strong>几个关键结论：</strong></p>
+<ol>
+<li><strong>type 与 encoding 解耦</strong>：对外类型固定，底层实现随数据自动切换，且转换基本不可逆。</li>
+<li><strong>记住几个关键数字</strong>：44（String）、512（Hash 与 Set 的 intset）、128（ZSet 与 Set 的 listpack）；Hash 的默认是 512，别和 ZSet 的 128 记混。</li>
+<li><strong>ziplist &#x2F; listpack 靠&quot;长度信息&quot;实现无指针的双向遍历</strong>：ziplist 记前一个长度（会连锁更新），listpack 记自己的长度（不会）。</li>
+<li><strong>Redis 7.0 用 listpack 全面替换 ziplist</strong>：影响 Hash、ZSet 的紧凑编码与 quicklist 节点；7.2 又给 Set 新增了 listpack 一档。</li>
+<li><strong>跳表 + 哈希表 &#x3D; ZSet 的最优组合</strong>：一个管范围与排名，一个管单点查分；跳表用 1&#x2F;4 概率的随机层高实现概率平衡。</li>
+<li><strong>选类型先看场景</strong>：缓存计数用 String、队列用 List&#x2F;Stream、对象用 Hash、去重用 Set、排行榜用 ZSet；海量 UV 用 HyperLogLog，LBS 用 Geo。</li>
+</ol>
+<p>理解底层不是为了背结构体，而是为了在选型、调参、排查内存问题时，知道 Redis 在背后替你做了哪些权衡。</p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://LI-S-H.github.io">青山木</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://li-s-h.github.io/2026/10/11/Redis%20%E4%B8%BA%E4%BB%80%E4%B9%88%E5%8F%88%E5%BF%AB%E5%8F%88%E7%9C%81%E5%86%85%E5%AD%98%EF%BC%9A%E4%BA%94%E5%A4%A7%E7%B1%BB%E5%9E%8B%E5%BA%95%E5%B1%82%E7%BB%93%E6%9E%84%E4%B8%8E%E7%BC%96%E7%A0%81%E5%88%87%E6%8D%A2%E5%85%A8%E8%A7%A3/">https://li-s-h.github.io/2026/10/11/Redis%20%E4%B8%BA%E4%BB%80%E4%B9%88%E5%8F%88%E5%BF%AB%E5%8F%88%E7%9C%81%E5%86%85%E5%AD%98%EF%BC%9A%E4%BA%94%E5%A4%A7%E7%B1%BB%E5%9E%8B%E5%BA%95%E5%B1%82%E7%BB%93%E6%9E%84%E4%B8%8E%E7%BC%96%E7%A0%81%E5%88%87%E6%8D%A2%E5%85%A8%E8%A7%A3/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://LI-S-H.github.io" target="_blank">青山木</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E5%8F%8C%E5%90%91%E9%93%BE%E8%A1%A8/">双向链表</a><a class="post-meta__tags" href="/tags/Redis/">Redis</a><a class="post-meta__tags" href="/tags/%E6%95%B0%E6%8D%AE%E7%B1%BB%E5%9E%8B/">数据类型</a><a class="post-meta__tags" href="/tags/%E5%BA%95%E5%B1%82%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84/">底层数据结构</a><a class="post-meta__tags" href="/tags/SDS/">SDS</a><a class="post-meta__tags" href="/tags/ziplist/">ziplist</a><a class="post-meta__tags" href="/tags/listpack/">listpack</a><a class="post-meta__tags" href="/tags/quicklist/">quicklist</a><a class="post-meta__tags" href="/tags/hashtable/">hashtable</a><a class="post-meta__tags" href="/tags/intset/">intset</a><a class="post-meta__tags" href="/tags/%E8%B7%B3%E8%A1%A8/">跳表</a><a class="post-meta__tags" href="/tags/%E7%BC%96%E7%A0%81%E8%BD%AC%E6%8D%A2/">编码转换</a><a class="post-meta__tags" href="/tags/Stream/">Stream</a><a class="post-meta__tags" href="/tags/Geo/">Geo</a><a class="post-meta__tags" href="/tags/HyperLogLog/">HyperLogLog</a></div><div class="post-share"><div class="social-share" data-image="/img/title-picture/Redis%20%E4%B8%BA%E4%BB%80%E4%B9%88%E5%8F%88%E5%BF%AB%E5%8F%88%E7%9C%81%E5%86%85%E5%AD%98.jpg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/2026/10/03/%E7%A7%92%E6%9D%80%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%EF%BC%88%E4%B8%89%EF%BC%89%EF%BC%9A%E8%A7%84%E6%A8%A1%E6%89%A9%E5%B1%95/" title="秒杀系统设计（三）：规模扩展——库存分片与容量规划"><img class="cover" src="/img/title-picture/%E7%A7%92%E6%9D%80%E8%AE%BE%E8%AE%A1%E4%B8%89.jpg" onerror="onerror=null;src='/img/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">秒杀系统设计（三）：规模扩展——库存分片与容量规划</div></div><div class="info-2"><div class="info-item-1">前两篇的方案，都建立在"一个商品、库存 100 件"这个前提上。作为系列第三篇，本文先讨论前提被打破时怎么办：大库存怎么做库存分桶（DB 侧与 Redis 侧，以及路由算法必须一致这条铁律）、多商品怎么分库分表、分片最大的坑"分桶不均导致少卖"的两种解法（预留兜底桶与桶间借调）；再回答最实际的问题——基于压测基线与漏斗衰减，逐层算出到底要几台机器。</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/2026/06/17/%E4%B8%80%E8%A1%8C%E4%BB%A3%E7%A0%81%E7%99%BB%E5%BD%95%EF%BC%8C%E5%BE%AE%E7%A7%92%E7%BA%A7%E9%89%B4%E6%9D%83%EF%BC%9ASa-Token%20+%20Redis%20Session%20%E5%AE%9E%E8%B7%B5/" title="一行代码登录，微秒级鉴权：Sa-Token + Redis Session 实践"><img class="cover" src="/img/title-picture/sa-token.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-06-17</div><div class="info-item-2">一行代码登录，微秒级鉴权：Sa-Token + Redis Session 实践</div></div><div class="info-2"><div class="info-item-1">本文从实际项目出发，深入讲解 Sa-Token 的完整使用流程、底层鉴权机制以及基于 Redis Session 共享的性能优化方案</div></div></div></a><a class="pagination-related" href="/2026/10/01/%E7%A7%92%E6%9D%80%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9A%E9%9C%80%E6%B1%82%E6%8B%86%E8%A7%A3%E4%B8%8E%E6%B5%81%E9%87%8F%E6%B2%BB%E7%90%86/" title="秒杀系统设计（一）：需求拆解与流量治理"><img class="cover" src="/img/title-picture/%E7%A7%92%E6%9D%80%E8%AE%BE%E8%AE%A1%E4%B8%80.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-01</div><div class="info-item-2">秒杀系统设计（一）：需求拆解与流量治理</div></div><div class="info-2"><div class="info-item-1">秒杀的本质是漏斗，不是堆机器。作为系列第一篇，本文先拆解秒杀的功能与非功能需求（一人一单、防超卖、支持海量用户抢购），再用一段朴素代码暴露三类高并发问题，然后按"由外到内"的顺序逐层削流量：接入层的架构层次设计（单机 Nginx → 集群 → LVS/F5 → DNS 轮询）、Nginx 限流与 OpenResty、应用层令牌桶、Redis 挡量与 MQ 削峰，并给出 MQ 选型建议与每一层的坑点。</div></div></div></a><a class="pagination-related" href="/2026/10/02/%E7%A7%92%E6%9D%80%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9A%E6%95%B0%E6%8D%AE%E6%AD%A3%E7%A1%AE%E6%80%A7/" title="秒杀系统设计（二）：数据正确性——防超卖、分布式锁与一人一单"><img class="cover" src="/img/title-picture/%E7%A7%92%E6%9D%80%E8%AE%BE%E8%AE%A1%E4%BA%8C.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-02</div><div class="info-item-2">秒杀系统设计（二）：数据正确性——防超卖、分布式锁与一人一单</div></div><div class="info-2"><div class="info-item-1">流量问题解决后，系统活下来了，但不代表数据是对的。作为系列第二篇，本文解决秒杀里两件"必须正确"的事：一是库存不能超卖——从 Redis 侧的 Lua 原子扣减，到数据库侧的四种并发控制方案（悲观锁、乐观锁、CAS 原子 SQL、分布式锁）、三种锁的等待机制，以及"锁必须放在事务外"等三个坑点；二是一人只能有一单——三种实现方案、幂等设计，以及超时未支付的库存回补。</div></div></div></a><a class="pagination-related" href="/2026/04/26/Redis%E6%A0%B8%E5%BF%83%E5%AE%9E%E6%88%98%EF%BC%9A%E4%BB%8E%E7%BC%93%E5%AD%98%E8%AE%BE%E8%AE%A1%E5%88%B0%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81%E7%9A%84%E6%B7%B1%E5%BA%A6%E8%A7%A3%E6%9E%90/" title="Redis核心实战：从缓存设计到分布式锁的深度解析"><img class="cover" src="/img/title-picture/redis.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-04-26</div><div class="info-item-2">Redis核心实战：从缓存设计到分布式锁的深度解析</div></div><div class="info-2"><div class="info-item-1">本文从实际场景入手，系统讲解Redis的核心知识，涵盖缓存设计基础（缓存策略、Key设计规范）、缓存击穿/穿透/雪崩三大问题的解决方案，以及秒杀与一人一单等业务场景下的分布式锁实战应用</div></div></div></a><a class="pagination-related" href="/2026/07/12/Redis%20%E9%AB%98%E5%8F%AF%E7%94%A8%E7%9A%84%E6%9C%80%E5%90%8E%E4%B8%80%E5%85%AC%E9%87%8C%EF%BC%9ACluster%20%E5%88%86%E7%89%87%20Gossip%20%E4%B8%8E%E6%95%85%E9%9A%9C%E8%BD%AC%E7%A7%BB%E5%85%A8%E6%B5%81%E7%A8%8B/" title="Redis 高可用的最后一公里：Cluster 分片、Gossip 与故障转移全流程"><img class="cover" src="/img/title-picture/redis.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-12</div><div class="info-item-2">Redis 高可用的最后一公里：Cluster 分片、Gossip 与故障转移全流程</div></div><div class="info-2"><div class="info-item-1">主从+哨兵解决了高可用，但解决不了容量瓶颈。本文从数据分片出发，讲清楚 Redis Cluster 如何通过哈希槽分片、MOVED/ASK 重定向实现不停机扩容，如何通过 Gossip 协议完成去中心化通信，以及如何实现故障转移。</div></div></div></a><a class="pagination-related" href="/2026/07/15/%E4%B8%80%E6%8A%8A%20Redis%20%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81%EF%BC%8C%E8%B8%A9%E9%80%8F%E5%9B%9B%E4%B8%AA%E5%9D%91%EF%BC%9A%E9%94%81%E4%BA%89%E6%8A%A2%E3%80%81%E5%83%B5%E5%B0%B8%E9%94%81%E3%80%81%E9%94%81%E8%BF%87%E6%9C%9F%E3%80%81%E9%94%81%E4%B8%A2%E5%A4%B1/" title="一把 Redis 分布式锁，踩透四个坑：锁争抢、僵尸锁、锁过期、锁丢失"><img class="cover" src="/img/title-picture/%E4%B8%80%E6%8A%8A%20Redis%20%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81%EF%BC%8C%E8%B8%A9%E9%80%8F%E5%9B%9B%E4%B8%AA%E5%9D%91%EF%BC%9A%E9%94%81%E4%BA%89%E6%8A%A2%E3%80%81%E5%83%B5%E5%B0%B8%E9%94%81%E3%80%81%E9%94%81%E8%BF%87%E6%9C%9F%E3%80%81%E9%94%81%E4%B8%A2%E5%A4%B1.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-15</div><div class="info-item-2">一把 Redis 分布式锁，踩透四个坑：锁争抢、僵尸锁、锁过期、锁丢失</div></div><div class="info-2"><div class="info-item-1">Java 的 synchronized 和 ReentrantLock 只能锁住单个 JVM，多节点部署下会完全失效。本文从"为什么需要分布式锁"切入，按"问题 → 解决 → 引出新问题 → 再解决"的思路，讲清楚 Redis 分布式锁要解决的四大核心问题：锁争抢、僵尸锁、锁过期、锁高可用，以及对应的 SET NX EX、TTL 兜底、看门狗、UUID+Lua、RedLock 方案。</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/%E5%A4%B4%E5%83%8F.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">青山木</div><div class="author-info-description">正在学习Java后端开发＋智能体开发，希望能与大家多多交流</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">115</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">257</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">7</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/LI-S-H"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/LI-S-H" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">欢迎来到我的博客，记录学习与成长的点滴。</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E9%98%85%E8%AF%BB%E8%B7%AF%E7%BA%BF"><span class="toc-number">1.</span> <span class="toc-text">阅读路线</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%80%E3%80%81%E4%B8%80%E5%A5%97%E6%8E%A5%E5%8F%A3%EF%BC%8C%E5%A4%9A%E5%A5%97%E5%86%85%E6%A0%B8%EF%BC%9Atype-%E4%B8%8E-encoding"><span class="toc-number">2.</span> <span class="toc-text">一、一套接口，多套内核：type 与 encoding</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1-1-type-%E5%92%8C-encoding-%E6%98%AF%E4%B8%A4%E4%BB%B6%E4%BA%8B"><span class="toc-number">2.1.</span> <span class="toc-text">1.1 type 和 encoding 是两件事</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-2-%E4%B8%BA%E4%BB%80%E4%B9%88%E5%90%8C%E4%B8%80%E4%B8%AA%E7%B1%BB%E5%9E%8B%E8%A6%81%E6%9C%89%E5%A4%9A%E7%A7%8D%E5%AE%9E%E7%8E%B0"><span class="toc-number">2.2.</span> <span class="toc-text">1.2 为什么同一个类型要有多种实现</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-3-%E4%BA%94%E7%A7%8D%E7%B1%BB%E5%9E%8B%E7%9A%84%E5%BA%95%E5%B1%82%E7%BB%93%E6%9E%84%E6%A6%82%E8%A7%88%EF%BC%88%E6%96%B0%E6%97%A7%E7%89%88%E6%9C%AC%E5%AF%B9%E6%AF%94%EF%BC%89"><span class="toc-number">2.3.</span> <span class="toc-text">1.3 五种类型的底层结构概览（新旧版本对比）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-4-%E7%BC%96%E7%A0%81%E5%88%87%E6%8D%A2%E9%98%88%E5%80%BC%E6%80%BB%E8%A1%A8%EF%BC%88%E5%90%AB%E6%AD%A3%E7%A1%AE%E9%BB%98%E8%AE%A4%E5%80%BC%EF%BC%89"><span class="toc-number">2.4.</span> <span class="toc-text">1.4 编码切换阈值总表（含正确默认值）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-5-%E5%BA%95%E5%B1%82%E7%BB%93%E6%9E%84%E7%9A%84%E7%89%88%E6%9C%AC%E6%BC%94%E8%BF%9B%E6%80%BB%E8%A1%A8"><span class="toc-number">2.5.</span> <span class="toc-text">1.5 底层结构的版本演进总表</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%8C%E3%80%81%E5%85%AB%E7%A7%8D%E5%BA%95%E5%B1%82%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E8%AF%A6%E8%A7%A3"><span class="toc-number">3.</span> <span class="toc-text">二、八种底层数据结构详解</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#2-1-SDS%EF%BC%9A%E5%8A%A8%E6%80%81%E5%AD%97%E7%AC%A6%E4%B8%B2"><span class="toc-number">3.1.</span> <span class="toc-text">2.1 SDS：动态字符串</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%AE%83%E8%A6%81%E8%A7%A3%E5%86%B3-C-%E5%AD%97%E7%AC%A6%E4%B8%B2%E7%9A%84%E4%BB%80%E4%B9%88%E9%97%AE%E9%A2%98"><span class="toc-number">3.1.1.</span> <span class="toc-text">它要解决 C 字符串的什么问题</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%BB%93%E6%9E%84"><span class="toc-number">3.1.2.</span> <span class="toc-text">结构</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E4%B8%89%E4%B8%AA%E6%A0%B8%E5%BF%83%E4%BC%98%E5%8A%BF"><span class="toc-number">3.1.3.</span> <span class="toc-text">三个核心优势</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%B1%BB%E5%9E%8B%E5%88%86%E6%A1%A3%EF%BC%9A%E7%94%A8%E4%B8%8D%E5%90%8C%E7%B2%BE%E5%BA%A6%E7%9A%84%E5%A4%B4%E9%83%A8%E7%9C%81%E5%86%85%E5%AD%98"><span class="toc-number">3.1.4.</span> <span class="toc-text">类型分档：用不同精度的头部省内存</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%BC%96%E8%AF%91%E4%BC%98%E5%8C%96%EF%BC%9A-attribute-packed"><span class="toc-number">3.1.5.</span> <span class="toc-text">编译优化：__attribute__ ((packed))</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-2-%E5%8F%8C%E5%90%91%E9%93%BE%E8%A1%A8"><span class="toc-number">3.2.</span> <span class="toc-text">2.2 双向链表</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-3-ziplist%EF%BC%9A%E5%8E%8B%E7%BC%A9%E5%88%97%E8%A1%A8%EF%BC%8C%E4%BB%A5%E5%8F%8A%E5%AE%83%E5%A6%82%E4%BD%95-%E4%B8%8D%E7%94%A8%E6%8C%87%E9%92%88%E4%B9%9F%E8%83%BD%E5%BD%93%E9%93%BE%E8%A1%A8%E7%94%A8"><span class="toc-number">3.3.</span> <span class="toc-text">2.3 ziplist：压缩列表，以及它如何&quot;不用指针也能当链表用&quot;</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E6%95%B4%E4%BD%93%E7%BB%93%E6%9E%84"><span class="toc-number">3.3.1.</span> <span class="toc-text">整体结构</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#entry-%E7%9A%84%E7%BB%93%E6%9E%84"><span class="toc-number">3.3.2.</span> <span class="toc-text">entry 的结构</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%AE%83%E6%98%AF%E6%80%8E%E4%B9%88-%E4%B8%8D%E7%94%A8%E6%8C%87%E9%92%88%E4%B9%9F%E8%83%BD%E5%BD%93%E9%93%BE%E8%A1%A8%E7%94%A8-%E7%9A%84"><span class="toc-number">3.3.3.</span> <span class="toc-text">它是怎么&quot;不用指针也能当链表用&quot;的</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E8%87%B4%E5%91%BD%E7%BC%BA%E9%99%B7%EF%BC%9A%E8%BF%9E%E9%94%81%E6%9B%B4%E6%96%B0"><span class="toc-number">3.3.4.</span> <span class="toc-text">致命缺陷：连锁更新</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-4-listpack%EF%BC%9A%E7%B4%A7%E5%87%91%E5%88%97%E8%A1%A8%EF%BC%8C%E4%BB%A5%E5%8F%8A%E5%AE%83%E6%98%AF%E6%80%8E%E4%B9%88%E6%8A%8A-%E8%A1%A5%E4%B8%81-%E6%89%93%E4%B8%8A%E7%9A%84"><span class="toc-number">3.4.</span> <span class="toc-text">2.4 listpack：紧凑列表，以及它是怎么把&quot;补丁&quot;打上的</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E6%95%B4%E4%BD%93%E7%BB%93%E6%9E%84-1"><span class="toc-number">3.4.1.</span> <span class="toc-text">整体结构</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#entry-%E7%9A%84%E7%BB%93%E6%9E%84-1"><span class="toc-number">3.4.2.</span> <span class="toc-text">entry 的结构</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E9%82%A3%E5%AE%83%E8%BF%98%E8%83%BD%E5%83%8F%E9%93%BE%E8%A1%A8%E4%B8%80%E6%A0%B7%E4%BB%8E%E5%90%8E%E5%BE%80%E5%89%8D%E9%81%8D%E5%8E%86%E5%90%97"><span class="toc-number">3.4.3.</span> <span class="toc-text">那它还能像链表一样从后往前遍历吗</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-5-quicklist%EF%BC%9A%E5%88%97%E8%A1%A8%E7%9A%84%E6%8A%98%E4%B8%AD%E6%96%B9%E6%A1%88"><span class="toc-number">3.5.</span> <span class="toc-text">2.5 quicklist：列表的折中方案</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E9%9C%80%E8%A6%81-quicklist"><span class="toc-number">3.5.1.</span> <span class="toc-text">为什么需要 quicklist</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%BB%93%E6%9E%84-1"><span class="toc-number">3.5.2.</span> <span class="toc-text">结构</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%AE%83%E6%80%8E%E4%B9%88%E7%BC%93%E8%A7%A3-%E8%A7%A3%E5%86%B3%E8%BF%9E%E9%94%81%E6%9B%B4%E6%96%B0"><span class="toc-number">3.5.3.</span> <span class="toc-text">它怎么缓解 &#x2F; 解决连锁更新</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#quicklist-%E7%9A%84%E6%BC%94%E8%BF%9B"><span class="toc-number">3.5.4.</span> <span class="toc-text">quicklist 的演进</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-6-hashtable%EF%BC%9A%E5%93%88%E5%B8%8C%E8%A1%A8"><span class="toc-number">3.6.</span> <span class="toc-text">2.6 hashtable：哈希表</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%BB%93%E6%9E%84-2"><span class="toc-number">3.6.1.</span> <span class="toc-text">结构</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%80%BC%E4%B8%BA%E4%BB%80%E4%B9%88%E7%94%A8%E8%81%94%E5%90%88%E4%BD%93"><span class="toc-number">3.6.2.</span> <span class="toc-text">值为什么用联合体</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%93%88%E5%B8%8C%E5%86%B2%E7%AA%81%E4%B8%8E%E9%93%BE%E5%9C%B0%E5%9D%80%E6%B3%95"><span class="toc-number">3.6.3.</span> <span class="toc-text">哈希冲突与链地址法</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E6%B8%90%E8%BF%9B%E5%BC%8F-rehash"><span class="toc-number">3.6.4.</span> <span class="toc-text">渐进式 rehash</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#rehash-%E7%9A%84%E8%A7%A6%E5%8F%91%E6%9D%A1%E4%BB%B6%E4%B8%8E%E8%B4%9F%E8%BD%BD%E5%9B%A0%E5%AD%90"><span class="toc-number">3.6.5.</span> <span class="toc-text">rehash 的触发条件与负载因子</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-7-intset%EF%BC%9A%E6%95%B4%E6%95%B0%E9%9B%86%E5%90%88"><span class="toc-number">3.7.</span> <span class="toc-text">2.7 intset：整数集合</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%BB%93%E6%9E%84-3"><span class="toc-number">3.7.1.</span> <span class="toc-text">结构</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%8D%87%E7%BA%A7%E6%9C%BA%E5%88%B6"><span class="toc-number">3.7.2.</span> <span class="toc-text">升级机制</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%8D%87%E7%BA%A7%E8%BF%87%E7%A8%8B%E4%B8%BE%E4%BE%8B%EF%BC%88%E5%8E%9F%E5%9C%B0%E8%BD%AC%E6%8D%A2%EF%BC%89"><span class="toc-number">3.7.3.</span> <span class="toc-text">升级过程举例（原地转换）</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E5%8F%AA%E5%8D%87%E7%BA%A7%E3%80%81%E4%B8%8D%E9%99%8D%E7%BA%A7"><span class="toc-number">3.7.4.</span> <span class="toc-text">为什么只升级、不降级</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E9%80%82%E7%94%A8%E5%9C%BA%E6%99%AF"><span class="toc-number">3.7.5.</span> <span class="toc-text">适用场景</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-8-%E8%B7%B3%E8%A1%A8%EF%BC%9AZSet-%E7%9A%84%E6%A0%B8%E5%BF%83%E7%BB%93%E6%9E%84"><span class="toc-number">3.8.</span> <span class="toc-text">2.8 跳表：ZSet 的核心结构</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E9%97%AE%E9%A2%98%EF%BC%9A%E6%97%A2%E8%A6%81-O-log-N-%E6%9F%A5%E6%89%BE%EF%BC%8C%E5%8F%88%E8%A6%81%E6%94%AF%E6%8C%81%E8%8C%83%E5%9B%B4%E6%9F%A5%E8%AF%A2"><span class="toc-number">3.8.1.</span> <span class="toc-text">问题：既要 O(log N) 查找，又要支持范围查询</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%BB%93%E6%9E%84%EF%BC%9A%E5%A4%9A%E5%B1%82%E9%93%BE%E8%A1%A8-%E9%9A%8F%E6%9C%BA%E5%B1%82%E9%AB%98"><span class="toc-number">3.8.2.</span> <span class="toc-text">结构：多层链表 + 随机层高</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E8%8A%82%E7%82%B9%E5%B1%82%E6%95%B0%E6%98%AF%E6%80%8E%E4%B9%88%E6%9D%A5%E7%9A%84%EF%BC%88%E8%BF%99%E4%B8%80%E7%82%B9%E5%BE%88%E9%87%8D%E8%A6%81%EF%BC%89"><span class="toc-number">3.8.3.</span> <span class="toc-text">节点层数是怎么来的（这一点很重要）</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E6%9F%A5%E8%AF%A2%E8%BF%87%E7%A8%8B%EF%BC%88%E4%B8%BE%E4%BE%8B%EF%BC%89"><span class="toc-number">3.8.4.</span> <span class="toc-text">查询过程（举例）</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E8%B7%B3%E8%A1%A8%E5%9C%A8-ZSet-%E9%87%8C%E8%B4%9F%E8%B4%A3%E4%BB%80%E4%B9%88"><span class="toc-number">3.8.5.</span> <span class="toc-text">跳表在 ZSet 里负责什么</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E9%80%89%E8%B7%B3%E8%A1%A8%E8%80%8C%E4%B8%8D%E6%98%AF%E7%BA%A2%E9%BB%91%E6%A0%91"><span class="toc-number">3.8.6.</span> <span class="toc-text">为什么选跳表而不是红黑树</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88-ZSet-%E5%90%8C%E6%97%B6%E7%94%A8%E8%B7%B3%E8%A1%A8%E5%92%8C%E5%93%88%E5%B8%8C%E8%A1%A8"><span class="toc-number">3.8.7.</span> <span class="toc-text">为什么 ZSet 同时用跳表和哈希表</span></a></li></ol></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%89%E3%80%81%E4%BA%94%E5%A4%A7%E5%9F%BA%E6%9C%AC%E7%B1%BB%E5%9E%8B%EF%BC%9A%E7%BC%96%E7%A0%81%E3%80%81%E5%91%BD%E4%BB%A4%E4%B8%8E%E4%B8%9A%E5%8A%A1%E5%9C%BA%E6%99%AF"><span class="toc-number">4.</span> <span class="toc-text">三、五大基本类型：编码、命令与业务场景</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#3-1-String%EF%BC%88%E5%AD%97%E7%AC%A6%E4%B8%B2%EF%BC%89"><span class="toc-number">4.1.</span> <span class="toc-text">3.1 String（字符串）</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%BA%95%E5%B1%82%E7%BC%96%E7%A0%81"><span class="toc-number">4.1.1.</span> <span class="toc-text">底层编码</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E8%BF%99%E6%A0%B7%E8%AE%BE%E8%AE%A1"><span class="toc-number">4.1.2.</span> <span class="toc-text">为什么这样设计</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%AE%8C%E6%95%B4%E5%91%BD%E4%BB%A4%E7%A4%BA%E4%BE%8B"><span class="toc-number">4.1.3.</span> <span class="toc-text">完整命令示例</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E4%B8%9A%E5%8A%A1%E5%9C%BA%E6%99%AF"><span class="toc-number">4.1.4.</span> <span class="toc-text">业务场景</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-2-List%EF%BC%88%E5%88%97%E8%A1%A8%EF%BC%89"><span class="toc-number">4.2.</span> <span class="toc-text">3.2 List（列表）</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%BA%95%E5%B1%82%E7%BC%96%E7%A0%81-1"><span class="toc-number">4.2.1.</span> <span class="toc-text">底层编码</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E8%BF%99%E6%A0%B7%E8%AE%BE%E8%AE%A1-1"><span class="toc-number">4.2.2.</span> <span class="toc-text">为什么这样设计</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%AE%8C%E6%95%B4%E5%91%BD%E4%BB%A4%E7%A4%BA%E4%BE%8B-1"><span class="toc-number">4.2.3.</span> <span class="toc-text">完整命令示例</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E4%B8%9A%E5%8A%A1%E5%9C%BA%E6%99%AF-1"><span class="toc-number">4.2.4.</span> <span class="toc-text">业务场景</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-3-Hash%EF%BC%88%E5%93%88%E5%B8%8C%EF%BC%89"><span class="toc-number">4.3.</span> <span class="toc-text">3.3 Hash（哈希）</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%BA%95%E5%B1%82%E7%BC%96%E7%A0%81-2"><span class="toc-number">4.3.1.</span> <span class="toc-text">底层编码</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E8%BF%99%E6%A0%B7%E8%AE%BE%E8%AE%A1-2"><span class="toc-number">4.3.2.</span> <span class="toc-text">为什么这样设计</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%AE%8C%E6%95%B4%E5%91%BD%E4%BB%A4%E7%A4%BA%E4%BE%8B-2"><span class="toc-number">4.3.3.</span> <span class="toc-text">完整命令示例</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E4%B8%9A%E5%8A%A1%E5%9C%BA%E6%99%AF-2"><span class="toc-number">4.3.4.</span> <span class="toc-text">业务场景</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-4-Set%EF%BC%88%E9%9B%86%E5%90%88%EF%BC%89"><span class="toc-number">4.4.</span> <span class="toc-text">3.4 Set（集合）</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%BA%95%E5%B1%82%E7%BC%96%E7%A0%81-3"><span class="toc-number">4.4.1.</span> <span class="toc-text">底层编码</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E8%BF%99%E6%A0%B7%E8%AE%BE%E8%AE%A1-3"><span class="toc-number">4.4.2.</span> <span class="toc-text">为什么这样设计</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%AE%8C%E6%95%B4%E5%91%BD%E4%BB%A4%E7%A4%BA%E4%BE%8B-3"><span class="toc-number">4.4.3.</span> <span class="toc-text">完整命令示例</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E4%B8%9A%E5%8A%A1%E5%9C%BA%E6%99%AF-3"><span class="toc-number">4.4.4.</span> <span class="toc-text">业务场景</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-5-ZSet%EF%BC%88%E6%9C%89%E5%BA%8F%E9%9B%86%E5%90%88%EF%BC%89"><span class="toc-number">4.5.</span> <span class="toc-text">3.5 ZSet（有序集合）</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%BA%95%E5%B1%82%E7%BC%96%E7%A0%81-4"><span class="toc-number">4.5.1.</span> <span class="toc-text">底层编码</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E8%BF%99%E6%A0%B7%E8%AE%BE%E8%AE%A1-4"><span class="toc-number">4.5.2.</span> <span class="toc-text">为什么这样设计</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%AE%8C%E6%95%B4%E5%91%BD%E4%BB%A4%E7%A4%BA%E4%BE%8B-4"><span class="toc-number">4.5.3.</span> <span class="toc-text">完整命令示例</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E4%B8%9A%E5%8A%A1%E5%9C%BA%E6%99%AF-4"><span class="toc-number">4.5.4.</span> <span class="toc-text">业务场景</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BA%94%E5%A4%A7%E7%B1%BB%E5%9E%8B%E9%80%9F%E6%9F%A5"><span class="toc-number">4.6.</span> <span class="toc-text">五大类型速查</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%9B%9B%E3%80%81%E4%B8%89%E7%A7%8D%E6%89%A9%E5%B1%95%E7%B1%BB%E5%9E%8B%EF%BC%9AGeo%E3%80%81HyperLogLog%E3%80%81Stream"><span class="toc-number">5.</span> <span class="toc-text">四、三种扩展类型：Geo、HyperLogLog、Stream</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#4-1-Geo%EF%BC%9A%E5%9C%B0%E7%90%86%E4%BD%8D%E7%BD%AE%E8%AE%A1%E7%AE%97"><span class="toc-number">5.1.</span> <span class="toc-text">4.1 Geo：地理位置计算</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E6%A6%82%E5%BF%B5"><span class="toc-number">5.1.1.</span> <span class="toc-text">概念</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%AE%8C%E6%95%B4%E5%91%BD%E4%BB%A4%E7%A4%BA%E4%BE%8B-5"><span class="toc-number">5.1.2.</span> <span class="toc-text">完整命令示例</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E4%B8%9A%E5%8A%A1%E5%9C%BA%E6%99%AF-5"><span class="toc-number">5.1.3.</span> <span class="toc-text">业务场景</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-2-HyperLogLog%EF%BC%9A%E5%9F%BA%E6%95%B0%E7%BB%9F%E8%AE%A1"><span class="toc-number">5.2.</span> <span class="toc-text">4.2 HyperLogLog：基数统计</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E6%A6%82%E5%BF%B5-1"><span class="toc-number">5.2.1.</span> <span class="toc-text">概念</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%AE%8C%E6%95%B4%E5%91%BD%E4%BB%A4%E7%A4%BA%E4%BE%8B-6"><span class="toc-number">5.2.2.</span> <span class="toc-text">完整命令示例</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E4%B8%9A%E5%8A%A1%E5%9C%BA%E6%99%AF-6"><span class="toc-number">5.2.3.</span> <span class="toc-text">业务场景</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-3-Stream%EF%BC%9A%E5%8F%AF%E5%BD%93%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97%E7%94%A8"><span class="toc-number">5.3.</span> <span class="toc-text">4.3 Stream：可当消息队列用</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E6%A6%82%E5%BF%B5-2"><span class="toc-number">5.3.1.</span> <span class="toc-text">概念</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%AE%8C%E6%95%B4%E5%91%BD%E4%BB%A4%E7%A4%BA%E4%BE%8B-7"><span class="toc-number">5.3.2.</span> <span class="toc-text">完整命令示例</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E4%B8%9A%E5%8A%A1%E5%9C%BA%E6%99%AF-7"><span class="toc-number">5.3.3.</span> <span class="toc-text">业务场景</span></a></li></ol></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%94%E3%80%81%E9%85%8D%E7%BD%AE%E5%8F%82%E6%95%B0%E4%B8%8E%E7%89%88%E6%9C%AC%E6%BC%94%E8%BF%9B"><span class="toc-number">6.</span> <span class="toc-text">五、配置参数与版本演进</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#5-1-%E5%8F%82%E6%95%B0%E9%BB%98%E8%AE%A4%E5%80%BC%EF%BC%88%E5%90%AB%E7%89%88%E6%9C%AC%E5%B7%AE%E5%BC%82%EF%BC%89"><span class="toc-number">6.1.</span> <span class="toc-text">5.1 参数默认值（含版本差异）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#5-2-%E8%B0%83%E4%BC%98%E6%80%9D%E8%B7%AF"><span class="toc-number">6.2.</span> <span class="toc-text">5.2 调优思路</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%85%AD%E3%80%81%E6%80%BB%E7%BB%93"><span class="toc-number">7.</span> <span class="toc-text">六、总结</span></a></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/2026/10/11/Redis%20%E4%B8%BA%E4%BB%80%E4%B9%88%E5%8F%88%E5%BF%AB%E5%8F%88%E7%9C%81%E5%86%85%E5%AD%98%EF%BC%9A%E4%BA%94%E5%A4%A7%E7%B1%BB%E5%9E%8B%E5%BA%95%E5%B1%82%E7%BB%93%E6%9E%84%E4%B8%8E%E7%BC%96%E7%A0%81%E5%88%87%E6%8D%A2%E5%85%A8%E8%A7%A3/" title="Redis 为什么又快又省内存？五大类型底层结构与编码切换全解"><img src="/img/title-picture/Redis%20%E4%B8%BA%E4%BB%80%E4%B9%88%E5%8F%88%E5%BF%AB%E5%8F%88%E7%9C%81%E5%86%85%E5%AD%98.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Redis 为什么又快又省内存？五大类型底层结构与编码切换全解"/></a><div class="content"><a class="title" href="/2026/10/11/Redis%20%E4%B8%BA%E4%BB%80%E4%B9%88%E5%8F%88%E5%BF%AB%E5%8F%88%E7%9C%81%E5%86%85%E5%AD%98%EF%BC%9A%E4%BA%94%E5%A4%A7%E7%B1%BB%E5%9E%8B%E5%BA%95%E5%B1%82%E7%BB%93%E6%9E%84%E4%B8%8E%E7%BC%96%E7%A0%81%E5%88%87%E6%8D%A2%E5%85%A8%E8%A7%A3/" title="Redis 为什么又快又省内存？五大类型底层结构与编码切换全解">Redis 为什么又快又省内存？五大类型底层结构与编码切换全解</a><time datetime="2026-10-11T15:00:00.000Z" title="发表于 2026-10-11 23:00:00">2026-10-11</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/10/03/%E7%A7%92%E6%9D%80%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%EF%BC%88%E4%B8%89%EF%BC%89%EF%BC%9A%E8%A7%84%E6%A8%A1%E6%89%A9%E5%B1%95/" title="秒杀系统设计（三）：规模扩展——库存分片与容量规划"><img src="/img/title-picture/%E7%A7%92%E6%9D%80%E8%AE%BE%E8%AE%A1%E4%B8%89.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="秒杀系统设计（三）：规模扩展——库存分片与容量规划"/></a><div class="content"><a class="title" href="/2026/10/03/%E7%A7%92%E6%9D%80%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%EF%BC%88%E4%B8%89%EF%BC%89%EF%BC%9A%E8%A7%84%E6%A8%A1%E6%89%A9%E5%B1%95/" title="秒杀系统设计（三）：规模扩展——库存分片与容量规划">秒杀系统设计（三）：规模扩展——库存分片与容量规划</a><time datetime="2026-10-03T02:00:00.000Z" title="发表于 2026-10-03 10:00:00">2026-10-03</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/10/02/%E7%A7%92%E6%9D%80%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9A%E6%95%B0%E6%8D%AE%E6%AD%A3%E7%A1%AE%E6%80%A7/" title="秒杀系统设计（二）：数据正确性——防超卖、分布式锁与一人一单"><img src="/img/title-picture/%E7%A7%92%E6%9D%80%E8%AE%BE%E8%AE%A1%E4%BA%8C.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="秒杀系统设计（二）：数据正确性——防超卖、分布式锁与一人一单"/></a><div class="content"><a class="title" href="/2026/10/02/%E7%A7%92%E6%9D%80%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%EF%BC%88%E4%BA%8C%EF%BC%89%EF%BC%9A%E6%95%B0%E6%8D%AE%E6%AD%A3%E7%A1%AE%E6%80%A7/" title="秒杀系统设计（二）：数据正确性——防超卖、分布式锁与一人一单">秒杀系统设计（二）：数据正确性——防超卖、分布式锁与一人一单</a><time datetime="2026-10-02T02:00:00.000Z" title="发表于 2026-10-02 10:00:00">2026-10-02</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/10/01/%E7%A7%92%E6%9D%80%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9A%E9%9C%80%E6%B1%82%E6%8B%86%E8%A7%A3%E4%B8%8E%E6%B5%81%E9%87%8F%E6%B2%BB%E7%90%86/" title="秒杀系统设计（一）：需求拆解与流量治理"><img src="/img/title-picture/%E7%A7%92%E6%9D%80%E8%AE%BE%E8%AE%A1%E4%B8%80.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="秒杀系统设计（一）：需求拆解与流量治理"/></a><div class="content"><a class="title" href="/2026/10/01/%E7%A7%92%E6%9D%80%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1%EF%BC%88%E4%B8%80%EF%BC%89%EF%BC%9A%E9%9C%80%E6%B1%82%E6%8B%86%E8%A7%A3%E4%B8%8E%E6%B5%81%E9%87%8F%E6%B2%BB%E7%90%86/" title="秒杀系统设计（一）：需求拆解与流量治理">秒杀系统设计（一）：需求拆解与流量治理</a><time datetime="2026-10-01T02:00:00.000Z" title="发表于 2026-10-01 10:00:00">2026-10-01</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/09/29/Hot%20100%20---%20%E5%AF%BB%E6%89%BE%E9%87%8D%E5%A4%8D%E6%95%B0/" title="Hot 100 --- 寻找重复数"><img src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hot 100 --- 寻找重复数"/></a><div class="content"><a class="title" href="/2026/09/29/Hot%20100%20---%20%E5%AF%BB%E6%89%BE%E9%87%8D%E5%A4%8D%E6%95%B0/" title="Hot 100 --- 寻找重复数">Hot 100 --- 寻找重复数</a><time datetime="2026-09-29T14:30:00.000Z" title="发表于 2026-09-29 22:30:00">2026-09-29</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By 青山木</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.5.4"></script><script src="/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script>
+(function() {
+  /* 仅在首页标题上方插入头像 */
+  if (window.location.pathname !== '/' && !window.location.pathname.endsWith('/index.html')) return;
+  var siteTitle = document.getElementById('site-title');
+  if (siteTitle) {
+    var avatar = document.createElement('img');
+    avatar.src = '/img/头像.jpg';
+    avatar.alt = 'avatar';
+    avatar.className = 'avatar-img';
+    siteTitle.parentNode.insertBefore(avatar, siteTitle);
+  }
+})();
+</script>
+<script>
+(function() {
+  function initMermaid() {
+    if (window.mermaid) return Promise.resolve();
+    return new Promise(function(resolve, reject) {
+      var script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/mermaid@11.12.2/dist/mermaid.min.js';
+      script.onload = function() {
+        mermaid.initialize({
+          startOnLoad: false,
+          // 图表主题固定，避免站点深浅色切换时重新解析整篇文章的所有 Mermaid 图。
+          theme: 'dark',
+          securityLevel: 'loose'
+        });
+        resolve();
+      };
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  }
+
+  // Mermaid 会异步改变文章高度；目录跳转必须等所有图表完成布局后再读取标题位置。
+  window.mermaidReady = Promise.resolve();
+  var renderSequence = 0;
+
+  function waitForStableLayout() {
+    return new Promise(function(resolve) {
+      requestAnimationFrame(function() {
+        requestAnimationFrame(function() {
+          // 让 SVG 内的 foreignObject 完成一次实际布局，再刷新 Butterfly 的标题位置缓存。
+          setTimeout(resolve, 50);
+        });
+      });
+    });
+  }
+
+  function showMermaidSource(pre) {
+    pre.hidden = false;
+    pre.style.display = 'block';
+    pre.style.color = '#d32f2f';
+    pre.style.whiteSpace = 'pre-wrap';
+    pre.style.fontSize = '13px';
+  }
+
+  function refreshTocPositions() {
+    // Butterfly 只在 resize 时重新缓存标题坐标。
+    window.dispatchEvent(new Event('resize'));
+    document.dispatchEvent(new CustomEvent('mermaid:rendered'));
+  }
+
+  function renderMermaidDiagrams() {
+    var wraps = document.querySelectorAll('#article-container .mermaid-wrap');
+    if (wraps.length === 0) {
+      window.mermaidReady = Promise.resolve();
+      return window.mermaidReady;
+    }
+
+    var renderTask = initMermaid().then(function() {
+      return Promise.all(Array.prototype.map.call(wraps, function(wrap, index) {
+        var pre = wrap.querySelector('pre.mermaid-src');
+        if (!pre || pre.dataset.rendered === 'true') return Promise.resolve();
+
+        var code = pre.textContent;
+        var id = 'mermaid-' + index + '-' + (++renderSequence);
+        return Promise.resolve().then(function() {
+          return mermaid.render(id, code);
+        }).then(function(result) {
+          pre.dataset.rendered = 'true';
+          pre.style.display = 'none';
+          var div = document.createElement('div');
+          div.innerHTML = result.svg;
+          wrap.insertBefore(div.firstChild, pre.nextSibling);
+        }).catch(function(err) {
+          console.error('[Mermaid] Block #' + index + ' render failed:', err);
+          showMermaidSource(pre);
+        });
+      }));
+    }).then(function() {
+      return waitForStableLayout();
+    }).then(function() {
+      refreshTocPositions();
+    }).catch(function(err) {
+      console.error('[Mermaid] Failed to load mermaid.js:', err);
+      wraps.forEach(function(wrap) {
+        var pre = wrap.querySelector('pre.mermaid-src');
+        if (pre) showMermaidSource(pre);
+      });
+    });
+
+    window.mermaidReady = renderTask;
+    return renderTask;
+  }
+
+  // 页面加载完成后渲染
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', renderMermaidDiagrams);
+  } else {
+    renderMermaidDiagrams();
+  }
+
+  // 拦截目录点击：若图表仍在渲染，等待布局稳定后按实时坐标滚动。
+  // 使用捕获阶段，避免 Butterfly 先按渲染前的坐标启动平滑滚动。
+  var tocNavigationSequence = 0;
+  document.addEventListener('click', function(e) {
+    var link = e.target.closest('#card-toc .toc-link');
+    if (!link) return;
+
+    var href = link.getAttribute('href') || '';
+    var hashIndex = href.indexOf('#');
+    if (hashIndex < 0) return;
+
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    var navigationSequence = ++tocNavigationSequence;
+    var headingId = decodeURI(href.slice(hashIndex + 1));
+
+    (window.mermaidReady || Promise.resolve()).then(function() {
+      return waitForStableLayout();
+    }).then(function() {
+      if (navigationSequence !== tocNavigationSequence) return;
+      var heading = document.getElementById(headingId);
+      if (!heading) return;
+
+      // 使用点击时的实际位置，避免异步 SVG 插入改变标题高度后跳错章节。
+      var top = heading.getBoundingClientRect().top + window.scrollY;
+      if (window.btf && window.btf.scrollToDest) {
+        window.btf.scrollToDest(top, 300);
+      } else {
+        window.scrollTo({ top: top, behavior: 'smooth' });
+      }
+    });
+  }, true);
+
+})();
+</script>
+<script id="canvas_nest" defer="defer" color="107,159,255" opacity="0.6" zIndex="-1" count="99" mobile="false" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/dist/canvas-nest.min.js"></script></div></body></html>
