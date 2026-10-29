@@ -1,0 +1,874 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="dark"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>RAG 为什么总答不准？从切块到混合检索的全链路拆解 | 青山木</title><meta name="author" content="青山木"><meta name="copyright" content="青山木"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#0d1117"><meta name="description" content="围绕「RAG 为什么总答不准」这条线索，讲透全流程原理。从 LLM 的知识截止、私有知识缺失与幻觉讲起，把 RAG 拆成「离线存储」与「在线检索」两大阶段：切块的六种策略与父子块、Embedding 三代演进（Word2Vec&#x2F;BERT&#x2F;BGE-M3）与多向量检索、向量库的 HNSW&#x2F;IVF&#x2F;PQ 三大索引、Bi-Encoder 与 Cross-Encoder 的取舍、Rerank 精排、BM25">
+<meta property="og:type" content="article">
+<meta property="og:title" content="RAG 为什么总答不准？从切块到混合检索的全链路拆解">
+<meta property="og:url" content="https://li-s-h.github.io/2026/10/20/RAG%20%E4%B8%BA%E4%BB%80%E4%B9%88%E6%80%BB%E7%AD%94%E4%B8%8D%E5%87%86%EF%BC%9F%E4%BB%8E%E5%88%87%E5%9D%97%E5%88%B0%E6%B7%B7%E5%90%88%E6%A3%80%E7%B4%A2%E7%9A%84%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3/index.html">
+<meta property="og:site_name" content="青山木">
+<meta property="og:description" content="围绕「RAG 为什么总答不准」这条线索，讲透全流程原理。从 LLM 的知识截止、私有知识缺失与幻觉讲起，把 RAG 拆成「离线存储」与「在线检索」两大阶段：切块的六种策略与父子块、Embedding 三代演进（Word2Vec&#x2F;BERT&#x2F;BGE-M3）与多向量检索、向量库的 HNSW&#x2F;IVF&#x2F;PQ 三大索引、Bi-Encoder 与 Cross-Encoder 的取舍、Rerank 精排、BM25">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://li-s-h.github.io/img/title-picture/RAG%E4%B8%BA%E4%BB%80%E4%B9%88%E7%AD%94%E4%B8%8D%E5%87%86.jpg">
+<meta property="article:published_time" content="2026-10-20T15:00:00.000Z">
+<meta property="article:modified_time" content="2026-10-29T07:54:42.547Z">
+<meta property="article:author" content="青山木">
+<meta property="article:tag" content="RAG">
+<meta property="article:tag" content="向量数据库">
+<meta property="article:tag" content="Embedding">
+<meta property="article:tag" content="BM25">
+<meta property="article:tag" content="Rerank">
+<meta property="article:tag" content="RAGAS">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://li-s-h.github.io/img/title-picture/RAG%E4%B8%BA%E4%BB%80%E4%B9%88%E7%AD%94%E4%B8%8D%E5%87%86.jpg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "RAG 为什么总答不准？从切块到混合检索的全链路拆解",
+  "url": "https://li-s-h.github.io/2026/10/20/RAG%20%E4%B8%BA%E4%BB%80%E4%B9%88%E6%80%BB%E7%AD%94%E4%B8%8D%E5%87%86%EF%BC%9F%E4%BB%8E%E5%88%87%E5%9D%97%E5%88%B0%E6%B7%B7%E5%90%88%E6%A3%80%E7%B4%A2%E7%9A%84%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3/",
+  "image": "https://li-s-h.github.io/img/title-picture/RAG%E4%B8%BA%E4%BB%80%E4%B9%88%E7%AD%94%E4%B8%8D%E5%87%86.jpg",
+  "datePublished": "2026-10-20T15:00:00.000Z",
+  "dateModified": "2026-10-29T07:54:42.547Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "青山木",
+      "url": "https://LI-S-H.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/%E5%A4%B4%E5%83%8F.jpg"><link rel="canonical" href="https://li-s-h.github.io/2026/10/20/RAG%20%E4%B8%BA%E4%BB%80%E4%B9%88%E6%80%BB%E7%AD%94%E4%B8%8D%E5%87%86%EF%BC%9F%E4%BB%8E%E5%88%87%E5%9D%97%E5%88%B0%E6%B7%B7%E5%90%88%E6%A3%80%E7%B4%A2%E7%9A%84%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="stylesheet" href="/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d1117')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', 'ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: 'RAG 为什么总答不准？从切块到混合检索的全链路拆解',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><style>
+  #site-title { font-size: 1.76em !important; }
+  #subtitle { font-size: 0.88em !important; }
+
+  /* 卡片悬停放大 + 辉光 */
+  #recent-posts .recent-post-item {
+    transition: transform .3s ease, box-shadow .3s ease, border-color .3s ease;
+  }
+  #recent-posts .recent-post-item:hover {
+    transform: scale(1.025) !important;
+    border-color: rgba(107,159,255,0.5) !important;
+    box-shadow: 0 0 0 1px rgba(107,159,255,0.15),
+                0 0 45px rgba(107,159,255,0.12),
+                0 8px 30px rgba(0,0,0,0.4) !important;
+  }
+
+  /* 首页标题上方头像 */
+  #site-info .avatar-img {
+    display: block;
+    width: 144px;
+    height: 144px;
+    border-radius: 50%;
+    margin: 0 auto 20px;
+    border: 3px solid rgba(107,159,255,0.6);
+    box-shadow: 0 0 30px rgba(107,159,255,0.35),
+                0 0 60px rgba(107,159,255,0.15),
+                0 4px 20px rgba(0,0,0,0.25);
+    object-fit: cover;
+    transition: box-shadow .4s ease, border-color .4s ease;
+  }
+  #site-info .avatar-img:hover {
+    border-color: rgba(107,159,255,0.9);
+    box-shadow: 0 0 40px rgba(107,159,255,0.5),
+                0 0 80px rgba(107,159,255,0.25),
+                0 4px 20px rgba(0,0,0,0.25);
+  }
+
+  /* Mermaid 图表容器样式 */
+  .mermaid-wrap {
+    position: relative;
+    /* 图表固定使用深色画布，主题切换无需销毁并重绘所有 SVG。 */
+    background: #1e1e1e !important;
+    padding: 12px !important;
+    border-radius: 8px !important;
+    border: 1px solid #444 !important;
+    text-align: center;
+    margin: 0 0 20px 0;
+    overflow-x: auto;
+  }
+  .mermaid-wrap > svg {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+  }
+  /* 深色图表画布在两种站点主题下保持一致，避免切换时重排。 */
+  [data-theme="dark"] .mermaid-wrap {
+    background: #1e1e1e !important;
+    border-color: #444 !important;
+  }
+</style>
+<meta name="generator" content="Hexo 7.3.0"></head><body><div class="bg-animation" id="web_bg" style="background-image: url(/img/%E8%83%8C%E6%99%AF%E5%9B%BE2.webp);"></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(/img/title-picture/RAG%E4%B8%BA%E4%BB%80%E4%B9%88%E7%AD%94%E4%B8%8D%E5%87%86.jpg);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">青山木</span></a><a class="nav-page-title" href="/"><span class="site-name">RAG 为什么总答不准？从切块到混合检索的全链路拆解</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">RAG 为什么总答不准？从切块到混合检索的全链路拆解</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-10-20T15:00:00.000Z" title="发表于 2026-10-20 23:00:00">2026-10-20</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-10-29T07:54:42.547Z" title="更新于 2026-10-29 15:54:42">2026-10-29</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/RAG/">RAG</a></span></div><div class="meta-secondline"></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h1 id="RAG-为什么总答不准？从切块到混合检索的全链路拆解"><a href="#RAG-为什么总答不准？从切块到混合检索的全链路拆解" class="headerlink" title="RAG 为什么总答不准？从切块到混合检索的全链路拆解"></a>RAG 为什么总答不准？从切块到混合检索的全链路拆解</h1><blockquote>
+<p>答不准，问题往往不在模型，而在喂进去的那几段资料。这篇文章把 RAG 这条流水线从里到外拆开：切块怎么定粒度、向量怎么存怎么找、召回怎么补漏、精排怎么收窄，最后用评测把「有没有变好」变成数字。全程围绕一个贯穿案例「公司年假政策是什么」。</p>
+</blockquote>
+<hr>
+<h2 id="一、什么是-RAG"><a href="#一、什么是-RAG" class="headerlink" title="一、什么是 RAG"></a>一、什么是 RAG</h2><p>RAG 的全称是 <strong>Retrieval-Augmented Generation</strong>，翻译过来就是「检索增强生成」。顾名思义，这个技术就是为了<strong>增强模型的生成能力</strong>而出现的。要理解它，得先理解大模型到底卡在哪里。</p>
+<h3 id="1-1-大模型的三个先天困境"><a href="#1-1-大模型的三个先天困境" class="headerlink" title="1.1 大模型的三个先天困境"></a>1.1 大模型的三个先天困境</h3><p><strong>困境一：知识有截止日期。</strong></p>
+<p>大模型的知识在训练结束的那一刻就冻结了，除非等到下一个版本发布，否则它压根不知道训练之后发生的事。你今天问它一件上周才发生的新闻，它要么答不上来，要么用旧知识硬答。</p>
+<p><strong>困境二：不懂私有知识。</strong></p>
+<p>它不知道企业内部的规则、奖罚制度、业务口径。这些信息在公开语料里根本不存在，模型自然无从学起。</p>
+<p><strong>困境三：幻觉。</strong></p>
+<p>当你问它一个它其实不懂的问题时，它并不会老老实实说「不知道」，而是会很自信地编：给你引一篇看起来很专业的论文、一个像模像样的编号，实际上全是假的。</p>
+<p>不过要说明的是，这是<strong>最初</strong>大模型的问题。到今天，这个问题已经通过后训练缓解了不少。思路大概是通过<strong>惩罚机制</strong>：原本的训练是鼓励模型「像人一样回答」，把回答标准化、专业化，但未必准确；后续的训练就针对这一点做整改。<strong>模型在不知道信息时编造假信息会被扣分，而不知道就老实回答「不知道」反而会得高分</strong>。经此训练，幻觉有明显改善，但并没有根治。</p>
+<p>而且更现实的是：<strong>很多时候我们并不需要「回答不知道」，我们需要的是回答真实的知识。</strong> 再加上领域内知识在模型原始训练权重里占比本来就不高，想补上这块知识，要么砸钱微调，要么让模型「开卷答题」。这就是 RAG 存在的必要性。</p>
+<h3 id="1-2-微调-vs-RAG：两条注入知识的路"><a href="#1-2-微调-vs-RAG：两条注入知识的路" class="headerlink" title="1.2 微调 vs RAG：两条注入知识的路"></a>1.2 微调 vs RAG：两条注入知识的路</h3><p>给模型补充知识，主流有两条路，理解它们的区别很关键。</p>
+<p><strong>微调（Fine-tuning）</strong> 是去<strong>调整模型的参数权重</strong>，你可以直观地理解为「<strong>内化知识</strong>」，把某个领域的内容专门喂给模型重新训练，训练完这个模型就带上了对应的领域知识。当然这是直观理解，<strong>本质上是让该领域内的那些词，在遇到用户在专业领域提问时会拥有更高的返回概率</strong>，于是回答更准。</p>
+<p><strong>RAG 则相反</strong>，它完全不碰模型的参数，只是把用户的原始提问<strong>包装</strong>了一下：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">请根据以下参考资料回答用户的问题。</span><br><span class="line">参考资料：[检索出的文本块]</span><br><span class="line">用户问题：公司年假政策是什么？</span><br></pre></td></tr></table></figure>
+
+<p>答案其实已经躺在「参考资料」这段上下文里了，大模型能理解上下文之间的关系，于是顺理成章地返回对应的答案。</p>
+<p>两者各有各的账本：</p>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>微调（Fine-tuning）</th>
+<th>RAG（检索增强生成）</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>是否改参数</td>
+<td>改，调整权重</td>
+<td>不改，只包装 Prompt</td>
+</tr>
+<tr>
+<td>本质</td>
+<td>内化知识，抬高领域词的生成概率</td>
+<td>开卷答题，把答案放进上下文</td>
+</tr>
+<tr>
+<td>成本与周期</td>
+<td>花费高、时间长</td>
+<td>花费低、时间短，可做到小时级更新</td>
+</tr>
+<tr>
+<td>知识更新</td>
+<td>不能每日更新，要重训</td>
+<td>更新向量库即可，配合自动化可以很实时</td>
+</tr>
+<tr>
+<td>事实准确性</td>
+<td>可能仍有幻觉（学到的是「模式」和「风格」）</td>
+<td>对高度相关内容基于原文回答，幻觉很低</td>
+</tr>
+<tr>
+<td>深度定制</td>
+<td>强，可深度定制，效果很好</td>
+<td>一般</td>
+</tr>
+<tr>
+<td>语言风格</td>
+<td>优势明显，能学出特定文风</td>
+<td>靠 Prompt 调，效果一般</td>
+</tr>
+</tbody></table>
+<p>所以结论是：<strong>微调适合专业领域 + 高严谨性场景</strong>（比如法律、客服），而且通常要<strong>配上 RAG 一起用</strong>；其余大多数场景，RAG 就够了。</p>
+<h3 id="1-3-RAG-的整体流程：只有两个阶段"><a href="#1-3-RAG-的整体流程：只有两个阶段" class="headerlink" title="1.3 RAG 的整体流程：只有两个阶段"></a>1.3 RAG 的整体流程：只有两个阶段</h3><p>RAG 的整条流水线只有两个阶段。</p>
+<ul>
+<li><strong>离线存储阶段（Indexing）</strong>，把你的领域知识和企业内部业务知识存进<strong>向量数据库</strong>。这一步「一次做、长期用」，是整个检索质量的地基。</li>
+<li><strong>在线检索阶段（Retrieval → Generation）</strong>，用户提问，去库里把相关资料捞出来，拼成增强 Prompt，交给大模型生成。这一步「每次查询都要跑一遍」，是优化的主战场。</li>
+</ul>
+<p><img src="/img/RAG%20%E4%B8%BA%E4%BB%80%E4%B9%88%E6%80%BB%E7%AD%94%E4%B8%8D%E5%87%86%EF%BC%9F%E4%BB%8E%E5%88%87%E5%9D%97%E5%88%B0%E6%B7%B7%E5%90%88%E6%A3%80%E7%B4%A2%E7%9A%84%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3/rag-overview-flow.png" alt="RAG 整体流程：离线存储与在线检索两大阶段"></p>
+<hr>
+<h2 id="二、一个完整例子：从文档到回答"><a href="#二、一个完整例子：从文档到回答" class="headerlink" title="二、一个完整例子：从文档到回答"></a>二、一个完整例子：从文档到回答</h2><p>上一节把两个阶段列了出来，这一节用「公司年假政策」这个例子把每个环节具体走一遍，先建立整体印象，再进细节。</p>
+<h3 id="2-1-离线存储阶段"><a href="#2-1-离线存储阶段" class="headerlink" title="2.1 离线存储阶段"></a>2.1 离线存储阶段</h3><p><strong>第一步，文档加载。</strong> 这一步是把企业里各种格式的文档加载进来。企业文档格式五花八门，PDF、Word 和 PPT，Excel、HTML 以及 Markdown，每种格式都有不同的解析方式。其中 <strong>PDF 尤其麻烦</strong>，表格和图片混排、分栏复杂的 PDF，解析起来很费劲。这一步的目标只有一个：<strong>把各种格式的文档统一转成纯文本</strong>。</p>
+<p><strong>第二步，文档切片。</strong> 为什么要切？文档知识是海量的，不可能一次性全塞给模型。原因有两个。</p>
+<ul>
+<li>一是<strong>注意力会被分散</strong>，上下文里无关内容越多，模型越抓不住重点；</li>
+<li>二是<strong>上下文有上限</strong>。现在模型的上下文即便到了 1M，放在海量文档面前也依然不算大，更何况还要留出很大一部分给 Agent 里的其他机制，比如记忆和工具，它们也要占上下文。</li>
+</ul>
+<p>所以要把文档切片，把内容<strong>细化、分类</strong>，再转成对应的向量。这样后续检索出来的都是相关性高的知识。用户问冰箱退货策略，就绝不会捞出「怎么吃西瓜」这种毫不相干的内容，最多返回几千字相关知识，既不超上限，相关性又高，能大幅削弱幻觉和注意力分散。</p>
+<p><strong>第三步，向量化。</strong> 把切好的块转成向量（Embedding），这一步方案很多，后面细讲。</p>
+<p><strong>第四步，存入向量数据库。</strong> 至此，全部文档知识就都存进向量库了。向量库的选型和底层，后面单独讲。</p>
+<h3 id="2-2-在线检索阶段"><a href="#2-2-在线检索阶段" class="headerlink" title="2.2 在线检索阶段"></a>2.2 在线检索阶段</h3><p>用户提问，比如「公司年假政策是什么」，然后：</p>
+<p><strong>第一步，把提问向量化。</strong> 注意，<strong>必须和当初切片向量化用的是同一个处理方式</strong>。因为向量化模型不同，得到的向量结果必然不同，一混用，整个查询向量就「偏移」了，检索结果全错。</p>
+<p><strong>第二步，相似度检索。</strong> 拿着问题的向量，去向量数据库里做相似度搜索，找到语义最相近的 <strong>Top-K</strong> 个文本块。比如可能捞出这么三块：</p>
+<ul>
+<li>「公司全职员工入职满一年后享有 10 天带薪年假」</li>
+<li>「年假可以拆分使用，每次不少于半天」</li>
+<li>「未使用的年假可以累积到下一年，但最多累积 5 天」</li>
+</ul>
+<p><strong>第三步，拼接增强 Prompt。</strong> 把捞出来的资料拼进提示词，大致长这样：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">请根据以下参考资料回答用户的问题。</span><br><span class="line">参考资料：</span><br><span class="line">- 公司全职员工入职满一年后享有 10 天带薪年假</span><br><span class="line">- 年假可以拆分使用，每次不少于半天</span><br><span class="line">- 未使用的年假可以累积到下一年，但最多累积 5 天</span><br><span class="line">用户问题：公司年假政策是什么？</span><br></pre></td></tr></table></figure>
+
+<p><strong>第四步，交给大模型生成。</strong> 流程到此结束。</p>
+<p>整体框架就是这些。接下来，我们把「存储细节」和「查询细节」逐个拆开。</p>
+<hr>
+<h2 id="三、离线存储阶段：细节"><a href="#三、离线存储阶段：细节" class="headerlink" title="三、离线存储阶段：细节"></a>三、离线存储阶段：细节</h2><h3 id="3-1-切块（Chunking）：最容易被低估的一步"><a href="#3-1-切块（Chunking）：最容易被低估的一步" class="headerlink" title="3.1 切块（Chunking）：最容易被低估的一步"></a>3.1 切块（Chunking）：最容易被低估的一步</h3><p>存的第一步就是对文本切片，而「怎么切」很有说法。</p>
+<h4 id="3-1-1-固定长度切分"><a href="#3-1-1-固定长度切分" class="headerlink" title="3.1.1 固定长度切分"></a>3.1.1 固定长度切分</h4><p>最简单，按固定长度硬切，但它有个比较严重的问题，<strong>会丢掉句子的上下文</strong>。看这个例子：</p>
+<blockquote>
+<p>公司全职员工入职满一年后享有 10 天带薪年假。年假可以拆分使用，每次不少于半天。</p>
+</blockquote>
+<p>如果刚好在「一年后」这几个字后面被切成两半，就变成：</p>
+<ul>
+<li>块 A：「……公司全职员工入职满一年后」</li>
+<li>块 B：「享有 10 天带薪年假。年假可以拆分使用，每次不少于半天」</li>
+</ul>
+<p>此时两块都不像话了。查「员工福利」这类信息时，块 A 只剩「入职满一年后」，跟福利在语义上差得远，检索不出来；块 B 虽然有「10 天带薪年假」，却丢了「入职满一年」这个前提，答不准。<strong>两个块各丢了一半信息</strong>，靠其中任何一块都答不全。</p>
+<h4 id="3-1-2-重叠（Overlap）"><a href="#3-1-2-重叠（Overlap）" class="headerlink" title="3.1.2 重叠（Overlap）"></a>3.1.2 重叠（Overlap）</h4><p>既然硬切会丢上下文，那就别直接切断，而是<strong>缓存一部分</strong>。比如缓存 50 个词：本来该在「一年后」后面切，那就从这里往后数 50 个字再切；后一句同理，要往前数 50 个字才是真正的切割点。这样确实保留了一部分上下文，但<strong>依然无法避免断句、断段</strong>，问题只是缓解，没有解决。</p>
+<h4 id="3-1-3-递归分隔符切分"><a href="#3-1-3-递归分隔符切分" class="headerlink" title="3.1.3 递归分隔符切分"></a>3.1.3 递归分隔符切分</h4><p>这是目前最常用的方案，能最大程度保留一句或一段的语义。它维护一个<strong>分隔符优先级列表</strong>，比如：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">[&quot;\n\n&quot;, &quot;\n&quot;, &quot;。&quot;, &quot;！&quot;, &quot;？&quot;, &quot;；&quot;, &quot;，&quot;, &quot; &quot;]</span><br></pre></td></tr></table></figure>
+
+<p>它会<strong>先尝试用双换行符（段落分隔）来切</strong>；如果切出来的块还是太大，就用单换行符切；还大，就用句号切……依次降级，直到块大小符合要求。</p>
+<p>整理一本书时，先按「章」分，一章太大就按「节」分，一节太大就按「段」分。这样分出来的每块内容，都是相对完整和独立的。</p>
+<h4 id="3-1-4-结构感知切分"><a href="#3-1-4-结构感知切分" class="headerlink" title="3.1.4 结构感知切分"></a>3.1.4 结构感知切分</h4><p>对特定文档类型效果更好。Markdown 可以按各级标题切；代码文件可以按函数、类切；HTML 可以按标签切；PDF 可以按页面切。好处是<strong>充分尊重文档结构，切出来的块语义完整</strong>；缺点是<strong>只适用于格式规范的文档</strong>，文档本身结构混乱、没有明显格式标记时，就不好用了。</p>
+<h4 id="3-1-5-语义切分"><a href="#3-1-5-语义切分" class="headerlink" title="3.1.5 语义切分"></a>3.1.5 语义切分</h4><p>花费更高，但更贴语义。我们前面知道，可以通过算相邻句子的向量余弦值来判断相关性，那就<strong>逐句算</strong>，直到发现前后两部分的语义发生了明显变化（相似度显著变低），那里就是一个<strong>转折点</strong>，在此处切割，能最大程度保留语义。代价也大：每一句都要向量化并比较。</p>
+<h4 id="3-1-6-LLM-Agent-切分"><a href="#3-1-6-LLM-Agent-切分" class="headerlink" title="3.1.6 LLM&#x2F;Agent 切分"></a>3.1.6 LLM&#x2F;Agent 切分</h4><p>先用上面的方法粗切，再让 LLM 评判每个块是否完整、是否需要和相邻块合并或拆分，<strong>智能编辑</strong>这些块。理论上效果最好，但<strong>成本最高</strong>。</p>
+<h4 id="3-1-7-父子块（Small-to-Big）"><a href="#3-1-7-父子块（Small-to-Big）" class="headerlink" title="3.1.7 父子块（Small-to-Big）"></a>3.1.7 父子块（Small-to-Big）</h4><p>前面六种都在解决「怎么切」，父子块则是另一种思路，一种<strong>检索策略</strong>：先切出一个大一点的块，再把大块切成小块；<strong>小块负责向量化存储和精确检索</strong>，检索命中后<strong>顺着小块找回它所属的大块，把大块拼进模型</strong>。这样用小块保证检索精确，用大块保证喂给模型的上下文完整。</p>
+<p><img src="/img/RAG%20%E4%B8%BA%E4%BB%80%E4%B9%88%E6%80%BB%E7%AD%94%E4%B8%8D%E5%87%86%EF%BC%9F%E4%BB%8E%E5%88%87%E5%9D%97%E5%88%B0%E6%B7%B7%E5%90%88%E6%A3%80%E7%B4%A2%E7%9A%84%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3/rag-chunking-strategies.png" alt="五种切块策略对比：固定长度、重叠、递归分隔符、语义切分、父子块"></p>
+<p><img src="/img/RAG%20%E4%B8%BA%E4%BB%80%E4%B9%88%E6%80%BB%E7%AD%94%E4%B8%8D%E5%87%86%EF%BC%9F%E4%BB%8E%E5%88%87%E5%9D%97%E5%88%B0%E6%B7%B7%E5%90%88%E6%A3%80%E7%B4%A2%E7%9A%84%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3/rag-small-to-big.png" alt="父子块（Small-to-Big）：小块检索、大块喂模型"></p>
+<p>各策略的取舍汇总成下表。</p>
+<table>
+<thead>
+<tr>
+<th>策略</th>
+<th>语义完整度</th>
+<th>成本</th>
+<th>适用场景</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>固定长度</td>
+<td>低（易断句）</td>
+<td>最低</td>
+<td>快速原型、结构混乱的文本</td>
+</tr>
+<tr>
+<td>固定长度 + 重叠</td>
+<td>中（断句仍可能）</td>
+<td>低</td>
+<td>通用兜底</td>
+</tr>
+<tr>
+<td>递归分隔符</td>
+<td>较高（优先保段落&#x2F;句子）</td>
+<td>低</td>
+<td>大多数文本的默认首选</td>
+</tr>
+<tr>
+<td>结构感知</td>
+<td>高（尊重结构）</td>
+<td>低</td>
+<td>Markdown、代码、HTML、规范 PDF</td>
+</tr>
+<tr>
+<td>语义切分</td>
+<td>高（贴语义）</td>
+<td>高（逐句向量化）</td>
+<td>高质量知识库、对召回精度要求高</td>
+</tr>
+<tr>
+<td>LLM&#x2F;Agent 切分</td>
+<td>最高</td>
+<td>最高</td>
+<td>高价值语料，可接受高成本</td>
+</tr>
+<tr>
+<td>父子块</td>
+<td>高（检索 + 上下文兼顾）</td>
+<td>中</td>
+<td>长文档、上下文完整性要求高</td>
+</tr>
+</tbody></table>
+<h3 id="3-2-向量化（Embedding）：从-Word2Vec-到-BGE-M3"><a href="#3-2-向量化（Embedding）：从-Word2Vec-到-BGE-M3" class="headerlink" title="3.2 向量化（Embedding）：从 Word2Vec 到 BGE-M3"></a>3.2 向量化（Embedding）：从 Word2Vec 到 BGE-M3</h3><p>切完块，下一步就是编码成向量。这里必须先把一个<strong>隐含前提</strong>说清楚，不然后面全是空中楼阁。</p>
+<blockquote>
+<p><strong>为什么向量相近就代表语义相似？</strong></p>
+</blockquote>
+<p>因为 Embedding 的本质，是<strong>把文本映射到一个高维向量空间里，让语义相近的文本，映射出来的向量在空间里也靠得近</strong>。也就是说，模型学到的是「什么样的文本该被放在空间的什么位置」。于是「距离近」就成了「语义像」的可计算代理，我们才能用余弦相似度这类几何量去衡量语义相关性。整个 RAG 检索的地基，就是这个前提。</p>
+<p>搞清前提，再看 Embedding 技术是怎么一步步走到今天的。它大致经过了三个阶段。</p>
+<h4 id="3-2-1-第一代：Word2Vec（2013）"><a href="#3-2-1-第一代：Word2Vec（2013）" class="headerlink" title="3.2.1 第一代：Word2Vec（2013）"></a>3.2.1 第一代：Word2Vec（2013）</h4><p>Word2Vec 是 Embedding 技术的奠基之作，由 Google 在 2013 年提出。它先立了一个核心假设：<strong>一个词的意思，由它周围的词决定</strong>。「我吃了一个苹果」里，「苹果」周围是「吃」「一个」，所以它是水果；「苹果发布了 iPhone」里，它周围是「发布」「手机」，所以它是公司。把这种搭配规律从海量文本里学下来，词义就被压进了向量。</p>
+<p>训练方式有两种，是同一个思路的两个方向。</p>
+<ul>
+<li><strong>CBOW（连续词袋）</strong>：用上下文预测中间的词。拿「今天天气＿＿很好」，遮住中间，让模型用两边的词把它猜出来。要猜对，模型就必须「读懂」上下文，语义就是被这样逼出来的。</li>
+<li><strong>Skip-Gram（跳字模型）</strong>：反过来，用中间的词预测上下文。给你「天气」，让它预测周围会出现哪些词。「用一词猜多词」比「用多词猜一词」更难，学出来的向量也往往更细。</li>
+</ul>
+<p>训练完，每个词对应一个固定向量（比如 300 维）。最有意思的是向量还能做<strong>算术</strong>：「国王 − 男人 + 女人 ≈ 女王」。这不是巧合：国王和男人经常出现在相似的上下文里，两个向量的差「国王 − 男人」就在编码「王室」这个属性，把它加到「女人」上，离结果最近的词恰好是「女王」。这说明词与词的语义关系（性别、时态、单复数），真的被表示成了空间里的方向。</p>
+<p>但 Word2Vec 有个<strong>先天缺陷：每个词只对应一个向量</strong>，训练完就固定了。「我吃了一个苹果」和「苹果发布了一代 iPhone」，两个「苹果」意思天差地别，向量却是同一个。原因也简单：它本质是「查表」，一个词一个向量，编码这个词的时候模型根本看不到它的上下文，<strong>多义词无法区分</strong>。</p>
+<h4 id="3-2-2-第二代：BERT（2018）"><a href="#3-2-2-第二代：BERT（2018）" class="headerlink" title="3.2.2 第二代：BERT（2018）"></a>3.2.2 第二代：BERT（2018）</h4><p>2018 年，Google 提出 BERT，把 Embedding 带入了全新阶段。它基于 Transformer 的<strong>自注意力机制</strong>，不再依赖循环神经网络，实现了真正的<strong>双向上下文理解</strong>。</p>
+<p>于是「我去银行存钱」和「河岸边的风景很美」里的「银行」和「河岸」，BERT 会根据上下文给出<strong>不同的向量</strong>，多义词也就分得开了，正好补上了 Word2Vec 的短板。</p>
+<p>它的训练任务有两个。</p>
+<ul>
+<li><strong>MLM（遮盖语言模型）</strong>：随机遮盖 15% 的词，让模型靠上下文预测被遮住的词，强迫它学会理解上下文。</li>
+<li><strong>NSP（下一句预测）</strong>：给模型两句话，让它判断第二句是不是第一句的下一句，帮助它理解句子间关系。</li>
+</ul>
+<p>在 RAG 场景里，通常取 BERT 输出中 [CLS] 位置的向量（或者对所有 token 向量取平均）作为整段文本的向量表示。</p>
+<p>但 BERT 也有局限：它的<strong>上下文窗口只有 512 tokens</strong>，处理长文档能力有限；而且它是通用的语言理解模型，<strong>并不是专门为「检索」这个任务设计的</strong>，所以在 RAG 检索场景下的效果还有提升空间。</p>
+<h4 id="3-2-3-第三代：BGE-M3-与-text-embedding（2024-年至今）"><a href="#3-2-3-第三代：BGE-M3-与-text-embedding（2024-年至今）" class="headerlink" title="3.2.3 第三代：BGE-M3 与 text-embedding（2024 年至今）"></a>3.2.3 第三代：BGE-M3 与 text-embedding（2024 年至今）</h4><p>既然 BERT 窗口不够长、又不是为检索而生的，那就造一个<strong>窗口更长、专为检索训练</strong>的 Embedding 模型。这就是第三代要解决的。代表是智源研究院的 <strong>BGE 系列</strong>和 OpenAI 的 <strong>text-embedding 系列</strong>。</p>
+<p><strong>BGE-M3</strong> 是 2024 年初发布的里程碑模型，名字里的「M3」代表三个「多」：</p>
+<ul>
+<li><strong>Multi-Granularity（多粒度）</strong>：句子、段落、篇章乃至整篇文档都能处理，最长支持 <strong>8192 tokens</strong>。</li>
+<li><strong>Multi-Functionality（多功能）</strong>：一站式集成<strong>稠密检索、稀疏检索和多向量检索</strong>三种能力，<strong>一次推理就能同时得到三种输出</strong>。</li>
+<li><strong>Multi-Language（多语言）</strong>：支持 100 多种语言。</li>
+</ul>
+<p><strong>它为什么能同时支持三种检索？</strong> Transformer 主干完全共享，不同的在输出端：在编码器的输出之上接了<strong>三个不同的投影头</strong>，一个头对应一种检索，训练时三个目标一起优化。于是一个模型就干完了三件事，大大节省花费。三种输出对应三种检索，逐个把机制说清楚。</p>
+<h4 id="3-2-4-稠密检索（Dense）：语义相似"><a href="#3-2-4-稠密检索（Dense）：语义相似" class="headerlink" title="3.2.4 稠密检索（Dense）：语义相似"></a>3.2.4 稠密检索（Dense）：语义相似</h4><p>把整段文本压成<strong>一根固定长度的向量</strong>（比如 1024 维），相似度就是两根向量之间的余弦距离。</p>
+<p>举例：查询「员工休假规定」和文档「年假与调休的使用办法」，两边没有几个字完全对得上——「休假」对「年假」「调休」，「规定」对「办法」——但它们语义相近，被压到了空间里相近的位置，余弦相似度照样很高。这是稠密检索的核心价值，<strong>同义改写也能命中</strong>。弱点同样来自「压缩」：整段语义被平均进一根向量，文档里「最多累积 5 天」这种具体细节，在向量里只剩一点微弱偏移，靠它做精确匹配不靠谱。</p>
+<h4 id="3-2-5-稀疏检索（Sparse）：会打分的关键词匹配"><a href="#3-2-5-稀疏检索（Sparse）：会打分的关键词匹配" class="headerlink" title="3.2.5 稀疏检索（Sparse）：会打分的关键词匹配"></a>3.2.5 稀疏检索（Sparse）：会打分的关键词匹配</h4><p>输出的不再是一根向量，而是一份<strong>词权重表</strong>：给词表里的每个 token 打一个权重，用不到的位置几乎全是 0，所以叫稀疏。</p>
+<p>举例：模型读完「未使用的年假可以累积到下一年，但最多累积 5 天」，输出类似 {「年假」: 2.3，「累积」: 1.8，「5」: 1.2，「未使用」: 0.9，「可以」: 0.05……}。检索时拿查询和文档的<strong>共同 token</strong> 对分：两边都有「年假」和「累积」，把重叠 token 的权重加起来就是匹配分。</p>
+<p>完整的查询流程和向量检索一样：查询文本同样被编码成一份词权重表，然后对库里的每个文档算「重叠 token 的权重加和」，得到一个匹配分，最后<strong>按分数从高到低排，返回分数最高的 Top-K 条</strong>。</p>
+<p>它和 BM25 的区别在<strong>权重是模型学出来的，不是数词频数出来的</strong>：BM25 里「年假」的权重只取决于它出现了几次，稀疏向量则能学到「这个 token 在这段话里有多重要」。代价是它仍按 token 匹配，查询里没出现的词帮不上忙。</p>
+<h4 id="3-2-6-多向量检索（Multi-Vector）：每个-token-单独算分"><a href="#3-2-6-多向量检索（Multi-Vector）：每个-token-单独算分" class="headerlink" title="3.2.6 多向量检索（Multi-Vector）：每个 token 单独算分"></a>3.2.6 多向量检索（Multi-Vector）：每个 token 单独算分</h4><p>稠密和稀疏最后都把整段「合」成了一个表示（一根向量或一份权重表），多向量不合并：<strong>文档里每个 token 各自保留一个向量</strong>，一个文档就是一组向量，几百根。</p>
+<p>打分方法叫<strong>延迟交互</strong>（Late Interaction）。拿<strong>查询里的每个词</strong>，去和<strong>文档里的每一个词</strong>比相似度，这个查询词从中拿到一个最高分（MaxSim）；再把查询里所有词的最高分加起来，就是这条文档的总分。（BGE-M3 的官方公式会再除以查询词数取平均，只影响分数刻度、不影响排序，这里按加总讲。）</p>
+<p>拿「入职多久能休年假」对「入职满一年后享有 10 天带薪年假」走一遍：查询里每个词都去文档的词里找「最像的那一个」，「入职」直接对上「入职」，「多久」最像「满一年」，「年假」对上「年假」，「能休」找到「享有」，每个词各拿各的最高分，加总就是匹配分。它和稠密检索的关键差异就在这一步：稠密检索里「多久」的信息早被平均进整段向量糊掉了，多向量允许「一个词对一个词」地核对，<strong>细节匹配精度最高</strong>。</p>
+<p>代价也直观：一个文档从一根向量变成几百根，<strong>存储涨几百倍、检索算力也涨</strong>。它对应 ColBERT 那一路思路，BGE-M3 把它一并集成进了同一个模型。</p>
+<p><strong>OpenAI 的 text-embedding 系列</strong>同样流行，从早期的 <code>text-embedding-ada-002</code> 到 2024 年的 <code>text-embedding-3-small</code> 和 <code>text-embedding-3-large</code>，以<strong>简单易用、效果好</strong>著称。其中 <code>text-embedding-3-large</code> 维度高达 <strong>3072</strong>，在 MTEB 榜单上表现优异。</p>
+<p>顺带澄清一个容易混淆的点：BGE-M3 和 text-embedding 属于同一代，都是<strong>基于 Transformer 编码器、专门为检索训练</strong>的模型，区别只在使用方式，一个开源自部署，一个走 API。如今智源、OpenAI、阿里、Cohere 各家都有 Embedding 服务，选型时到 MTEB 榜单上按语言、维度和成本挑即可。</p>
+<p><img src="/img/RAG%20%E4%B8%BA%E4%BB%80%E4%B9%88%E6%80%BB%E7%AD%94%E4%B8%8D%E5%87%86%EF%BC%9F%E4%BB%8E%E5%88%87%E5%9D%97%E5%88%B0%E6%B7%B7%E5%90%88%E6%A3%80%E7%B4%A2%E7%9A%84%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3/rag-embedding-evolution.png" alt="Embedding 三代演进：Word2Vec → BERT → BGE-M3 / text-embedding"></p>
+<h3 id="3-3-向量数据库：海量向量里怎么快速找到近邻"><a href="#3-3-向量数据库：海量向量里怎么快速找到近邻" class="headerlink" title="3.3 向量数据库：海量向量里怎么快速找到近邻"></a>3.3 向量数据库：海量向量里怎么快速找到近邻</h3><p>存完向量，接下来要面对存储阶段最关键的一环，<strong>向量数据库</strong>。为什么它关键？因为切片会非常多。</p>
+<p>假设你有 <strong>100 万个文本块</strong>，每块被转成 <strong>1536 维</strong>的向量。用户提问时，你要<strong>快速找到与问题向量最相近的 Top-10 个块</strong>。如果只用<strong>暴力检索</strong>（枚举全部向量逐个算一遍），每次查询都是 O(N·d) 的开销，又慢又贵。所以必须做索引优化，这就是向量库的核心。</p>
+<p>但要注意：<strong>向量索引和 MySQL 的索引树不是一回事</strong>。B+ 树这类结构依赖数据有「全序」可比大小，而向量是高维点，没有这种天然顺序，<strong>用不了那套索引树</strong>。目前主流的向量索引有三条思路。</p>
+<h4 id="3-3-1-HNSW：分层导航小世界图"><a href="#3-3-1-HNSW：分层导航小世界图" class="headerlink" title="3.3.1 HNSW：分层导航小世界图"></a>3.3.1 HNSW：分层导航小世界图</h4><p>HNSW 的思路有点像<strong>跳表</strong>，把节点<strong>分成很多层</strong>：最底下那层包含<strong>全部向量点</strong>，越往上节点越少，顶层往往只剩几个点。每个点进到哪几层是建索引时按概率随机决定的（每往上一层按指数衰减，比如大约只剩六分之一），所以各层的规模是顶层几个点、往下一层几十个、再往下几百个，直到底层全量。</p>
+<p><strong>单层内怎么找</strong>：每一层的点都和自己的近邻连成一张图。查询从这一层的入口点出发，看它连着的邻居里谁离查询向量更近，就跳到谁，反复走；直到某一步所有邻居都比当前位置远，说明在这一层走到了「局部最近」，停下。</p>
+<p><strong>层与层之间怎么衔接</strong>：把这一层找到的点直接作为下一层的出发点继续贪心。上层点少，一步跨得远，负责把范围圈出来；下层点密，一步迈得小，负责精修。走到底层时，目标区域已经锁定，最后在候选队列里取 Top-N 就行。参数 <code>efSearch</code> 就是这个候选队列的长度：队列越长越不容易漏掉真最近邻，召回越高、速度越慢。</p>
+<p>跳表靠上层链表「跳」过大量节点，快速定位区间。区别在于，<strong>跳表的最下层是有序链表，而 HNSW 的底层是近邻图，点连向彼此相近的邻居</strong>，它靠图上的边做贪心导航，没有链表指针可用。</p>
+<p><img src="/img/RAG%20%E4%B8%BA%E4%BB%80%E4%B9%88%E6%80%BB%E7%AD%94%E4%B8%8D%E5%87%86%EF%BC%9F%E4%BB%8E%E5%88%87%E5%9D%97%E5%88%B0%E6%B7%B7%E5%90%88%E6%A3%80%E7%B4%A2%E7%9A%84%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3/rag-hnsw-3d.png" alt="HNSW 分层结构：上层稀疏、下层全量，逐层下探定位（三维示意）"></p>
+<blockquote>
+<p>上图是三维空间里的示意画法：每个点代表一个高维向量，点的位置由向量决定，越相近的点贴得越近。重点是「分层 + 逐层下探」这个结构。</p>
+</blockquote>
+<h4 id="3-3-2-IVF：先分桶，再桶内搜"><a href="#3-3-2-IVF：先分桶，再桶内搜" class="headerlink" title="3.3.2 IVF：先分桶，再桶内搜"></a>3.3.2 IVF：先分桶，再桶内搜</h4><p>IVF（倒排文件索引）走的是<strong>分区域</strong>的思路。好比快递分拣中心不会一个个翻包裹找，而是<strong>先把包裹按地区分成几堆</strong>（华东堆、华南堆和华北堆），要找上海来的包裹，只去「华东堆」里翻就行。</p>
+<p>IVF 也是这样，分两步建、两步查。</p>
+<p><strong>建索引</strong>：跑 k-means 聚类，把全量向量聚成 <code>nlist</code> 个「桶」，记录每个桶的质心；每个向量归入离它最近的质心所在的桶，形成「质心表 + 每桶一个成员列表」的倒排结构。</p>
+<p><strong>查询</strong>：先算查询向量和全部 <code>nlist</code> 个质心的距离，挑出最近的 <code>nprobe</code> 个桶；然后只在这几个桶的成员里做精确的距离计算，取 Top-K。</p>
+<p>用数字感受一下提速：100 万向量、<code>nlist = 1024</code>，每桶约 1000 个成员；查询时算 1024 次质心距离、挑 8 个桶，桶内只算约 8000 个向量。对比暴力检索的 100 万次，计算量缩了百倍以上。</p>
+<p>代价就是只搜了部分桶，<strong>万一本该命中的向量偏偏落在没搜的桶里，就漏了</strong>。它有两个关键参数。</p>
+<ul>
+<li><code>nlist</code>：桶的数量，建索引时定，经验区间 <strong>4√N 到 16√N</strong>（N 为向量总数）。</li>
+<li><code>nprobe</code>：查询时实际搜索的桶数。<code>nprobe</code> 越大，召回越全、但越慢，是平衡「召回损失」和「查询速度」的旋钮。</li>
+</ul>
+<p><img src="/img/RAG%20%E4%B8%BA%E4%BB%80%E4%B9%88%E6%80%BB%E7%AD%94%E4%B8%8D%E5%87%86%EF%BC%9F%E4%BB%8E%E5%88%87%E5%9D%97%E5%88%B0%E6%B7%B7%E5%90%88%E6%A3%80%E7%B4%A2%E7%9A%84%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3/rag-ivf.png" alt="IVF 分桶索引：聚类成桶 + 倒排，只搜最可能的几个桶"></p>
+<h4 id="3-3-3-PQ：用压缩换内存"><a href="#3-3-3-PQ：用压缩换内存" class="headerlink" title="3.3.3 PQ：用压缩换内存"></a>3.3.3 PQ：用压缩换内存</h4><p>第三种思路叫 <strong>PQ（乘积量化，Product Quantization）</strong>，核心是「<strong>压缩存储</strong>」。</p>
+<p>向量太大、内存装不下时，PQ 的做法是<strong>把一个完整向量切成几段（子空间），每段单独量化压缩</strong>，就像把一张高清照片压成缩略图，细节丢了，关键特征还在。</p>
+<p>整条流程分两半：<strong>库内向量量化成编号（建索引时一次做完），查询向量保持完整精度（每次查询现算）</strong>。拿数字例子走一遍，向量只有 8 维、切 4 段、每段 2 维，来了一条新向量：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">[3.2, -1.5 | 0.8, 2.1 | -0.5, 1.9 | 2.4, 0.3]</span><br></pre></td></tr></table></figure>
+
+<p><strong>建索引这一半（一次做完）</strong>：</p>
+<ol>
+<li><strong>按段聚类出码本</strong>：把所有向量的第 1 段（各自的前 2 维）收集起来聚类，聚成 256 类，得到 256 个「2 维小向量」，编上 0～255 号，这就是第 1 段的<strong>码本</strong>；第 2、3、4 段同理各训一个。注意码本不是给每个向量配代表，而是<strong>所有向量的同一段共享同一个码本</strong>。</li>
+<li><strong>每段记最近质心的编号</strong>：这条新向量的第 1 段 [3.2, −1.5]，去第 1 段码本里找距离最近的质心，假设是 77 号，于是只记 <code>77</code>；四段各找各的，整条向量最后存成 4 个编号 <code>[77, 12, 203, 5]</code>。8 维浮点向量原本要 32 字节，4 个编号只占 4 字节，压缩 8 倍；前文 128 维切 8 段，就是 512 字节压到 8 字节，压缩 64 倍。</li>
+</ol>
+<p><strong>查询这一半（每次查询现做）</strong>：</p>
+<ol start="3">
+<li><strong>查询向量保持精度，建查找表</strong>：查询向量<strong>不量化、不转编号</strong>，保持原始浮点数。查询的第 1 段去和「第 1 段码本里全部 256 个质心」算一遍距离，存成一张 256 格的表；4 个段就是 4 张表。这一步只对查询做一次，之后全部复用。</li>
+<li><strong>按编号查表求和，取最近</strong>：每条库内向量（如 <code>[77, 12, 203, 5]</code>），按编号查 4 次表：77 → 0.10，12 → 0.05，203 → 0.20，5 → 0.08，加起来 &#x3D; <strong>0.43</strong>，这就是它的近似距离；另一条 <code>[88, 12, 40, 5]</code> 算出 0.90 + 0.05 + 1.50 + 0.08 &#x3D; <strong>2.53</strong>。0.43 更小，前一条更近。所有库内向量都这么查一遍，最后取距离最小的 Top-K。</li>
+</ol>
+<p>这个「库内向量量化、查询向量不量化」的设计，就叫 <strong>ADC（不对称距离计算，Asymmetric Distance Computation）</strong>——两边本就不对等：一边是精确的查询向量，一边是压缩过的库内向量。如果查询也量化成编号，两边都是粗粒度，误差叠加，检索质量会明显变差。ADC 把原本的向量运算变成了几次查表。</p>
+<p>代价是<strong>有损</strong>：每段只记了「最近的那个小向量」，段内的精确数值丢了，算出的距离有误差，排序可能出小错。所以 PQ 用在<strong>内存紧张</strong>的场景，而且常和 IVF <strong>组合成 IVF-PQ</strong>：<strong>先分桶再压缩，兼顾速度和内存</strong>。</p>
+<h4 id="3-3-4-相似度度量：余弦、内积、欧氏距离"><a href="#3-3-4-相似度度量：余弦、内积、欧氏距离" class="headerlink" title="3.3.4 相似度度量：余弦、内积、欧氏距离"></a>3.3.4 相似度度量：余弦、内积、欧氏距离</h4><p>向量库里衡量「像不像」，常用三种度量：<strong>余弦相似度</strong>（看夹角）、<strong>内积</strong>（看投影）、<strong>欧氏距离</strong>（看直线距离）。它们之间有个很实用的关系：向量都做了 L2 归一化（模长&#x3D;1）之后，三者在排序上等价，余弦相似度就等于归一化后的内积，欧氏距离与余弦也单调对应。所以很多向量库默认对向量做归一化，再用内积加速计算。</p>
+<h3 id="3-4-向量数据库怎么选"><a href="#3-4-向量数据库怎么选" class="headerlink" title="3.4 向量数据库怎么选"></a>3.4 向量数据库怎么选</h3><p>市面上主流的向量库大致这几家。不用背参数，直接按「你的场景长什么样」对号入座。</p>
+<table>
+<thead>
+<tr>
+<th>产品</th>
+<th>适合什么场景</th>
+<th>关键理由</th>
+<th>需要注意</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Milvus</strong></td>
+<td>向量数亿级起步的企业级知识库</td>
+<td>能扛十亿&#x2F;百亿级，HNSW&#x2F;IVF&#x2F;PQ 索引齐全，支持 GPU 加速，Python&#x2F;Java&#x2F;Go SDK 完善</td>
+<td>部署运维有门槛，通常要 Kubernetes 编排，团队没有 DevOps 经验会吃力</td>
+</tr>
+<tr>
+<td><strong>Pinecone</strong></td>
+<td>不想自建基础设施、团队小、要快速上线</td>
+<td>全托管 SaaS，零运维，注册即用，自动扩缩容</td>
+<td>付费且不便宜；数据存第三方，有合规（如数据出境）要求就不合适</td>
+</tr>
+<tr>
+<td><strong>Weaviate</strong></td>
+<td>中等规模、一开始就要混合检索</td>
+<td>原生支持向量 + BM25 一起查，内置多种 Embedding 集成，可库内完成文本转向量</td>
+<td>大规模数据下性能弱于 Milvus</td>
+</tr>
+<tr>
+<td><strong>Chroma</strong></td>
+<td>原型验证、个人项目、教学演示</td>
+<td>Python 原生，pip 装完即用，API 极简</td>
+<td>不支持分布式，安全与权限能力弱，别带进生产</td>
+</tr>
+<tr>
+<td><strong>Qdrant</strong></td>
+<td>自建部署、对延迟敏感、规模中等</td>
+<td>Rust 编写，单机性能强，2025 年基准测试中 QPS 与延迟表现领先，过滤与混合检索丰富</td>
+<td>生态相对新，超大规模仍需自建集群</td>
+</tr>
+</tbody></table>
+<p>一句话归纳选型思路：<strong>先看数据量和运维能力定「托管还是自建」，再看规模定「要不要 Milvus 这个量级」，最后看是否需要混合检索、延迟要求这些特性做收尾。</strong></p>
+<p>至此，离线存储阶段讲完。</p>
+<hr>
+<h2 id="四、在线检索阶段：细节与优化"><a href="#四、在线检索阶段：细节与优化" class="headerlink" title="四、在线检索阶段：细节与优化"></a>四、在线检索阶段：细节与优化</h2><h3 id="4-1-朴素查询：Bi-Encoder-双编码器"><a href="#4-1-朴素查询：Bi-Encoder-双编码器" class="headerlink" title="4.1 朴素查询：Bi-Encoder 双编码器"></a>4.1 朴素查询：Bi-Encoder 双编码器</h3><p>正常的查询是这样的：把用户的提问<strong>用与存储时一样的 Embedding 模型</strong>转成向量，然后拿去数据库做相似度查询，检索到相似的文本。这套方案叫 <strong>Bi-Encoder（双编码器）</strong>，<strong>把查询和文档分别编码成向量</strong>，再通过计算两者向量之间的余弦相似度来判断相关性。</p>
+<p>它有个先天缺陷：<strong>因为查询和文档是分开、独立编码的，两者之间缺少交互，检索出来的只是「相似」的文本，并不一定「准确」。</strong></p>
+<p>举个例子。假设库里有两条都和「年假」高度相关：</p>
+<ul>
+<li>「年假未休完<strong>可以累积</strong>到下一年，最多累积 5 天」</li>
+<li>「年假未休完<strong>会被清零</strong>，不跨年结转」</li>
+</ul>
+<p>用户问「年假没休完怎么办」。两条文档主题词高度重合，Bi-Encoder 分别编码后给出的相似度都很高，它分不出哪条才是公司真正的规定——「可以累积」和「会被清零」一字之差、含义相反，这种决定性的细节在各自编码时都被平均掉了。于是粗排可能把两条一起放行，把互相矛盾的答案喂给模型。</p>
+<p><img src="/img/RAG%20%E4%B8%BA%E4%BB%80%E4%B9%88%E6%80%BB%E7%AD%94%E4%B8%8D%E5%87%86%EF%BC%9F%E4%BB%8E%E5%88%87%E5%9D%97%E5%88%B0%E6%B7%B7%E5%90%88%E6%A3%80%E7%B4%A2%E7%9A%84%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3/rag-bi-vs-cross.png" alt="Bi-Encoder 双塔独立编码 vs Cross-Encoder 交叉编码"></p>
+<h3 id="4-2-优化一：Rerank-精排（Cross-Encoder）"><a href="#4-2-优化一：Rerank-精排（Cross-Encoder）" class="headerlink" title="4.2 优化一：Rerank 精排（Cross-Encoder）"></a>4.2 优化一：Rerank 精排（Cross-Encoder）</h3><p>既然分开做不准确，那就<strong>把两者放在一起做</strong>。</p>
+<p><strong>Cross-Encoder（交叉编码器）</strong> 的做法是：先由 Bi-Encoder 检索出一批候选，然后把「查询」和「候选文档」<strong>拼接</strong>成一个序列送进模型：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">[CLS] 用户的问题 [SEP] 检索到的文档内容 [SEP]</span><br></pre></td></tr></table></figure>
+
+<p>让模型对两者做<strong>交互分析</strong>，直接输出一个相关性分数。</p>
+<p><strong>Bi-Encoder 是「各自写好简历然后匹配」，Cross-Encoder 是「面对面面试」</strong>，面试官（查询）可以直接针对候选人（文档）的具体经历逐条追问，判断他是不是真的适合这个岗位。面试显然比看简历准得多。</p>
+<p>但代价也高，<strong>不可能把库里所有文档都和查询做一遍匹配</strong>。所以工程上采用<strong>两级</strong>。</p>
+<ol>
+<li><strong>先用 Bi-Encoder 粗筛</strong>，快速捞一批候选；</li>
+<li><strong>再用 Cross-Encoder 对这批候选精筛</strong>，重排后取排名前几。</li>
+</ol>
+<p>这个「粗排 + 精排」的动作，就叫 <strong>Rerank（重排序）</strong>。</p>
+<p>实际落地时有几点经验。</p>
+<ul>
+<li><strong>候选数量</strong>：先检索 <strong>50～100 个候选</strong>，再重排到 <strong>Top-5 或 Top-10</strong>，这个配置性价比最高。候选太多会拖慢 Rerank 耗时，候选太少又可能把真正相关的文档漏掉。</li>
+<li><strong>不是所有查询都要 Rerank</strong>：简单的事实查询，Rerank 提升有限，可以设个<strong>条件触发</strong>，比如只在初排 Top-1 分数低于某个阈值时才启动重排；但<strong>复杂查询收益非常大，建议始终开启</strong>。</li>
+</ul>
+<h3 id="4-3-优化二：混合检索（多路召回）"><a href="#4-3-优化二：混合检索（多路召回）" class="headerlink" title="4.3 优化二：混合检索（多路召回）"></a>4.3 优化二：混合检索（多路召回）</h3><p>精排是「对召回回来的数据重排」，那么上一步的<strong>粗排就应该尽可能多地返回候选</strong>，才不会漏。召回阶段本身也得优化，这个思路叫<strong>多路召回</strong>，也就是<strong>混合检索</strong>。</p>
+<p>第一路是<strong>向量检索</strong>，就是前面讲的，用 Bi-Encoder 存进向量库并检索，负责<strong>语义相似</strong>。</p>
+<p>第二路是<strong>关键词检索</strong>，最出名的就是 <strong>ES（Elasticsearch）</strong>，默认的相关性打分就是 BM25。流程大致是<strong>先对文档分词，然后根据关键词构建倒排索引</strong>（词 → 出现该词的文档列表），查询时对词打分排序。它对<strong>关键词极其敏感</strong>，正好补向量检索的短板。</p>
+<p>举个典型场景：<strong>查询某个具体编号的法律条文</strong>时，纯向量检索效果反而不好。因为向量看的是「两句话语义相不相似」，而一条完整法律条文和一个只提了编号的查询，<strong>语义相似度其实只落在那个编号上</strong>，整体算下来相似度不高，很可能检索不回来；<strong>关键词检索则能精准命中这个编号</strong>，一下就能捞到。</p>
+<p>第三路可选，是<strong>其他召回</strong>，比如结构化字段过滤、多查询改写后的多路检索等。</p>
+<p>多路召回的结果怎么合并？这一步叫<strong>融合</strong>（Fusion），常见的有两种做法。</p>
+<ul>
+<li><p><strong>RRF（倒数排名融合）</strong>：<strong>只用「排名」，不用「原始分数」</strong>。对每个文档，把它在各路结果里的排名取倒数再加起来：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">score(d) = Σ  1 / (k + rank_i(d))</span><br></pre></td></tr></table></figure>
+
+<p>其中 <code>rank_i(d)</code> 是文档 d 在第 i 路结果里的名次，<code>k</code> 是个平滑常数（<strong>通常取 60</strong>）。谁在多路里都排得靠前，谁的综合分就高。RRF 的好处是<strong>天然省去了「分数归一化」的麻烦</strong>，因为向量检索的余弦分和 BM25 的分数量纲完全不同，直接比大小会翻车，而 RRF 只认名次，绕开了这个坑。</p>
+</li>
+<li><p><strong>加权分数融合</strong>：把各路分数<strong>先归一化到同一尺度</strong>（比如都压到 0～1），再按权重加权求和。这里最大的坑就是<strong>分数尺度不一致</strong>，BM25 的分数可能动辄两位数，余弦相似度却在 0～1 之间，不归一化直接加权，等于让 BM25 单方面碾压。</p>
+</li>
+</ul>
+<p>融合之后，<strong>再把结果一起交给 Cross-Encoder 做精排</strong>，最后取 Top-N 送给模型生成。</p>
+<p><img src="/img/RAG%20%E4%B8%BA%E4%BB%80%E4%B9%88%E6%80%BB%E7%AD%94%E4%B8%8D%E5%87%86%EF%BC%9F%E4%BB%8E%E5%88%87%E5%9D%97%E5%88%B0%E6%B7%B7%E5%90%88%E6%A3%80%E7%B4%A2%E7%9A%84%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3/rag-hybrid-retrieval.png" alt="混合检索架构：向量路 + 关键词路 → 融合 → Cross-Encoder 精排 → 生成"></p>
+<blockquote>
+<p><strong>预告：知识图谱检索（GraphRAG）</strong> 是另一条召回路线，它做的是<strong>关系检索</strong>，根据实体之间的关系把相关资料串起来。比如问「某药品和它相互作用的其他药品」，图谱能顺着「药品 A → 相互作用 → 药品 B」的关系边把整条链捞出来，这是纯向量和关键词都做不到的。它较为复杂，我放到下一篇单独讲，这里先理解「它靠关系召回」即可。</p>
+</blockquote>
+<h3 id="4-4-检索前的小优化"><a href="#4-4-检索前的小优化" class="headerlink" title="4.4 检索前的小优化"></a>4.4 检索前的小优化</h3><p>除了召回和精排，检索「之前」也还有几招。</p>
+<ul>
+<li><strong>查询改写（Query Rewriting）</strong>：检索前先用 LLM 把用户原始问题改写成适合检索的表述。用户的口语、指代和省略是检索的大敌，比如「你们公司加班多吗」这种问法，改写成「公司加班制度」会更贴近文档里的写法。这一步通常输出一个查询。</li>
+<li><strong>多查询扩展（Multi-Query）</strong>：把「一改一」变成「一改多」，用 LLM 生成多个不同角度的子查询，比如「公司加班制度」「加班时间规定」「加班补贴政策」，分别检索后合并结果，目的是提高召回。</li>
+<li><strong>HyDE（假设性文档嵌入）</strong>：先让 LLM 根据用户问题<strong>生成一个「假设性的答案文档」</strong>，再用这个<strong>假设文档的向量</strong>去检索。因为假设文档在表述上更接近真实的答案文档（都是「答案口吻」），所以检索效果通常更好。</li>
+</ul>
+<h3 id="4-5-工业常用数值参考"><a href="#4-5-工业常用数值参考" class="headerlink" title="4.5 工业常用数值参考"></a>4.5 工业常用数值参考</h3><p>把线上常见的经验区间汇总成一张表，方便起步（<strong>具体值要按你的数据和评测结果再调</strong>）。</p>
+<table>
+<thead>
+<tr>
+<th>环节</th>
+<th>参数含义</th>
+<th>常见取值</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>切块</td>
+<td>切块大小（chunk size）</td>
+<td>QA 场景 200～500 tokens；通用 512～1024 tokens；中文约 200～500 字</td>
+</tr>
+<tr>
+<td>切块</td>
+<td>重叠长度（overlap）</td>
+<td>约为切块大小的 10%～20%</td>
+</tr>
+<tr>
+<td>向量召回</td>
+<td>召回条数（Top-K）</td>
+<td>20～100（配合精排常取 50～100）</td>
+</tr>
+<tr>
+<td>关键词召回</td>
+<td>召回条数（Top-K）</td>
+<td>50～100</td>
+</tr>
+<tr>
+<td>融合</td>
+<td>RRF 平滑常数 k</td>
+<td>60</td>
+</tr>
+<tr>
+<td>精排</td>
+<td>保留条数</td>
+<td>3～10</td>
+</tr>
+<tr>
+<td>HNSW</td>
+<td>M（每个点的最大连接数）&#x2F; efConstruction（建索引时候选队列长度）&#x2F; efSearch（查询时候选队列长度）</td>
+<td>16～64 &#x2F; 100～500 &#x2F; 64～256</td>
+</tr>
+<tr>
+<td>IVF</td>
+<td>nlist（桶数）&#x2F; nprobe（查询时搜索的桶数）</td>
+<td>≈4√N &#x2F; 8～64</td>
+</tr>
+<tr>
+<td>融合权重</td>
+<td>向量路 : 关键词路</td>
+<td>0.7 : 0.3 起步（或 RRF 等权）</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="五、RAG-评测：把「效果好不好」量化出来"><a href="#五、RAG-评测：把「效果好不好」量化出来" class="headerlink" title="五、RAG 评测：把「效果好不好」量化出来"></a>五、RAG 评测：把「效果好不好」量化出来</h2><p>调 RAG 最怕一件事：改了半天不知道有没有变好。所以要评测，而且评测要<strong>分成两层</strong>，否则分不清到底是「没检索到」还是「检索到了但模型没用」。</p>
+<h3 id="5-1-第一层：检索质量评估"><a href="#5-1-第一层：检索质量评估" class="headerlink" title="5.1 第一层：检索质量评估"></a>5.1 第一层：检索质量评估</h3><p>检索质量主要看两方面，这也是传统搜索沿用的评估方法。</p>
+<ul>
+<li><strong>准确率</strong>：关注<strong>搜得准不准</strong>（搜回来的里面有多少是相关的），对应 <strong>Precision@K</strong>。</li>
+<li><strong>全面率</strong>：关注<strong>搜得全不全</strong>（相关的里面有多少被搜回来了），对应 <strong>Recall@K</strong>。</li>
+</ul>
+<p>除了这两个，还有一个<strong>综合指标 NDCG</strong>，用来看你<strong>排得对不对</strong>，即相关度排序是否合理。这也是最常用的综合指标。</p>
+<blockquote>
+<p><strong>NDCG 是怎么算的？</strong></p>
+<p>它由两个概念叠起来。</p>
+<ol>
+<li><strong>DCG（折损累积增益）</strong>：把每个位置上的「相关度 ÷ 位置折损」累加起来，折损就是除以 <code>log2(位置+1)</code>。意义很直白：<strong>排在前面的相关结果价值更大，排在后面的即使也相关，价值也被折损</strong>。公式是 <code>DCG = Σ rel_i / log2(i+1)</code>，其中 <code>rel_i</code> 是第 i 个结果的相关度。</li>
+<li><strong>IDCG（理想 DCG）</strong>：假设排序<strong>完全理想</strong>（所有相关结果都排在最前面）时的 DCG。</li>
+</ol>
+<p>于是 <strong>NDCG &#x3D; DCG &#x2F; IDCG</strong>，取值落在 0～1 之间。<strong>越接近 1，说明实际排序越接近理想排序</strong>，它同时兼顾了「有没有搜到相关的」和「把相关的排在了多前面」。</p>
+</blockquote>
+<p>拿具体数字算一遍。搜回来 5 条，真实相关度分别是 3、2、0、1、0（3 最相关，0 不相关）。折损系数按位置算：第 1 位除以 log2(2)&#x3D;1，第 2 位除以 log2(3)≈1.585，第 3 位除以 log2(4)&#x3D;2，第 4 位除以 log2(5)≈2.322，第 5 位除以 log2(6)≈2.585。</p>
+<ul>
+<li>实际排序 [3, 2, 0, 1, 0]，逐位算：3&#x2F;1 + 2&#x2F;1.585 + 0&#x2F;2 + 1&#x2F;2.322 + 0&#x2F;2.585 &#x3D; 3 + 1.26 + 0 + 0.43 + 0 ≈ <strong>4.69</strong>，这就是 DCG。理想排序是 [3, 2, 1, 0, 0]，同样逐位算：3&#x2F;1 + 2&#x2F;1.585 + 1&#x2F;2 + 0 + 0 ≈ 4.76，这就是 IDCG。NDCG &#x3D; 4.69 &#x2F; 4.76 ≈ <strong>0.99</strong>，相关的都搜回来了，而且排在了前面。</li>
+<li>同样 5 条，排成 [0, 1, 3, 2, 0]：0&#x2F;1 + 1&#x2F;1.585 + 3&#x2F;2 + 2&#x2F;2.322 + 0&#x2F;2.585 &#x3D; 0 + 0.63 + 1.50 + 0.86 + 0 ≈ 2.99。IDCG 不变还是 4.76，NDCG &#x3D; 2.99 &#x2F; 4.76 ≈ <strong>0.63</strong>。结果一样，只是排乱了，分就掉下来。</li>
+</ul>
+<h3 id="5-2-第二层：生成质量评估"><a href="#5-2-第二层：生成质量评估" class="headerlink" title="5.2 第二层：生成质量评估"></a>5.2 第二层：生成质量评估</h3><p>这一层看的是：<strong>检索回来的资料，有没有真正提升生成效果</strong>。核心是三个指标。</p>
+<p><strong>Faithfulness（忠实度）</strong>是 RAG 评估中<strong>最重要的指标</strong>，衡量的是<strong>大模型生成的回答是否忠实于检索到的文档，有没有编造文档里不存在的信息</strong>。</p>
+<p>举个例子：检索出来的资料表明「苹果公司 2024–2025 年度营收为 3000 万亿美元（假设）」，此时你问苹果这几年的营收情况，如果模型答成「<strong>2025–2026 年度营收为 3000 万亿美元</strong>」，多加了资料里根本没有的年份，那就是<strong>不忠实</strong>，属于编造。</p>
+<p><strong>Answer Relevance（答案相关性）</strong>看的是生成的答案<strong>有没有回答用户的问题，有没有跑题</strong>。</p>
+<p>举例：用户问「TCP 的三次握手是什么」，结果检索回来一堆网络协议的知识，模型最后大篇幅讲了网络协议的各种细节，<strong>反而把用户最关心的「三次握手」边缘化了，导致跑偏</strong>，这就是答案相关性出了问题。</p>
+<p><strong>Context Relevance（上下文相关性）</strong>衡量捞回来的上下文本身和问题相不相关，归到底属于<strong>检索质量问题</strong>。</p>
+<p><img src="/img/RAG%20%E4%B8%BA%E4%BB%80%E4%B9%88%E6%80%BB%E7%AD%94%E4%B8%8D%E5%87%86%EF%BC%9F%E4%BB%8E%E5%88%87%E5%9D%97%E5%88%B0%E6%B7%B7%E5%90%88%E6%A3%80%E7%B4%A2%E7%9A%84%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3/rag-eval-layers.png" alt="RAG 两层评测体系：检索层指标 ←→ 生成层指标"></p>
+<h3 id="5-3-开源框架-RAGAS"><a href="#5-3-开源框架-RAGAS" class="headerlink" title="5.3 开源框架 RAGAS"></a>5.3 开源框架 RAGAS</h3><p>上面这些指标如果每次都手写，很难标准化、复用。<strong>RAGAS</strong> 就是来解决这个问题的开源框架：给它「问题 + 检索到的上下文 + 模型回答」（部分指标还要标准答案），它自动把每项指标算成一个 0～1 的分数。五个核心指标，逐个看它是怎么算的。</p>
+<ul>
+<li><strong>Faithfulness（忠实度）</strong>：把模型的回答<strong>拆成一条条事实断言</strong>，逐条让 LLM 判断「这条断言能不能被检索到的上下文支持」，<strong>被支持的比例</strong>就是得分。回答了三句话，两句有据可查、一句是编的，忠实度就是 2&#x2F;3 ≈ 0.67。它不需要标准答案，是 RAG 评估里最常用的一项。</li>
+<li><strong>Answer Relevancy（答案相关性）</strong>：反向验证。让 LLM <strong>根据答案反推「这道题大概问的是什么」</strong>，生成几个候选问题，再算这些候选问题和原始问题的向量相似度。答案切题，反推的问题就和原问题很像，分高；答案跑题（问三次握手却答了一堆协议历史），反推的问题会偏到别处，分低。同样不需要标准答案。</li>
+<li><strong>Context Precision（上下文精确率）</strong>：评检索结果的<strong>排序质量</strong>——相关块是不是排在了不相关块前面，思路和检索层的 NDCG 一致，只是「相关不相关」由 LLM 判定。</li>
+<li><strong>Context Recall（上下文召回率）</strong>：把<strong>标准答案</strong>拆成断言，逐条检查「这一点能不能在检索到的上下文里找到依据」，找得到的比例就是得分。标准答案里的关键点在上下文里找不到，说明漏检了。</li>
+<li><strong>Answer Correctness（答案正确性）</strong>：把回答和标准答案直接比对，按<strong>事实重合度</strong>和<strong>语义相似度</strong>加权，衡量最终回答对了多少。</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>指标</th>
+<th>属于哪一层</th>
+<th>需要标准答案吗</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Faithfulness</td>
+<td>生成层</td>
+<td>不需要</td>
+</tr>
+<tr>
+<td>Answer Relevancy</td>
+<td>生成层</td>
+<td>不需要</td>
+</tr>
+<tr>
+<td>Context Precision</td>
+<td>检索层</td>
+<td>不需要（LLM 判定）</td>
+</tr>
+<tr>
+<td>Context Recall</td>
+<td>检索层</td>
+<td>需要</td>
+</tr>
+<tr>
+<td>Answer Correctness</td>
+<td>生成层</td>
+<td>需要</td>
+</tr>
+</tbody></table>
+<p>实践中一般先用免标注的 Faithfulness 和 Answer Relevancy 摸清整体水位，要深挖检索层时，再补上带标准答案的两项。</p>
+<p>RAGAS 的价值在于，<strong>它让「调优有没有变好」变成可量化的数字，而不是凭感觉。</strong></p>
+<hr>
+<h2 id="六、幻觉：来源、解决与不确定性量化"><a href="#六、幻觉：来源、解决与不确定性量化" class="headerlink" title="六、幻觉：来源、解决与不确定性量化"></a>六、幻觉：来源、解决与不确定性量化</h2><p>最后收个尾，聊聊 RAG 一直在对抗的那个老对手，<strong>幻觉</strong>。</p>
+<p><strong>幻觉从哪来？</strong> 根本原因是<strong>模型在被要求回答时，倾向于给出「看起来合理」的输出，而不是「事实正确」的输出</strong>。它的目标函数里，流畅、像样的回答更容易得高分。于是当它缺乏对应知识时，就会用训练中见过的模式去「填空」，编出论文、编号这类看着很专业、实际上全是假的内容。</p>
+<p><strong>怎么解决？</strong> 主要有几条路。</p>
+<ul>
+<li><strong>RAG</strong>：也就是本文全部内容，<strong>把真实知识先拼进 Prompt</strong>，让模型有据可依，从源头压住幻觉。</li>
+<li><strong>微调</strong>：把领域知识内化进参数，但如前所述，它学到的更多是「模式」和「风格」，对具体事实的准确性不做保证。</li>
+<li><strong>输出校验</strong>：对模型的输出再做一层事实核对。</li>
+<li><strong>不确定量化</strong>：这个方法比较有意思，<strong>拿到模型输出那一句话里每个词的原始数值（本质就是概率），如果这些概率平均下来都很低，说明这个答案很有问题</strong>。可以这样理解：这句话是模型在「很多都不太行的候选里，挑了一个相对没那么烂的」。词级概率普遍偏低，就是模型自己心里没底，答案大概率不可信。</li>
+</ul>
+<p><strong>总结：</strong> RAG 的本质思路其实和<strong>限流</strong>一样，都是<strong>漏斗模型</strong>。前面用多路召回尽可能<strong>多捞</strong>（对应限流的「放行」），后面用精排和阈值<strong>层层收窄</strong>（对应限流的「拦截」）。再叠上评测和幻觉校验这类<strong>风控</strong>，才是一套完整的线上 RAG。这部分值得<strong>专门设计</strong>，而不是随便拼一个 Prompt 了事。</p>
+<hr>
+<h2 id="七、总结"><a href="#七、总结" class="headerlink" title="七、总结"></a>七、总结</h2><p>按一篇文档从进库到被用上的完整顺序，把全流程串一遍。</p>
+<p><strong>离线这一侧</strong>，一篇《员工手册》进系统，先被解析成纯文本，然后切块。怎么切决定后面一切的上限：默认用递归分隔符保住句子完整，格式规范的文档上结构感知切分，对召回精度要求高就上语义切分或父子块。切好的块用<strong>同一个 Embedding 模型</strong>转成向量，入库时按规模和内存选索引：追求低延迟用 HNSW，量太大用 IVF，内存紧张再叠 PQ 压缩。</p>
+<p><strong>在线这一侧</strong>，用户问出「公司年假政策是什么」，先用同一个模型把问题转成向量，进入漏斗第一层——粗排。粗排要的不是准，是全：向量检索抓语义相近的，BM25 抓编号、型号这类精确关键词的，两路结果用 RRF 融合，宁可多捞几十条。第二层是精排，Cross-Encoder 把查询和每条候选放在一起逐条「面试」，把几十条收窄到三五条。有需要的话，检索之前还能用查询改写、HyDE、多查询扩展，把问题本身先修好。最后拼 Prompt，交给模型生成。</p>
+<p><strong>评测把两头闭环</strong>。改了切块粒度、换了融合权重、加了精排，效果到底变没变好，不靠感觉：检索层用 Precision@K、Recall@K、NDCG 判断「该捞的捞到没有、排得对不对」，定位检索的问题；生成层用 Faithfulness、Answer Relevancy 判断「模型有没有基于资料好好说话」，定位生成的问题。用 RAGAS 把这些分数自动化，每改一版跑一遍，数字说话。</p>
+<p>一条主线贯穿始终：<strong>切块粒度决定召回噪声，噪声逼出精排，粗排的漏召逼出混合检索，而所有优化是否生效，靠评测验证。</strong> RAG 的上限由检索质量决定，检索质量由切块和评测兜底。</p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://LI-S-H.github.io">青山木</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://li-s-h.github.io/2026/10/20/RAG%20%E4%B8%BA%E4%BB%80%E4%B9%88%E6%80%BB%E7%AD%94%E4%B8%8D%E5%87%86%EF%BC%9F%E4%BB%8E%E5%88%87%E5%9D%97%E5%88%B0%E6%B7%B7%E5%90%88%E6%A3%80%E7%B4%A2%E7%9A%84%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3/">https://li-s-h.github.io/2026/10/20/RAG%20%E4%B8%BA%E4%BB%80%E4%B9%88%E6%80%BB%E7%AD%94%E4%B8%8D%E5%87%86%EF%BC%9F%E4%BB%8E%E5%88%87%E5%9D%97%E5%88%B0%E6%B7%B7%E5%90%88%E6%A3%80%E7%B4%A2%E7%9A%84%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://LI-S-H.github.io" target="_blank">青山木</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/RAG/">RAG</a><a class="post-meta__tags" href="/tags/%E5%90%91%E9%87%8F%E6%95%B0%E6%8D%AE%E5%BA%93/">向量数据库</a><a class="post-meta__tags" href="/tags/Embedding/">Embedding</a><a class="post-meta__tags" href="/tags/BM25/">BM25</a><a class="post-meta__tags" href="/tags/Rerank/">Rerank</a><a class="post-meta__tags" href="/tags/RAGAS/">RAGAS</a></div><div class="post-share"><div class="social-share" data-image="/img/title-picture/RAG%E4%B8%BA%E4%BB%80%E4%B9%88%E7%AD%94%E4%B8%8D%E5%87%86.jpg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/2026/10/29/RAG%20%E4%B8%BA%E4%BB%80%E4%B9%88%E7%AD%94%E4%B8%8D%E5%87%BA%E5%85%A8%E5%B1%80%E5%92%8C%E5%85%B3%E8%81%94%EF%BC%9FGraphRAG%20%E4%B8%8E%20LightRAG%20%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3/" title="RAG为什么答不出全局性和关联性问题? GraphRAG 与 LightRAG 全链路拆解"><img class="cover" src="/img/title-picture/RAG%20%E4%B8%BA%E4%BB%80%E4%B9%88%E7%AD%94%E4%B8%8D%E5%87%BA%E5%85%A8%E5%B1%80%E5%92%8C%E5%85%B3%E8%81%94%20GraphRAG%20%E4%B8%8E%20LightRAG%20%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3.jpg" onerror="onerror=null;src='/img/404.jpg'" alt="cover of previous post"><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">RAG为什么答不出全局性和关联性问题? GraphRAG 与 LightRAG 全链路拆解</div></div><div class="info-2"><div class="info-item-1">围绕传统 RAG 的三类失效——切片把逻辑关系切断、全局性问题检索不出来、多跳推理没有交集机制，拆解 GraphRAG 如何用「实体关系图 + 分层 Leiden 社区 + 社区报告」换来全局视角，以及 LightRAG 如何删掉社区、改用双层关键词检索，换来更低的成本、自然的增量与更低的延迟。最后给出两者的四个困点、各自的代价与一套可落地的选型路径。</div></div></div></a><a class="pagination-related" href="/2026/10/16/Java%20%E5%B9%B6%E5%8F%91%E5%9F%BA%E7%A1%80%E5%85%A8%E8%A7%A3%EF%BC%9A%E4%BB%8E%E8%BF%9B%E7%A8%8B%E4%B8%8E%E7%BA%BF%E7%A8%8B%E5%88%B0%E5%A4%9A%E7%BA%BF%E7%A8%8B%E3%80%81%E7%BA%BF%E7%A8%8B%E5%AE%89%E5%85%A8%E4%B8%8E%E6%AD%BB%E9%94%81/" title="Java 并发基础全解：从进程与线程到多线程、线程安全与死锁"><img class="cover" src="/img/title-picture/Java%20%E5%B9%B6%E5%8F%91%E5%9F%BA%E7%A1%80%E5%85%A8%E8%A7%A3%EF%BC%9A%E4%BB%8E%E8%BF%9B%E7%A8%8B%E4%B8%8E%E7%BA%BF%E7%A8%8B%E5%88%B0%E5%A4%9A%E7%BA%BF%E7%A8%8B%E3%80%81%E7%BA%BF%E7%A8%8B%E5%AE%89%E5%85%A8%E4%B8%8E%E6%AD%BB%E9%94%81.jpg" onerror="onerror=null;src='/img/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">Java 并发基础全解：从进程与线程到多线程、线程安全与死锁</div></div><div class="info-2"><div class="info-item-1">并发是一座楼，地基是"进程与线程"。本文按"先概念、后原理、再问题"的顺序，从进程与线程是什么讲起，逐层拆开线程私有/共享的资源、Java 线程与操作系统线程的映射、并发与并行、多线程的收益与代价，直到线程生命周期、上下文切换、线程安全与死锁，配全流程图、状态转换表与可运行代码。</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/2026/10/29/RAG%20%E4%B8%BA%E4%BB%80%E4%B9%88%E7%AD%94%E4%B8%8D%E5%87%BA%E5%85%A8%E5%B1%80%E5%92%8C%E5%85%B3%E8%81%94%EF%BC%9FGraphRAG%20%E4%B8%8E%20LightRAG%20%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3/" title="RAG为什么答不出全局性和关联性问题? GraphRAG 与 LightRAG 全链路拆解"><img class="cover" src="/img/title-picture/RAG%20%E4%B8%BA%E4%BB%80%E4%B9%88%E7%AD%94%E4%B8%8D%E5%87%BA%E5%85%A8%E5%B1%80%E5%92%8C%E5%85%B3%E8%81%94%20GraphRAG%20%E4%B8%8E%20LightRAG%20%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-29</div><div class="info-item-2">RAG为什么答不出全局性和关联性问题? GraphRAG 与 LightRAG 全链路拆解</div></div><div class="info-2"><div class="info-item-1">围绕传统 RAG 的三类失效——切片把逻辑关系切断、全局性问题检索不出来、多跳推理没有交集机制，拆解 GraphRAG 如何用「实体关系图 + 分层 Leiden 社区 + 社区报告」换来全局视角，以及 LightRAG 如何删掉社区、改用双层关键词检索，换来更低的成本、自然的增量与更低的延迟。最后给出两者的四个困点、各自的代价与一套可落地的选型路径。</div></div></div></a><a class="pagination-related" href="/2026/06/11/%E4%B8%80%E6%96%87%E5%90%83%E9%80%8F%20Spring%20AI%20Alibaba%20RAG%EF%BC%9A%E4%B8%89%E7%A7%8D%E6%9E%B6%E6%9E%84%E6%A8%A1%E5%BC%8F%20+%20%E5%85%A8%E6%B5%81%E7%A8%8B%E4%BC%98%E5%8C%96%E8%AF%A6%E8%A7%A3/" title="一文吃透 Spring AI Alibaba RAG：三种架构模式 + 全流程优化详解"><img class="cover" src="/img/%E4%B8%80%E6%96%87%E5%90%83%E9%80%8F%20Spring%20AI%20Alibaba%20RAG%EF%BC%9A%E4%B8%89%E7%A7%8D%E6%9E%B6%E6%9E%84%E6%A8%A1%E5%BC%8F%20+%20%E5%85%A8%E6%B5%81%E7%A8%8B%E4%BC%98%E5%8C%96%E8%AF%A6%E8%A7%A3/%E4%B8%80%E6%96%87%E5%90%83%E9%80%8FRAG.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-06-11</div><div class="info-item-2">一文吃透 Spring AI Alibaba RAG：三种架构模式 + 全流程优化详解</div></div><div class="info-2"><div class="info-item-1">系统讲解 RAG 核心原理与替代方案（Skill、MCP、Wiki）的取舍，详细拆解 Spring AI Alibaba 三种 RAG 架构模式（两步 RAG、Agentic RAG、混合 RAG）与四阶段全链路优化（Pre-Retrieval 查询压缩与扩展、Retrieval 向量检索、Post-Retrieval 重排序与压缩、Generation 上下文增强），并提供 ReactAgent 钩子、FunctionToolCallback 多工具调用等完整可运行代码示例。</div></div></div></a><a class="pagination-related" href="/2026/06/02/%E4%BB%8ELLM%E5%88%B0Agent%EF%BC%9APrompt%C2%B7RAG%C2%B7ToolCalling%C2%B7MCP%E5%A6%82%E4%BD%95%E6%8A%8A%E5%87%BD%E6%95%B0%E5%8F%98%E6%88%90%E6%99%BA%E8%83%BD%E4%BD%93/" title="从 LLM 到 Agent：Prompt·RAG·Tool Calling·MCP 如何把函数变成智能体"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-06-02</div><div class="info-item-2">从 LLM 到 Agent：Prompt·RAG·Tool Calling·MCP 如何把函数变成智能体</div></div><div class="info-2"><div class="info-item-1">大模型本质上只是一个预测下一个Token的函数，天生有四个缺陷。本文从大模型本质出发，拆解每个缺陷及解决方案，帮助理解什么是智能体及其构建思路。</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/%E5%A4%B4%E5%83%8F.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">青山木</div><div class="author-info-description">正在学习Java后端开发＋智能体开发，希望能与大家多多交流</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">120</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">283</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">9</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/LI-S-H"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/LI-S-H" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">欢迎来到我的博客，记录学习与成长的点滴。</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#RAG-%E4%B8%BA%E4%BB%80%E4%B9%88%E6%80%BB%E7%AD%94%E4%B8%8D%E5%87%86%EF%BC%9F%E4%BB%8E%E5%88%87%E5%9D%97%E5%88%B0%E6%B7%B7%E5%90%88%E6%A3%80%E7%B4%A2%E7%9A%84%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3"><span class="toc-number">1.</span> <span class="toc-text">RAG 为什么总答不准？从切块到混合检索的全链路拆解</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%80%E3%80%81%E4%BB%80%E4%B9%88%E6%98%AF-RAG"><span class="toc-number">1.1.</span> <span class="toc-text">一、什么是 RAG</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1-1-%E5%A4%A7%E6%A8%A1%E5%9E%8B%E7%9A%84%E4%B8%89%E4%B8%AA%E5%85%88%E5%A4%A9%E5%9B%B0%E5%A2%83"><span class="toc-number">1.1.1.</span> <span class="toc-text">1.1 大模型的三个先天困境</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-2-%E5%BE%AE%E8%B0%83-vs-RAG%EF%BC%9A%E4%B8%A4%E6%9D%A1%E6%B3%A8%E5%85%A5%E7%9F%A5%E8%AF%86%E7%9A%84%E8%B7%AF"><span class="toc-number">1.1.2.</span> <span class="toc-text">1.2 微调 vs RAG：两条注入知识的路</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-3-RAG-%E7%9A%84%E6%95%B4%E4%BD%93%E6%B5%81%E7%A8%8B%EF%BC%9A%E5%8F%AA%E6%9C%89%E4%B8%A4%E4%B8%AA%E9%98%B6%E6%AE%B5"><span class="toc-number">1.1.3.</span> <span class="toc-text">1.3 RAG 的整体流程：只有两个阶段</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%8C%E3%80%81%E4%B8%80%E4%B8%AA%E5%AE%8C%E6%95%B4%E4%BE%8B%E5%AD%90%EF%BC%9A%E4%BB%8E%E6%96%87%E6%A1%A3%E5%88%B0%E5%9B%9E%E7%AD%94"><span class="toc-number">1.2.</span> <span class="toc-text">二、一个完整例子：从文档到回答</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#2-1-%E7%A6%BB%E7%BA%BF%E5%AD%98%E5%82%A8%E9%98%B6%E6%AE%B5"><span class="toc-number">1.2.1.</span> <span class="toc-text">2.1 离线存储阶段</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-2-%E5%9C%A8%E7%BA%BF%E6%A3%80%E7%B4%A2%E9%98%B6%E6%AE%B5"><span class="toc-number">1.2.2.</span> <span class="toc-text">2.2 在线检索阶段</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%89%E3%80%81%E7%A6%BB%E7%BA%BF%E5%AD%98%E5%82%A8%E9%98%B6%E6%AE%B5%EF%BC%9A%E7%BB%86%E8%8A%82"><span class="toc-number">1.3.</span> <span class="toc-text">三、离线存储阶段：细节</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#3-1-%E5%88%87%E5%9D%97%EF%BC%88Chunking%EF%BC%89%EF%BC%9A%E6%9C%80%E5%AE%B9%E6%98%93%E8%A2%AB%E4%BD%8E%E4%BC%B0%E7%9A%84%E4%B8%80%E6%AD%A5"><span class="toc-number">1.3.1.</span> <span class="toc-text">3.1 切块（Chunking）：最容易被低估的一步</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#3-1-1-%E5%9B%BA%E5%AE%9A%E9%95%BF%E5%BA%A6%E5%88%87%E5%88%86"><span class="toc-number">1.3.1.1.</span> <span class="toc-text">3.1.1 固定长度切分</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#3-1-2-%E9%87%8D%E5%8F%A0%EF%BC%88Overlap%EF%BC%89"><span class="toc-number">1.3.1.2.</span> <span class="toc-text">3.1.2 重叠（Overlap）</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#3-1-3-%E9%80%92%E5%BD%92%E5%88%86%E9%9A%94%E7%AC%A6%E5%88%87%E5%88%86"><span class="toc-number">1.3.1.3.</span> <span class="toc-text">3.1.3 递归分隔符切分</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#3-1-4-%E7%BB%93%E6%9E%84%E6%84%9F%E7%9F%A5%E5%88%87%E5%88%86"><span class="toc-number">1.3.1.4.</span> <span class="toc-text">3.1.4 结构感知切分</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#3-1-5-%E8%AF%AD%E4%B9%89%E5%88%87%E5%88%86"><span class="toc-number">1.3.1.5.</span> <span class="toc-text">3.1.5 语义切分</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#3-1-6-LLM-Agent-%E5%88%87%E5%88%86"><span class="toc-number">1.3.1.6.</span> <span class="toc-text">3.1.6 LLM&#x2F;Agent 切分</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#3-1-7-%E7%88%B6%E5%AD%90%E5%9D%97%EF%BC%88Small-to-Big%EF%BC%89"><span class="toc-number">1.3.1.7.</span> <span class="toc-text">3.1.7 父子块（Small-to-Big）</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-2-%E5%90%91%E9%87%8F%E5%8C%96%EF%BC%88Embedding%EF%BC%89%EF%BC%9A%E4%BB%8E-Word2Vec-%E5%88%B0-BGE-M3"><span class="toc-number">1.3.2.</span> <span class="toc-text">3.2 向量化（Embedding）：从 Word2Vec 到 BGE-M3</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#3-2-1-%E7%AC%AC%E4%B8%80%E4%BB%A3%EF%BC%9AWord2Vec%EF%BC%882013%EF%BC%89"><span class="toc-number">1.3.2.1.</span> <span class="toc-text">3.2.1 第一代：Word2Vec（2013）</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#3-2-2-%E7%AC%AC%E4%BA%8C%E4%BB%A3%EF%BC%9ABERT%EF%BC%882018%EF%BC%89"><span class="toc-number">1.3.2.2.</span> <span class="toc-text">3.2.2 第二代：BERT（2018）</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#3-2-3-%E7%AC%AC%E4%B8%89%E4%BB%A3%EF%BC%9ABGE-M3-%E4%B8%8E-text-embedding%EF%BC%882024-%E5%B9%B4%E8%87%B3%E4%BB%8A%EF%BC%89"><span class="toc-number">1.3.2.3.</span> <span class="toc-text">3.2.3 第三代：BGE-M3 与 text-embedding（2024 年至今）</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#3-2-4-%E7%A8%A0%E5%AF%86%E6%A3%80%E7%B4%A2%EF%BC%88Dense%EF%BC%89%EF%BC%9A%E8%AF%AD%E4%B9%89%E7%9B%B8%E4%BC%BC"><span class="toc-number">1.3.2.4.</span> <span class="toc-text">3.2.4 稠密检索（Dense）：语义相似</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#3-2-5-%E7%A8%80%E7%96%8F%E6%A3%80%E7%B4%A2%EF%BC%88Sparse%EF%BC%89%EF%BC%9A%E4%BC%9A%E6%89%93%E5%88%86%E7%9A%84%E5%85%B3%E9%94%AE%E8%AF%8D%E5%8C%B9%E9%85%8D"><span class="toc-number">1.3.2.5.</span> <span class="toc-text">3.2.5 稀疏检索（Sparse）：会打分的关键词匹配</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#3-2-6-%E5%A4%9A%E5%90%91%E9%87%8F%E6%A3%80%E7%B4%A2%EF%BC%88Multi-Vector%EF%BC%89%EF%BC%9A%E6%AF%8F%E4%B8%AA-token-%E5%8D%95%E7%8B%AC%E7%AE%97%E5%88%86"><span class="toc-number">1.3.2.6.</span> <span class="toc-text">3.2.6 多向量检索（Multi-Vector）：每个 token 单独算分</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-3-%E5%90%91%E9%87%8F%E6%95%B0%E6%8D%AE%E5%BA%93%EF%BC%9A%E6%B5%B7%E9%87%8F%E5%90%91%E9%87%8F%E9%87%8C%E6%80%8E%E4%B9%88%E5%BF%AB%E9%80%9F%E6%89%BE%E5%88%B0%E8%BF%91%E9%82%BB"><span class="toc-number">1.3.3.</span> <span class="toc-text">3.3 向量数据库：海量向量里怎么快速找到近邻</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#3-3-1-HNSW%EF%BC%9A%E5%88%86%E5%B1%82%E5%AF%BC%E8%88%AA%E5%B0%8F%E4%B8%96%E7%95%8C%E5%9B%BE"><span class="toc-number">1.3.3.1.</span> <span class="toc-text">3.3.1 HNSW：分层导航小世界图</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#3-3-2-IVF%EF%BC%9A%E5%85%88%E5%88%86%E6%A1%B6%EF%BC%8C%E5%86%8D%E6%A1%B6%E5%86%85%E6%90%9C"><span class="toc-number">1.3.3.2.</span> <span class="toc-text">3.3.2 IVF：先分桶，再桶内搜</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#3-3-3-PQ%EF%BC%9A%E7%94%A8%E5%8E%8B%E7%BC%A9%E6%8D%A2%E5%86%85%E5%AD%98"><span class="toc-number">1.3.3.3.</span> <span class="toc-text">3.3.3 PQ：用压缩换内存</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#3-3-4-%E7%9B%B8%E4%BC%BC%E5%BA%A6%E5%BA%A6%E9%87%8F%EF%BC%9A%E4%BD%99%E5%BC%A6%E3%80%81%E5%86%85%E7%A7%AF%E3%80%81%E6%AC%A7%E6%B0%8F%E8%B7%9D%E7%A6%BB"><span class="toc-number">1.3.3.4.</span> <span class="toc-text">3.3.4 相似度度量：余弦、内积、欧氏距离</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-4-%E5%90%91%E9%87%8F%E6%95%B0%E6%8D%AE%E5%BA%93%E6%80%8E%E4%B9%88%E9%80%89"><span class="toc-number">1.3.4.</span> <span class="toc-text">3.4 向量数据库怎么选</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%9B%9B%E3%80%81%E5%9C%A8%E7%BA%BF%E6%A3%80%E7%B4%A2%E9%98%B6%E6%AE%B5%EF%BC%9A%E7%BB%86%E8%8A%82%E4%B8%8E%E4%BC%98%E5%8C%96"><span class="toc-number">1.4.</span> <span class="toc-text">四、在线检索阶段：细节与优化</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#4-1-%E6%9C%B4%E7%B4%A0%E6%9F%A5%E8%AF%A2%EF%BC%9ABi-Encoder-%E5%8F%8C%E7%BC%96%E7%A0%81%E5%99%A8"><span class="toc-number">1.4.1.</span> <span class="toc-text">4.1 朴素查询：Bi-Encoder 双编码器</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-2-%E4%BC%98%E5%8C%96%E4%B8%80%EF%BC%9ARerank-%E7%B2%BE%E6%8E%92%EF%BC%88Cross-Encoder%EF%BC%89"><span class="toc-number">1.4.2.</span> <span class="toc-text">4.2 优化一：Rerank 精排（Cross-Encoder）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-3-%E4%BC%98%E5%8C%96%E4%BA%8C%EF%BC%9A%E6%B7%B7%E5%90%88%E6%A3%80%E7%B4%A2%EF%BC%88%E5%A4%9A%E8%B7%AF%E5%8F%AC%E5%9B%9E%EF%BC%89"><span class="toc-number">1.4.3.</span> <span class="toc-text">4.3 优化二：混合检索（多路召回）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-4-%E6%A3%80%E7%B4%A2%E5%89%8D%E7%9A%84%E5%B0%8F%E4%BC%98%E5%8C%96"><span class="toc-number">1.4.4.</span> <span class="toc-text">4.4 检索前的小优化</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-5-%E5%B7%A5%E4%B8%9A%E5%B8%B8%E7%94%A8%E6%95%B0%E5%80%BC%E5%8F%82%E8%80%83"><span class="toc-number">1.4.5.</span> <span class="toc-text">4.5 工业常用数值参考</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%94%E3%80%81RAG-%E8%AF%84%E6%B5%8B%EF%BC%9A%E6%8A%8A%E3%80%8C%E6%95%88%E6%9E%9C%E5%A5%BD%E4%B8%8D%E5%A5%BD%E3%80%8D%E9%87%8F%E5%8C%96%E5%87%BA%E6%9D%A5"><span class="toc-number">1.5.</span> <span class="toc-text">五、RAG 评测：把「效果好不好」量化出来</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#5-1-%E7%AC%AC%E4%B8%80%E5%B1%82%EF%BC%9A%E6%A3%80%E7%B4%A2%E8%B4%A8%E9%87%8F%E8%AF%84%E4%BC%B0"><span class="toc-number">1.5.1.</span> <span class="toc-text">5.1 第一层：检索质量评估</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#5-2-%E7%AC%AC%E4%BA%8C%E5%B1%82%EF%BC%9A%E7%94%9F%E6%88%90%E8%B4%A8%E9%87%8F%E8%AF%84%E4%BC%B0"><span class="toc-number">1.5.2.</span> <span class="toc-text">5.2 第二层：生成质量评估</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#5-3-%E5%BC%80%E6%BA%90%E6%A1%86%E6%9E%B6-RAGAS"><span class="toc-number">1.5.3.</span> <span class="toc-text">5.3 开源框架 RAGAS</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%85%AD%E3%80%81%E5%B9%BB%E8%A7%89%EF%BC%9A%E6%9D%A5%E6%BA%90%E3%80%81%E8%A7%A3%E5%86%B3%E4%B8%8E%E4%B8%8D%E7%A1%AE%E5%AE%9A%E6%80%A7%E9%87%8F%E5%8C%96"><span class="toc-number">1.6.</span> <span class="toc-text">六、幻觉：来源、解决与不确定性量化</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%83%E3%80%81%E6%80%BB%E7%BB%93"><span class="toc-number">1.7.</span> <span class="toc-text">七、总结</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/2026/10/29/RAG%20%E4%B8%BA%E4%BB%80%E4%B9%88%E7%AD%94%E4%B8%8D%E5%87%BA%E5%85%A8%E5%B1%80%E5%92%8C%E5%85%B3%E8%81%94%EF%BC%9FGraphRAG%20%E4%B8%8E%20LightRAG%20%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3/" title="RAG为什么答不出全局性和关联性问题? GraphRAG 与 LightRAG 全链路拆解"><img src="/img/title-picture/RAG%20%E4%B8%BA%E4%BB%80%E4%B9%88%E7%AD%94%E4%B8%8D%E5%87%BA%E5%85%A8%E5%B1%80%E5%92%8C%E5%85%B3%E8%81%94%20GraphRAG%20%E4%B8%8E%20LightRAG%20%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="RAG为什么答不出全局性和关联性问题? GraphRAG 与 LightRAG 全链路拆解"/></a><div class="content"><a class="title" href="/2026/10/29/RAG%20%E4%B8%BA%E4%BB%80%E4%B9%88%E7%AD%94%E4%B8%8D%E5%87%BA%E5%85%A8%E5%B1%80%E5%92%8C%E5%85%B3%E8%81%94%EF%BC%9FGraphRAG%20%E4%B8%8E%20LightRAG%20%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3/" title="RAG为什么答不出全局性和关联性问题? GraphRAG 与 LightRAG 全链路拆解">RAG为什么答不出全局性和关联性问题? GraphRAG 与 LightRAG 全链路拆解</a><time datetime="2026-10-29T15:30:00.000Z" title="发表于 2026-10-29 23:30:00">2026-10-29</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/10/20/RAG%20%E4%B8%BA%E4%BB%80%E4%B9%88%E6%80%BB%E7%AD%94%E4%B8%8D%E5%87%86%EF%BC%9F%E4%BB%8E%E5%88%87%E5%9D%97%E5%88%B0%E6%B7%B7%E5%90%88%E6%A3%80%E7%B4%A2%E7%9A%84%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3/" title="RAG 为什么总答不准？从切块到混合检索的全链路拆解"><img src="/img/title-picture/RAG%E4%B8%BA%E4%BB%80%E4%B9%88%E7%AD%94%E4%B8%8D%E5%87%86.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="RAG 为什么总答不准？从切块到混合检索的全链路拆解"/></a><div class="content"><a class="title" href="/2026/10/20/RAG%20%E4%B8%BA%E4%BB%80%E4%B9%88%E6%80%BB%E7%AD%94%E4%B8%8D%E5%87%86%EF%BC%9F%E4%BB%8E%E5%88%87%E5%9D%97%E5%88%B0%E6%B7%B7%E5%90%88%E6%A3%80%E7%B4%A2%E7%9A%84%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3/" title="RAG 为什么总答不准？从切块到混合检索的全链路拆解">RAG 为什么总答不准？从切块到混合检索的全链路拆解</a><time datetime="2026-10-20T15:00:00.000Z" title="发表于 2026-10-20 23:00:00">2026-10-20</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/10/16/Java%20%E5%B9%B6%E5%8F%91%E5%9F%BA%E7%A1%80%E5%85%A8%E8%A7%A3%EF%BC%9A%E4%BB%8E%E8%BF%9B%E7%A8%8B%E4%B8%8E%E7%BA%BF%E7%A8%8B%E5%88%B0%E5%A4%9A%E7%BA%BF%E7%A8%8B%E3%80%81%E7%BA%BF%E7%A8%8B%E5%AE%89%E5%85%A8%E4%B8%8E%E6%AD%BB%E9%94%81/" title="Java 并发基础全解：从进程与线程到多线程、线程安全与死锁"><img src="/img/title-picture/Java%20%E5%B9%B6%E5%8F%91%E5%9F%BA%E7%A1%80%E5%85%A8%E8%A7%A3%EF%BC%9A%E4%BB%8E%E8%BF%9B%E7%A8%8B%E4%B8%8E%E7%BA%BF%E7%A8%8B%E5%88%B0%E5%A4%9A%E7%BA%BF%E7%A8%8B%E3%80%81%E7%BA%BF%E7%A8%8B%E5%AE%89%E5%85%A8%E4%B8%8E%E6%AD%BB%E9%94%81.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Java 并发基础全解：从进程与线程到多线程、线程安全与死锁"/></a><div class="content"><a class="title" href="/2026/10/16/Java%20%E5%B9%B6%E5%8F%91%E5%9F%BA%E7%A1%80%E5%85%A8%E8%A7%A3%EF%BC%9A%E4%BB%8E%E8%BF%9B%E7%A8%8B%E4%B8%8E%E7%BA%BF%E7%A8%8B%E5%88%B0%E5%A4%9A%E7%BA%BF%E7%A8%8B%E3%80%81%E7%BA%BF%E7%A8%8B%E5%AE%89%E5%85%A8%E4%B8%8E%E6%AD%BB%E9%94%81/" title="Java 并发基础全解：从进程与线程到多线程、线程安全与死锁">Java 并发基础全解：从进程与线程到多线程、线程安全与死锁</a><time datetime="2026-10-16T15:30:00.000Z" title="发表于 2026-10-16 23:30:00">2026-10-16</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/10/15/%E4%B8%80%E6%96%87%E6%90%9E%E6%87%82%20Spring%20AI%20Alibaba%20Graph%EF%BC%9A%E7%8A%B6%E6%80%81%E9%A9%B1%E5%8A%A8%E7%9A%84%20AI%20Agent%20%E7%BC%96%E6%8E%92%E5%BC%95%E6%93%8E/" title="一文搞懂 Spring AI Alibaba Graph：状态驱动的 AI Agent 编排引擎"><img src="/img/title-picture/%E4%B8%80%E6%96%87%E6%90%9E%E6%87%82%20Spring%20AI%20Alibaba%20Graph%EF%BC%9A%E7%8A%B6%E6%80%81%E9%A9%B1%E5%8A%A8%E7%9A%84%20AI%20Agent%20%E7%BC%96%E6%8E%92%E5%BC%95%E6%93%8E.png" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="一文搞懂 Spring AI Alibaba Graph：状态驱动的 AI Agent 编排引擎"/></a><div class="content"><a class="title" href="/2026/10/15/%E4%B8%80%E6%96%87%E6%90%9E%E6%87%82%20Spring%20AI%20Alibaba%20Graph%EF%BC%9A%E7%8A%B6%E6%80%81%E9%A9%B1%E5%8A%A8%E7%9A%84%20AI%20Agent%20%E7%BC%96%E6%8E%92%E5%BC%95%E6%93%8E/" title="一文搞懂 Spring AI Alibaba Graph：状态驱动的 AI Agent 编排引擎">一文搞懂 Spring AI Alibaba Graph：状态驱动的 AI Agent 编排引擎</a><time datetime="2026-10-15T15:00:00.000Z" title="发表于 2026-10-15 23:00:00">2026-10-15</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/10/14/Agent%20%E6%A0%B8%E5%BF%83%E6%A6%82%E5%BF%B5%E5%85%A8%E8%A7%A3%EF%BC%9A%E4%BB%8E%20Workflow%20%E4%B9%8B%E8%BE%A8%E5%88%B0%E5%A4%A7%E8%84%91%C2%B7%E8%A7%84%E5%88%92%C2%B7%E8%AE%B0%E5%BF%86%C2%B7%E5%B7%A5%E5%85%B7/" title="Agent 核心概念全解：从 Workflow 之辨到大脑·规划·记忆·工具"><img src="/img/title-picture/Agent%20%E6%A0%B8%E5%BF%83%E6%A6%82%E5%BF%B5%E5%85%A8%E8%A7%A3%EF%BC%9A%E4%BB%8E%20Workflow%20%E4%B9%8B%E8%BE%A8%E5%88%B0Agent%E7%9A%84%E6%A0%B8%E5%BF%83%E7%BB%84%E6%88%90.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Agent 核心概念全解：从 Workflow 之辨到大脑·规划·记忆·工具"/></a><div class="content"><a class="title" href="/2026/10/14/Agent%20%E6%A0%B8%E5%BF%83%E6%A6%82%E5%BF%B5%E5%85%A8%E8%A7%A3%EF%BC%9A%E4%BB%8E%20Workflow%20%E4%B9%8B%E8%BE%A8%E5%88%B0%E5%A4%A7%E8%84%91%C2%B7%E8%A7%84%E5%88%92%C2%B7%E8%AE%B0%E5%BF%86%C2%B7%E5%B7%A5%E5%85%B7/" title="Agent 核心概念全解：从 Workflow 之辨到大脑·规划·记忆·工具">Agent 核心概念全解：从 Workflow 之辨到大脑·规划·记忆·工具</a><time datetime="2026-10-14T14:00:00.000Z" title="发表于 2026-10-14 22:00:00">2026-10-14</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By 青山木</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.5.4"></script><script src="/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script>
+(function() {
+  /* 仅在首页标题上方插入头像 */
+  if (window.location.pathname !== '/' && !window.location.pathname.endsWith('/index.html')) return;
+  var siteTitle = document.getElementById('site-title');
+  if (siteTitle) {
+    var avatar = document.createElement('img');
+    avatar.src = '/img/头像.jpg';
+    avatar.alt = 'avatar';
+    avatar.className = 'avatar-img';
+    siteTitle.parentNode.insertBefore(avatar, siteTitle);
+  }
+})();
+</script>
+<script>
+(function() {
+  function initMermaid() {
+    if (window.mermaid) return Promise.resolve();
+    return new Promise(function(resolve, reject) {
+      var script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/mermaid@11.12.2/dist/mermaid.min.js';
+      script.onload = function() {
+        mermaid.initialize({
+          startOnLoad: false,
+          // 图表主题固定，避免站点深浅色切换时重新解析整篇文章的所有 Mermaid 图。
+          theme: 'dark',
+          securityLevel: 'loose'
+        });
+        resolve();
+      };
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  }
+
+  // Mermaid 会异步改变文章高度；目录跳转必须等所有图表完成布局后再读取标题位置。
+  window.mermaidReady = Promise.resolve();
+  var renderSequence = 0;
+
+  function waitForStableLayout() {
+    return new Promise(function(resolve) {
+      requestAnimationFrame(function() {
+        requestAnimationFrame(function() {
+          // 让 SVG 内的 foreignObject 完成一次实际布局，再刷新 Butterfly 的标题位置缓存。
+          setTimeout(resolve, 50);
+        });
+      });
+    });
+  }
+
+  function showMermaidSource(pre) {
+    pre.hidden = false;
+    pre.style.display = 'block';
+    pre.style.color = '#d32f2f';
+    pre.style.whiteSpace = 'pre-wrap';
+    pre.style.fontSize = '13px';
+  }
+
+  function refreshTocPositions() {
+    // Butterfly 只在 resize 时重新缓存标题坐标。
+    window.dispatchEvent(new Event('resize'));
+    document.dispatchEvent(new CustomEvent('mermaid:rendered'));
+  }
+
+  function renderMermaidDiagrams() {
+    var wraps = document.querySelectorAll('#article-container .mermaid-wrap');
+    if (wraps.length === 0) {
+      window.mermaidReady = Promise.resolve();
+      return window.mermaidReady;
+    }
+
+    var renderTask = initMermaid().then(function() {
+      return Promise.all(Array.prototype.map.call(wraps, function(wrap, index) {
+        var pre = wrap.querySelector('pre.mermaid-src');
+        if (!pre || pre.dataset.rendered === 'true') return Promise.resolve();
+
+        var code = pre.textContent;
+        var id = 'mermaid-' + index + '-' + (++renderSequence);
+        return Promise.resolve().then(function() {
+          return mermaid.render(id, code);
+        }).then(function(result) {
+          pre.dataset.rendered = 'true';
+          pre.style.display = 'none';
+          var div = document.createElement('div');
+          div.innerHTML = result.svg;
+          wrap.insertBefore(div.firstChild, pre.nextSibling);
+        }).catch(function(err) {
+          console.error('[Mermaid] Block #' + index + ' render failed:', err);
+          showMermaidSource(pre);
+        });
+      }));
+    }).then(function() {
+      return waitForStableLayout();
+    }).then(function() {
+      refreshTocPositions();
+    }).catch(function(err) {
+      console.error('[Mermaid] Failed to load mermaid.js:', err);
+      wraps.forEach(function(wrap) {
+        var pre = wrap.querySelector('pre.mermaid-src');
+        if (pre) showMermaidSource(pre);
+      });
+    });
+
+    window.mermaidReady = renderTask;
+    return renderTask;
+  }
+
+  // 页面加载完成后渲染
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', renderMermaidDiagrams);
+  } else {
+    renderMermaidDiagrams();
+  }
+
+  // 拦截目录点击：若图表仍在渲染，等待布局稳定后按实时坐标滚动。
+  // 使用捕获阶段，避免 Butterfly 先按渲染前的坐标启动平滑滚动。
+  var tocNavigationSequence = 0;
+  document.addEventListener('click', function(e) {
+    var link = e.target.closest('#card-toc .toc-link');
+    if (!link) return;
+
+    var href = link.getAttribute('href') || '';
+    var hashIndex = href.indexOf('#');
+    if (hashIndex < 0) return;
+
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    var navigationSequence = ++tocNavigationSequence;
+    var headingId = decodeURI(href.slice(hashIndex + 1));
+
+    (window.mermaidReady || Promise.resolve()).then(function() {
+      return waitForStableLayout();
+    }).then(function() {
+      if (navigationSequence !== tocNavigationSequence) return;
+      var heading = document.getElementById(headingId);
+      if (!heading) return;
+
+      // 使用点击时的实际位置，避免异步 SVG 插入改变标题高度后跳错章节。
+      var top = heading.getBoundingClientRect().top + window.scrollY;
+      if (window.btf && window.btf.scrollToDest) {
+        window.btf.scrollToDest(top, 300);
+      } else {
+        window.scrollTo({ top: top, behavior: 'smooth' });
+      }
+    });
+  }, true);
+
+})();
+</script>
+<script id="canvas_nest" defer="defer" color="107,159,255" opacity="0.6" zIndex="-1" count="99" mobile="false" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/dist/canvas-nest.min.js"></script></div></body></html>

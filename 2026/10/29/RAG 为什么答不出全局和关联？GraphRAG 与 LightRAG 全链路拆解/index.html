@@ -1,0 +1,1697 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="dark"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>RAG为什么答不出全局性和关联性问题? GraphRAG 与 LightRAG 全链路拆解 | 青山木</title><meta name="author" content="青山木"><meta name="copyright" content="青山木"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#0d1117"><meta name="description" content="围绕传统 RAG 的三类失效——切片把逻辑关系切断、全局性问题检索不出来、多跳推理没有交集机制，拆解 GraphRAG 如何用「实体关系图 + 分层 Leiden 社区 + 社区报告」换来全局视角，以及 LightRAG 如何删掉社区、改用双层关键词检索，换来更低的成本、自然的增量与更低的延迟。最后给出两者的四个困点、各自的代价与一套可落地的选型路径。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="RAG为什么答不出全局性和关联性问题? GraphRAG 与 LightRAG 全链路拆解">
+<meta property="og:url" content="https://li-s-h.github.io/2026/10/29/RAG%20%E4%B8%BA%E4%BB%80%E4%B9%88%E7%AD%94%E4%B8%8D%E5%87%BA%E5%85%A8%E5%B1%80%E5%92%8C%E5%85%B3%E8%81%94%EF%BC%9FGraphRAG%20%E4%B8%8E%20LightRAG%20%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3/index.html">
+<meta property="og:site_name" content="青山木">
+<meta property="og:description" content="围绕传统 RAG 的三类失效——切片把逻辑关系切断、全局性问题检索不出来、多跳推理没有交集机制，拆解 GraphRAG 如何用「实体关系图 + 分层 Leiden 社区 + 社区报告」换来全局视角，以及 LightRAG 如何删掉社区、改用双层关键词检索，换来更低的成本、自然的增量与更低的延迟。最后给出两者的四个困点、各自的代价与一套可落地的选型路径。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://li-s-h.github.io/img/title-picture/RAG%20%E4%B8%BA%E4%BB%80%E4%B9%88%E7%AD%94%E4%B8%8D%E5%87%BA%E5%85%A8%E5%B1%80%E5%92%8C%E5%85%B3%E8%81%94%20GraphRAG%20%E4%B8%8E%20LightRAG%20%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3.jpg">
+<meta property="article:published_time" content="2026-10-29T15:30:00.000Z">
+<meta property="article:modified_time" content="2026-10-29T07:55:43.565Z">
+<meta property="article:author" content="青山木">
+<meta property="article:tag" content="RAG">
+<meta property="article:tag" content="GraphRAG">
+<meta property="article:tag" content="LightRAG">
+<meta property="article:tag" content="知识图谱">
+<meta property="article:tag" content="社区发现">
+<meta property="article:tag" content="实体消歧">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://li-s-h.github.io/img/title-picture/RAG%20%E4%B8%BA%E4%BB%80%E4%B9%88%E7%AD%94%E4%B8%8D%E5%87%BA%E5%85%A8%E5%B1%80%E5%92%8C%E5%85%B3%E8%81%94%20GraphRAG%20%E4%B8%8E%20LightRAG%20%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3.jpg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "RAG为什么答不出全局性和关联性问题? GraphRAG 与 LightRAG 全链路拆解",
+  "url": "https://li-s-h.github.io/2026/10/29/RAG%20%E4%B8%BA%E4%BB%80%E4%B9%88%E7%AD%94%E4%B8%8D%E5%87%BA%E5%85%A8%E5%B1%80%E5%92%8C%E5%85%B3%E8%81%94%EF%BC%9FGraphRAG%20%E4%B8%8E%20LightRAG%20%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3/",
+  "image": "https://li-s-h.github.io/img/title-picture/RAG%20%E4%B8%BA%E4%BB%80%E4%B9%88%E7%AD%94%E4%B8%8D%E5%87%BA%E5%85%A8%E5%B1%80%E5%92%8C%E5%85%B3%E8%81%94%20GraphRAG%20%E4%B8%8E%20LightRAG%20%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3.jpg",
+  "datePublished": "2026-10-29T15:30:00.000Z",
+  "dateModified": "2026-10-29T07:55:43.565Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "青山木",
+      "url": "https://LI-S-H.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/%E5%A4%B4%E5%83%8F.jpg"><link rel="canonical" href="https://li-s-h.github.io/2026/10/29/RAG%20%E4%B8%BA%E4%BB%80%E4%B9%88%E7%AD%94%E4%B8%8D%E5%87%BA%E5%85%A8%E5%B1%80%E5%92%8C%E5%85%B3%E8%81%94%EF%BC%9FGraphRAG%20%E4%B8%8E%20LightRAG%20%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="stylesheet" href="/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d1117')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', 'ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: 'RAG为什么答不出全局性和关联性问题? GraphRAG 与 LightRAG 全链路拆解',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><style>
+  #site-title { font-size: 1.76em !important; }
+  #subtitle { font-size: 0.88em !important; }
+
+  /* 卡片悬停放大 + 辉光 */
+  #recent-posts .recent-post-item {
+    transition: transform .3s ease, box-shadow .3s ease, border-color .3s ease;
+  }
+  #recent-posts .recent-post-item:hover {
+    transform: scale(1.025) !important;
+    border-color: rgba(107,159,255,0.5) !important;
+    box-shadow: 0 0 0 1px rgba(107,159,255,0.15),
+                0 0 45px rgba(107,159,255,0.12),
+                0 8px 30px rgba(0,0,0,0.4) !important;
+  }
+
+  /* 首页标题上方头像 */
+  #site-info .avatar-img {
+    display: block;
+    width: 144px;
+    height: 144px;
+    border-radius: 50%;
+    margin: 0 auto 20px;
+    border: 3px solid rgba(107,159,255,0.6);
+    box-shadow: 0 0 30px rgba(107,159,255,0.35),
+                0 0 60px rgba(107,159,255,0.15),
+                0 4px 20px rgba(0,0,0,0.25);
+    object-fit: cover;
+    transition: box-shadow .4s ease, border-color .4s ease;
+  }
+  #site-info .avatar-img:hover {
+    border-color: rgba(107,159,255,0.9);
+    box-shadow: 0 0 40px rgba(107,159,255,0.5),
+                0 0 80px rgba(107,159,255,0.25),
+                0 4px 20px rgba(0,0,0,0.25);
+  }
+
+  /* Mermaid 图表容器样式 */
+  .mermaid-wrap {
+    position: relative;
+    /* 图表固定使用深色画布，主题切换无需销毁并重绘所有 SVG。 */
+    background: #1e1e1e !important;
+    padding: 12px !important;
+    border-radius: 8px !important;
+    border: 1px solid #444 !important;
+    text-align: center;
+    margin: 0 0 20px 0;
+    overflow-x: auto;
+  }
+  .mermaid-wrap > svg {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+  }
+  /* 深色图表画布在两种站点主题下保持一致，避免切换时重排。 */
+  [data-theme="dark"] .mermaid-wrap {
+    background: #1e1e1e !important;
+    border-color: #444 !important;
+  }
+</style>
+<meta name="generator" content="Hexo 7.3.0"></head><body><div class="bg-animation" id="web_bg" style="background-image: url(/img/%E8%83%8C%E6%99%AF%E5%9B%BE2.webp);"></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(/img/title-picture/RAG%20%E4%B8%BA%E4%BB%80%E4%B9%88%E7%AD%94%E4%B8%8D%E5%87%BA%E5%85%A8%E5%B1%80%E5%92%8C%E5%85%B3%E8%81%94%20GraphRAG%20%E4%B8%8E%20LightRAG%20%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3.jpg);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">青山木</span></a><a class="nav-page-title" href="/"><span class="site-name">RAG为什么答不出全局性和关联性问题? GraphRAG 与 LightRAG 全链路拆解</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">RAG为什么答不出全局性和关联性问题? GraphRAG 与 LightRAG 全链路拆解</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-10-29T15:30:00.000Z" title="发表于 2026-10-29 23:30:00">2026-10-29</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-10-29T07:55:43.565Z" title="更新于 2026-10-29 15:55:43">2026-10-29</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/RAG/">RAG</a></span></div><div class="meta-secondline"></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><blockquote>
+<p>先看一个真实会翻车的问题：</p>
+<p>「我们公司哪些欧洲供应商，过去一年的安全审计没通过，而且还在处理个人隐私数据？」</p>
+<p>答案分布在三份文档里。供应商档案说谁是欧洲的，审计报告说谁没通过，合同文档说谁在处理 PII。人来做这道题，就是把三个条件依次叠上去，最后剩下的那几个就是答案。</p>
+<p>传统 RAG 做不到这一步。它会把三份文档里语义相近的段落各捞一堆，一起塞给模型，却没有办法把三个集合求交集。模型面对三堆互不相干的材料，只能猜，猜错就编。</p>
+<p>问题出在检索单元上：它检索的是「块」，不是「块与块之间的关系」。这篇文章从三类失效讲起，把 GraphRAG 和 LightRAG 这两条用知识图谱修 RAG 的路线，从索引到查询完整拆一遍。</p>
+</blockquote>
+<hr>
+<h2 id="一-传统-RAG-的三道坎"><a href="#一-传统-RAG-的三道坎" class="headerlink" title="一 传统 RAG 的三道坎"></a>一 传统 RAG 的三道坎</h2><p>上一篇《RAG 为什么总答不准？从切块到混合检索的全链路拆解》里，我们把切块、Embedding、向量索引、混合检索、Rerank 这几层都优化了一遍。那些手段确实有效，但它们解决的是「<strong>怎么把最相关的块排得更靠前</strong>」。</p>
+<p>还有一类问题，是排序再准也救不了的。</p>
+<h3 id="1-1-先看传统-RAG-的检索假设"><a href="#1-1-先看传统-RAG-的检索假设" class="headerlink" title="1.1 先看传统 RAG 的检索假设"></a>1.1 先看传统 RAG 的检索假设</h3><p>传统 RAG 的在线链路只有四步：</p>
+<ol>
+<li>把问题做 Embedding；</li>
+<li>在向量库里找 Top-K 个最相似的块；</li>
+<li>把这些块拼进 Prompt；</li>
+<li>交给大模型生成。</li>
+</ol>
+<p>这条链路压着两个隐含假设：</p>
+<ul>
+<li><strong>假设一：答案完整地躺在某一个块里。</strong></li>
+<li><strong>假设二：块的语义和问题越像，它离答案就越近。</strong></li>
+</ul>
+<p>只要问题稍微复杂一点，这两个假设就会同时崩掉。</p>
+<h3 id="1-2-第一道坎-切片把逻辑关系切断了"><a href="#1-2-第一道坎-切片把逻辑关系切断了" class="headerlink" title="1.2 第一道坎 切片把逻辑关系切断了"></a>1.2 第一道坎 切片把逻辑关系切断了</h3><p>看一个医疗场景的例子。一份药品手册里，第 2 章写着：</p>
+<blockquote>
+<p>卡托普利属于 ACEI 类药物。</p>
+</blockquote>
+<p>第 9 章的用药禁忌一节又写着：</p>
+<blockquote>
+<p>严重肾功能不全者禁用卡托普利。</p>
+</blockquote>
+<p>两句话隔了七章。用户问「高血压合并糖尿病患者首选哪几种 ACEI 药物？禁忌症是什么？」，传统 RAG 会把两段都检索出来，一起扔给模型。模型看到「卡托普利」出现在 ACEI 那一块，又看到「禁用」出现在另一块，很容易组合出一句：</p>
+<blockquote>
+<p>卡托普利属于禁忌症药物。</p>
+</blockquote>
+<p>一句话，把「<strong>谁禁用</strong>」和「<strong>谁属于哪类</strong>」这两个关系，接错主体了。</p>
+<p><strong>根因在切块这个动作本身，不在粒度。</strong> 切块是按长度或分隔符切的，不是按「条件—结论」这种语义单元切的。</p>
+<p>这个问题可以缓解，但治不了根：</p>
+<ul>
+<li><strong>父子块（Small-to-Big）</strong>：用小子块去检索，命中后把它的父块整段取回来。信息确实全了，但父块一变大，无关内容也跟着进来。</li>
+<li><strong>相邻块合并</strong>：切完之后让大模型判断相邻两块的关联度，高就合并。</li>
+</ul>
+<p>这两种办法都只对<strong>位置上挨着的文本</strong>有效。第 2 章和第 9 章隔了七章，既不是父子块，也不相邻，两条策略都碰不到。跨章节、跨文档的关系更是如此：第 1 章定义的术语，第 8 章才用到；A 文档里的客户，B 文档里才出现他的合同。靠合并相邻块，这类关系永远接不上。</p>
+<p><strong>记住，切块解决的是「上下文装不下」，不是「逻辑不完整」。</strong></p>
+<h3 id="1-3-第二道坎-全局性问题根本检索不出来"><a href="#1-3-第二道坎-全局性问题根本检索不出来" class="headerlink" title="1.3 第二道坎 全局性问题根本检索不出来"></a>1.3 第二道坎 全局性问题根本检索不出来</h3><p>把《三国演义》按传统 RAG 切块、向量化、入库，然后问：</p>
+<blockquote>
+<p>刘备是个怎么样的人？</p>
+</blockquote>
+<p>向量库会捞回一大堆片段：三顾茅庐时的刘备、携民渡江时的刘备、白帝城托孤时的刘备，还有旁人评价他的句子。每一条都对，但每一条都只是一个侧面。</p>
+<p>要评价一个人，得把他的完整生平串起来看。传统 RAG 只能返回一堆碎片化的相似片段，答不出这种需要全局汇总才能得到的结论。</p>
+<p>同样的问题还有：</p>
+<ul>
+<li>「这本书的主题思想是什么？」</li>
+<li>「这套技术文档集合，主要讨论了哪几类方向？」</li>
+<li>「这批工单反映出的主要问题分布是什么？」</li>
+</ul>
+<p>这些问题的答案，在原文里<strong>根本不存在对应的句子</strong>。你没法用「语义相似」去找一个从来没被写下来的结论。</p>
+<p><strong>全局性问题的本质是「归纳」，而向量检索只会「匹配」。</strong> 这时候把 Top-K 从 5 调到 50，只会让噪声一起变多。</p>
+<h3 id="1-4-第三道坎-多跳推理缺少交集机制"><a href="#1-4-第三道坎-多跳推理缺少交集机制" class="headerlink" title="1.4 第三道坎 多跳推理缺少交集机制"></a>1.4 第三道坎 多跳推理缺少交集机制</h3><p>再换一个风控场景。你在一家跨国公司做风控，问：</p>
+<blockquote>
+<p>我们公司哪些欧洲供应商，在过去一年的安全审计中没通过，而且还在处理个人隐私数据（PII）？</p>
+</blockquote>
+<p>答对这道题，需要三份文档同时在场：</p>
+<table>
+<thead>
+<tr>
+<th>文档</th>
+<th>提供的信息</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>供应商档案</td>
+<td>哪些供应商是欧洲的</td>
+</tr>
+<tr>
+<td>审计报告</td>
+<td>哪些供应商没通过审计</td>
+</tr>
+<tr>
+<td>合同文档</td>
+<td>哪些供应商在加工 PII</td>
+</tr>
+</tbody></table>
+<p>传统 RAG 会把这三类信息分别捞出来：一堆提到「欧洲供应商」的块、一堆提到「安全审计」的块、一堆提到「PII」的块。</p>
+<p><strong>但它没有任何机制把这三个集合做交集。</strong></p>
+<p>模型拿到的是三堆互相独立的材料，只能自己去猜它们之间的关系。猜对了是运气，猜错了就是编——尤其在专业领域，模型没微调过，这种「硬关联」基本等于瞎扯。</p>
+<p>这种「A 关联到 B，B 关联到 C，最后从 A 推到 C」的问题，叫<strong>多跳推理（Multi-hop Reasoning）</strong>。正确解法是<strong>沿着关系一步步走</strong>，把召回范围放得更广也没用：</p>
+<ol>
+<li>先找出所有欧洲供应商；</li>
+<li>再筛出其中审计没通过的；</li>
+<li>最后在这些里面找处理 PII 的。</li>
+</ol>
+<p>每走一步，候选集合就缩小一圈。<strong>这是一次图上的遍历，不是一次向量相似度排序。</strong></p>
+<h3 id="1-5-三类问题的共同点"><a href="#1-5-三类问题的共同点" class="headerlink" title="1.5 三类问题的共同点"></a>1.5 三类问题的共同点</h3><p>把三道坎放在一起看，会发现它们缺的是同一样东西：</p>
+<table>
+<thead>
+<tr>
+<th>问题类型</th>
+<th>典型问法</th>
+<th>传统 RAG 的做法</th>
+<th>失效点</th>
+<th>可缓解手段</th>
+<th>能否根治</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>语义断裂</td>
+<td>药物 + 禁忌症组合问答</td>
+<td>召回相邻块</td>
+<td>关系被切块切断</td>
+<td>父子块、相邻块合并</td>
+<td>只能救相邻，长距离无解</td>
+</tr>
+<tr>
+<td>全局归纳</td>
+<td>「刘备是怎样的人」「主题思想」</td>
+<td>加大 Top-K</td>
+<td>答案根本不在任何块里</td>
+<td>摘要类预处理</td>
+<td>单靠检索无法根治</td>
+</tr>
+<tr>
+<td>多跳推理</td>
+<td>欧洲 + 审计 + PII 三重过滤</td>
+<td>多路召回后拼接</td>
+<td>缺少集合交集与关系遍历</td>
+<td>查询改写、多轮检索</td>
+<td>需要显式的关系结构</td>
+</tr>
+</tbody></table>
+<p><img src="/img/RAG%20%E4%B8%BA%E4%BB%80%E4%B9%88%E7%AD%94%E4%B8%8D%E5%87%BA%E5%85%A8%E5%B1%80%E5%92%8C%E5%85%B3%E8%81%94%20GraphRAG%20%E4%B8%8E%20LightRAG%20%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3/graphrag-failure-modes.png" alt="传统 RAG 的三类失效：切片断裂、全局归纳、多跳推理"></p>
+<p>它们缺的都是同一层东西：<strong>可查询的关系结构</strong>。</p>
+<p>这就是知识图谱登场的理由。</p>
+<hr>
+<h2 id="二-GraphRAG-与-LightRAG-的两种预算"><a href="#二-GraphRAG-与-LightRAG-的两种预算" class="headerlink" title="二 GraphRAG 与 LightRAG 的两种预算"></a>二 GraphRAG 与 LightRAG 的两种预算</h2><h3 id="2-1-GraphRAG-是什么"><a href="#2-1-GraphRAG-是什么" class="headerlink" title="2.1 GraphRAG 是什么"></a>2.1 GraphRAG 是什么</h3><p><strong>GraphRAG</strong> 由微软研究院在 2024 年提出，论文标题很直白：<em>From Local to Global: A Graph RAG Approach to Query-Focused Summarization</em>（从局部到全局：面向查询摘要的图 RAG 方法）。</p>
+<p>它做了一件传统 RAG 不做的事：<strong>把语料变成图</strong>。</p>
+<p>具体分两步。先把每个文本块里的实体和关系抽出来，实体当节点、关系当边，拼成一张知识图谱；再用社区发现算法把这张图切成若干主题簇，为每个簇写一份摘要，也就是社区报告。</p>
+<p><img src="/img/RAG%20%E4%B8%BA%E4%BB%80%E4%B9%88%E7%AD%94%E4%B8%8D%E5%87%BA%E5%85%A8%E5%B1%80%E5%92%8C%E5%85%B3%E8%81%94%20GraphRAG%20%E4%B8%8E%20LightRAG%20%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3/graphrag-structure.png" alt="GraphRAG 的结构：文本块 → 实体关系图 → 分层社区 → 社区报告"></p>
+<blockquote>
+<p>把语料变成一张<strong>带层级的实体关系图</strong>，并为每个社区<strong>预先写好摘要</strong>；查询时按「局部」或「全局」两条路取证据。</p>
+</blockquote>
+<p>这张图解决的是<strong>关系断裂与多跳</strong>。A 和 B 的关系不再要求写在同一段里，只要它们在图上有边，检索就能从 A 走到 B。社区报告解决的是<strong>全局归纳</strong>：要回答「这批文档讲了哪些方向」，不用现场读完所有块，读几份已经写好的摘要就行。</p>
+<p>它瞄准的正是传统 RAG 最无力的那类问题：<strong>面向整个语料的归纳与研判</strong>。论文里管这个任务叫 query-focused summarization，就是围绕一个问题，把散落各处的信息汇总成一段有结构的回答。</p>
+<h3 id="2-2-LightRAG-是什么"><a href="#2-2-LightRAG-是什么" class="headerlink" title="2.2 LightRAG 是什么"></a>2.2 LightRAG 是什么</h3><p><strong>LightRAG</strong> 由香港大学团队在 2024 年 10 月提出，论文标题同样直白：<em>LightRAG: Simple and Fast Retrieval-Augmented Generation</em>。</p>
+<p>它也建图。抽实体、抽关系、合并重复项，这些和 GraphRAG 一样。<strong>区别在后面：它不切社区，也不写社区报告。</strong></p>
+<p><img src="/img/RAG%20%E4%B8%BA%E4%BB%80%E4%B9%88%E7%AD%94%E4%B8%8D%E5%87%BA%E5%85%A8%E5%B1%80%E5%92%8C%E5%85%B3%E8%81%94%20GraphRAG%20%E4%B8%8E%20LightRAG%20%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3/lightrag-structure.png" alt="LightRAG 的结构：图 + 多路索引，没有社区与社区报告"></p>
+<blockquote>
+<p>同样建图，但<strong>不做社区、不写社区摘要</strong>；把实体、关系、原文块都做成可检索的索引，查询时用<strong>两层关键词</strong>去图里找证据。</p>
+</blockquote>
+<p>那它怎么回答全局问题？靠查询期的两层关键词。用户输入进来，先用 LLM 拆成低层关键词（具体实体、技术概念）和高层关键词（主题、跨实体关系），再去图里分别命中实体和关系，取出它们周围的关系与原文，交给模型<strong>现场归纳</strong>。</p>
+<p>也就是说，LightRAG 不直接检索回一份全局总结。它检索回的是一组和主题相关的关系与事实，总结这一步由大模型在回答时完成。</p>
+<p>它要解决的，是 GraphRAG 落地时最疼的几件事：索引太贵、更新太难、全局查询太慢。</p>
+<h3 id="2-3-三种检索单元-三条回答路径"><a href="#2-3-三种检索单元-三条回答路径" class="headerlink" title="2.3 三种检索单元 三条回答路径"></a>2.3 三种检索单元 三条回答路径</h3><p>把传统 RAG、GraphRAG、LightRAG 放在一起，差别就清楚了。</p>
+<table>
+<thead>
+<tr>
+<th>对比项</th>
+<th>传统 RAG</th>
+<th>GraphRAG</th>
+<th>LightRAG</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>检索单元</td>
+<td>文本块</td>
+<td>实体、关系、社区报告</td>
+<td>实体、关系、原文块</td>
+</tr>
+<tr>
+<td>关系怎么来</td>
+<td>靠块内共现，切块就断</td>
+<td>显式抽成边，可沿边走</td>
+<td>显式抽成边，可沿边走</td>
+</tr>
+<tr>
+<td>全局问题怎么答</td>
+<td>答不了</td>
+<td>读预写的社区报告</td>
+<td>高层关键词找关系，现场归纳</td>
+</tr>
+<tr>
+<td>索引期花什么钱</td>
+<td>几乎没有</td>
+<td>抽取 + 合并 + 逐社区写报告</td>
+<td>抽取 + 合并</td>
+</tr>
+<tr>
+<td>查询期花什么钱</td>
+<td>一次向量检索</td>
+<td>Local 少，Global 随报告数增长</td>
+<td>关键词抽取 + 一次检索 + 生成</td>
+</tr>
+</tbody></table>
+<p>GraphRAG 和 LightRAG 的共同点，是把检索单元从「文本块」换成「实体与关系」。图一旦建起来，三种能力就跟着来了：</p>
+<ul>
+<li><strong>沿边遍历</strong>：从一个实体出发，顺着关系找到它连接的另一批实体，多跳由此成立；</li>
+<li><strong>结构化聚合</strong>：把一片关系聚成一个社区，再从社区层面归纳主题，GraphRAG 走这条；</li>
+<li><strong>可溯源</strong>：每个实体、每条关系都记录了它来自哪个文本块，答案可以带引用。</li>
+</ul>
+<p>不同点在全局问题这一步。GraphRAG 把归纳<strong>提前做</strong>，存成社区报告；LightRAG 把归纳<strong>留到查询时做</strong>，靠关键词找关系、让模型现场总结。</p>
+<p><img src="/img/RAG%20%E4%B8%BA%E4%BB%80%E4%B9%88%E7%AD%94%E4%B8%8D%E5%87%BA%E5%85%A8%E5%B1%80%E5%92%8C%E5%85%B3%E8%81%94%20GraphRAG%20%E4%B8%8E%20LightRAG%20%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3/graphrag-three-paths.png" alt="三条回答路径：传统 RAG 拼碎片，GraphRAG 读预写摘要，LightRAG 现场用关系归纳"></p>
+<h3 id="2-4-唯一分歧-全局摘要提前算还是实时算"><a href="#2-4-唯一分歧-全局摘要提前算还是实时算" class="headerlink" title="2.4 唯一分歧 全局摘要提前算还是实时算"></a>2.4 唯一分歧 全局摘要提前算还是实时算</h3><p>如果只记一句话，记这句：</p>
+<blockquote>
+<p><strong>GraphRAG 在索引期就把全局摘要算好；LightRAG 不在索引期算，留到查询期现场推理。</strong></p>
+</blockquote>
+<p>这一取舍，直接决定了后面所有差异：</p>
+<table>
+<thead>
+<tr>
+<th>选择</th>
+<th>换来什么</th>
+<th>付出什么</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>GraphRAG：索引期预计算社区摘要</td>
+<td>全局问题答得深、答得稳；查询时只做汇总</td>
+<td>索引贵；新增文档会打乱社区，更新难；全局查询仍要读很多报告</td>
+</tr>
+<tr>
+<td>LightRAG：索引期只建图与索引</td>
+<td>索引便宜；增量更新自然；查询调用次数少</td>
+<td>全局归纳靠现场拼，深度不如预写摘要</td>
+</tr>
+</tbody></table>
+<p>所以这两者是<strong>同一思路下的两种预算分配</strong>，谈不上谁替代谁。</p>
+<h3 id="2-5-一张总览图"><a href="#2-5-一张总览图" class="headerlink" title="2.5 一张总览图"></a>2.5 一张总览图</h3><p><img src="/img/RAG%20%E4%B8%BA%E4%BB%80%E4%B9%88%E7%AD%94%E4%B8%8D%E5%87%BA%E5%85%A8%E5%B1%80%E5%92%8C%E5%85%B3%E8%81%94%20GraphRAG%20%E4%B8%8E%20LightRAG%20%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3/graphrag-vs-lightrag-overview.png" alt="GraphRAG 与 LightRAG 的流水线对比：一个在索引期预写摘要，一个把工作留到查询期"></p>
+<table>
+<thead>
+<tr>
+<th>对比维度</th>
+<th>GraphRAG</th>
+<th>LightRAG</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>核心产出</td>
+<td>图 + 分层社区 + 社区报告</td>
+<td>图 + 多路向量索引</td>
+</tr>
+<tr>
+<td>索引成本</td>
+<td>高（抽取 + 合并 + 逐社区写报告）</td>
+<td>中（抽取 + 合并）</td>
+</tr>
+<tr>
+<td>增量更新</td>
+<td>弱，通常要全量重建</td>
+<td>强，按文档增量合并</td>
+</tr>
+<tr>
+<td>全局问题</td>
+<td>强，读预写摘要</td>
+<td>中，靠高层关键词现场拼</td>
+</tr>
+<tr>
+<td>局部问题</td>
+<td>强，实体邻域扩展</td>
+<td>强，实体邻域扩展</td>
+</tr>
+<tr>
+<td>多跳能力</td>
+<td>强</td>
+<td>强（依赖抽取质量）</td>
+</tr>
+<tr>
+<td>查询延迟</td>
+<td>Global 模式高</td>
+<td>低且稳定</td>
+</tr>
+<tr>
+<td>工程复杂度</td>
+<td>高</td>
+<td>中</td>
+</tr>
+</tbody></table>
+<p>后面的章节，就是把这张表一格一格填满。</p>
+<hr>
+<h2 id="三-GraphRAG-的索引阶段"><a href="#三-GraphRAG-的索引阶段" class="headerlink" title="三 GraphRAG 的索引阶段"></a>三 GraphRAG 的索引阶段</h2><h3 id="3-1-七步总览"><a href="#3-1-七步总览" class="headerlink" title="3.1 七步总览"></a>3.1 七步总览</h3><p>GraphRAG 的整体流程和传统 RAG 一样，分「离线建库」和「在线查询」两个阶段。索引阶段里，切片这一步完全相同，<strong>从第二步的实体关系抽取开始分叉</strong>。</p>
+<p><img src="/img/RAG%20%E4%B8%BA%E4%BB%80%E4%B9%88%E7%AD%94%E4%B8%8D%E5%87%BA%E5%85%A8%E5%B1%80%E5%92%8C%E5%85%B3%E8%81%94%20GraphRAG%20%E4%B8%8E%20LightRAG%20%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3/graphrag-index-pipeline.png" alt="GraphRAG 索引流水线：切片 → 抽取 → 合并 → 建图 → 社区发现 → 社区报告 → 向量化"></p>
+<p>七步分别是：</p>
+<ol>
+<li>切片，得到 TextUnit；</li>
+<li>用 LLM 抽取实体与关系；</li>
+<li>合并重复实体、合并关系描述；</li>
+<li>建图；</li>
+<li>分层 Leiden 社区发现；</li>
+<li>为每个社区生成社区报告；</li>
+<li>向量化并存储。</li>
+</ol>
+<p>每一步留下的产物不一样，串起来看更清楚：</p>
+<table>
+<thead>
+<tr>
+<th>步骤</th>
+<th>输入</th>
+<th>产出</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>切片</td>
+<td>原始文档</td>
+<td>TextUnit，带文档位置</td>
+</tr>
+<tr>
+<td>抽取</td>
+<td>每个 TextUnit</td>
+<td>实体表、关系表</td>
+</tr>
+<tr>
+<td>合并</td>
+<td>实体表、关系表</td>
+<td>去重后的图数据</td>
+</tr>
+<tr>
+<td>建图</td>
+<td>图数据</td>
+<td>节点与边</td>
+</tr>
+<tr>
+<td>社区发现</td>
+<td>图</td>
+<td>分层社区树</td>
+</tr>
+<tr>
+<td>社区报告</td>
+<td>每个社区</td>
+<td>摘要、评分、关键发现</td>
+</tr>
+<tr>
+<td>向量化</td>
+<td>原文、实体描述、报告</td>
+<td>语义检索入口</td>
+</tr>
+</tbody></table>
+<h3 id="3-2-第一步-切片-以及一个容易忽略的细节"><a href="#3-2-第一步-切片-以及一个容易忽略的细节" class="headerlink" title="3.2 第一步 切片 以及一个容易忽略的细节"></a>3.2 第一步 切片 以及一个容易忽略的细节</h3><p><strong>为什么还要切？</strong> 理由和传统 RAG 完全一致：</p>
+<ul>
+<li>太长模型处理不了，成本也高；</li>
+<li>不切的话，检索出来是一整段，相关性很难用向量衡量。</li>
+</ul>
+<p>切片策略也还是上篇讲过的那几种，这里只列名字：</p>
+<table>
+<thead>
+<tr>
+<th>策略</th>
+<th>做法</th>
+<th>适用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>固定长度</td>
+<td>按 Token 数硬切</td>
+<td>通用兜底</td>
+</tr>
+<tr>
+<td>重叠切分</td>
+<td>相邻块留一段重叠</td>
+<td>防止边界信息丢失</td>
+</tr>
+<tr>
+<td>按符号递归切</td>
+<td>先按段落，再按句号、逗号逐级降级</td>
+<td>结构化弱的正文</td>
+</tr>
+<tr>
+<td>结构化切分</td>
+<td>按 Markdown 标题、HTML 标签、表格行切</td>
+<td>结构清晰的文档</td>
+</tr>
+<tr>
+<td>语义切分</td>
+<td>先切，再用向量判断相邻块相似度，高则合并</td>
+<td>主题变化明显的长文</td>
+</tr>
+<tr>
+<td>大模型切分</td>
+<td>让 LLM 判断该在哪切</td>
+<td>高价值、低体积语料</td>
+</tr>
+</tbody></table>
+<p>TextUnit 就是切片之后的文本单元，和传统 RAG 里的 Chunk 是同一个东西，只是 GraphRAG 换了英文叫法。</p>
+<p>真正的差异在<strong>切完之后做了什么</strong>。</p>
+<p>传统 RAG 切完就直接向量化入库。GraphRAG 切完，先建立第一层映射：每个 TextUnit 记下它属于哪份文档、在原文里的位置。</p>
+<ul>
+<li><strong>document_id</strong>：它来自哪份文档；</li>
+<li><strong>chunk 位置</strong>：它在原文里的顺序与偏移。</li>
+</ul>
+<p>这层映射解决的是「这个块在哪儿」。</p>
+<p>到第二步抽取时，还会建立第二层映射：每个实体、每条关系都记下自己出现在哪些 TextUnit 里，通常叫 <code>text_unit_ids</code>。这层映射解决的是「这个实体的话是从哪几块抽出来的」。</p>
+<p>两层映射不能混。第一层是块到文档，第二层是实体到块。合起来，才能做到答案回溯和引用：模型说「卡托普利属于 ACEI」，你能顺着实体找到它来自第 2 章那个块。</p>
+<p><strong>没有这层回溯，图谱就只是空中楼阁。</strong></p>
+<h3 id="3-3-第二步-实体与关系抽取"><a href="#3-3-第二步-实体与关系抽取" class="headerlink" title="3.3 第二步 实体与关系抽取"></a>3.3 第二步 实体与关系抽取</h3><p>这是 GraphRAG 与传统 RAG 的第一个分水岭。</p>
+<p>它拿每个 TextUnit 去问大模型：这段话里有哪些实体？它们之间是什么关系？</p>
+<p>Prompt 大致长这样：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line">你是一个实体关系抽取助手。请从下面的文本中：</span><br><span class="line"></span><br><span class="line">1. 识别所有实体，每个实体给出：</span><br><span class="line">   - entity_name：实体名（统一大写）</span><br><span class="line">   - entity_type：类型（人物 / 组织 / 地点 / 事件 / 软件组件 …）</span><br><span class="line">   - entity_description：实体的综合描述</span><br><span class="line"></span><br><span class="line">2. 识别所有实体之间的关系，每对关系给出：</span><br><span class="line">   - source_entity：源实体</span><br><span class="line">   - target_entity：目标实体</span><br><span class="line">   - relationship_description：关系的描述</span><br><span class="line">   - relationship_strength：关系强度（1–10 的整数）</span><br><span class="line"></span><br><span class="line">文本内容：</span><br><span class="line">&#123;input_text&#125;</span><br><span class="line"></span><br><span class="line">请严格按以下格式输出，每行一条，字段之间用 &lt;|&gt; 分隔：</span><br><span class="line">(&quot;entity&quot;&lt;|&gt;实体名&lt;|&gt;类型&lt;|&gt;描述)</span><br><span class="line">(&quot;relationship&quot;&lt;|&gt;源实体&lt;|&gt;目标实体&lt;|&gt;描述&lt;|&gt;强度)</span><br></pre></td></tr></table></figure>
+
+<p>对一份讲智能体的文档，抽出来的实体可能是：</p>
+<table>
+<thead>
+<tr>
+<th>实体名</th>
+<th>类型</th>
+<th>描述</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>ReactAgent</td>
+<td>软件组件</td>
+<td>负责根据任务调用能力与工具的智能体组件</td>
+</tr>
+<tr>
+<td>工具</td>
+<td>能力</td>
+<td>执行特定操作或获取外部数据的组件</td>
+</tr>
+<tr>
+<td>Skill</td>
+<td>能力封装</td>
+<td>封装某类领域逻辑、可被智能体选择调用的单元</td>
+</tr>
+</tbody></table>
+<p>抽出来的关系整理成结构后，大致是：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">  <span class="attr">&quot;source&quot;</span><span class="punctuation">:</span> <span class="string">&quot;ReactAgent&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;target&quot;</span><span class="punctuation">:</span> <span class="string">&quot;工具&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;relationship_description&quot;</span><span class="punctuation">:</span> <span class="string">&quot;ReactAgent 可以调用工具执行操作&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;relationship_strength&quot;</span><span class="punctuation">:</span> <span class="number">8</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+
+<p>这里有两个容易踩的细节：</p>
+<ul>
+<li><strong>分隔符是 &lt;|&gt;，不是竖线字符</strong>。GraphRAG 用这个三元组风格的分隔符，是为了避开正文里常见的竖线、逗号，减少解析歧义。</li>
+<li><strong><code>relationship_strength</code> 是 Prompt 里的字段名，到了输出里它就是第 5 个位置参数</strong>，不是 JSON 的 key。入图之后，多条同源同目标的关系强度会被聚合成这条边的 <strong>weight</strong>，后续社区发现和邻域排序都会用到它。</li>
+</ul>
+<p>工程上还会补两个动作：</p>
+<ul>
+<li><strong>gleaning（续抽）</strong>：第一轮抽完，再追问一句「还有很多实体被漏掉了，请补抽」，把漏网的实体和关系捞回来。</li>
+<li><strong>类型限定</strong>：把 <code>entity_type</code> 收窄到本领域的几个固定类型（人物、组织、地点、事件……），能显著降低噪声。</li>
+</ul>
+<p><strong>抽取质量决定了整张图的上限。</strong> 这一步漏掉的关键实体，后面任何环节都补不回来。</p>
+<h3 id="3-4-第三步-合并重复实体与关系"><a href="#3-4-第三步-合并重复实体与关系" class="headerlink" title="3.4 第三步 合并重复实体与关系"></a>3.4 第三步 合并重复实体与关系</h3><p>同一份文档里，一个实体往往在多个块中出现。每个块都会抽出一份描述，于是图里会出现同一个实体的好几条记录。</p>
+<p>GraphRAG 的做法是<strong>按实体名归并</strong>，再让 LLM 把这些描述压成一条更完整的综合描述，关系描述同理。</p>
+<p>听起来简单，但这里藏着一个非常棘手的问题。</p>
+<p><strong>同名不等于同义。</strong></p>
+<p>假设文档 A 是智能体技术文档，里面的「工具」指的是智能体可以调用的外部能力，比如搜索、代码执行。文档 C 是设备维修文档，里面的「工具」指的是扳手、螺丝刀。</p>
+<p>两个都叫「工具」。如果按名字合并，智能体的「工具」就会被塞进一条「维修工具」的描述里，整张图从这里开始失真。</p>
+<p>反过来也一样：同一个东西可能有多个名字。英文文档写 <code>Tool</code>，中文文档写「工具」，如果不做跨语言、跨表述的归一，图里就会长出两个互不相连的节点，多跳链路直接断掉。</p>
+<p><strong>这是图构建里最难的一步，没有之一。</strong> 具体的处理办法放到第五章讲，这里先记住：<strong>合并策略决定了这张图是「知识」还是「噪声」。</strong></p>
+<h3 id="3-5-第四步-建图"><a href="#3-5-第四步-建图" class="headerlink" title="3.5 第四步 建图"></a>3.5 第四步 建图</h3><p>合并完之后，图就成形了：</p>
+<ul>
+<li><strong>节点</strong>：实体，带名称、类型、描述；</li>
+<li><strong>边</strong>：关系，带描述、强度（聚合为权重）；</li>
+<li><strong>附属信息</strong>：每个实体和关系都挂着一组 <code>text_unit_ids</code>，指回原始文本块。</li>
+</ul>
+<p>到了这一步，原本线性排列的文档，变成了一张可以遍历的网络。</p>
+<h3 id="3-6-第五步-分层社区发现"><a href="#3-6-第五步-分层社区发现" class="headerlink" title="3.6 第五步 分层社区发现"></a>3.6 第五步 分层社区发现</h3><p>图建好了，但规模很大。接下来要回答一个关键问题：<strong>这张图里，哪些部分在讲同一件事？</strong></p>
+<p>这就轮到社区发现（Community Detection）。</p>
+<p><strong>社区</strong>在图论里指的是：内部连接紧密、与外部相对区分的一组节点。</p>
+<p>假设现在有这样的实体关系图：</p>
+<p><img src="/img/RAG%20%E4%B8%BA%E4%BB%80%E4%B9%88%E7%AD%94%E4%B8%8D%E5%87%BA%E5%85%A8%E5%B1%80%E5%92%8C%E5%85%B3%E8%81%94%20GraphRAG%20%E4%B8%8E%20LightRAG%20%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3/graphrag-entity-graph.png" alt="实体关系图：智能体编排与知识检索自然分成两簇"></p>
+<p>左边一簇围绕智能体编排：ReactAgent 连着 Skill，Skill 又连着任务规划和工具。右边一簇围绕知识检索：Embedding 连着向量检索，向量检索连着 RAG，RAG 连着重排序。</p>
+<p>两簇之间几乎没有边。这种「内部密、外部疏」的结构，就是社区发现要抓的东西。</p>
+<p>GraphRAG 用的是<strong>分层 Leiden 算法</strong>。它和普通聚类最大的区别是：<strong>普通聚类一次分完，它要分出多层。</strong></p>
+<ul>
+<li>第 0 层：整个图，最大的社区；</li>
+<li>第 1 层：把大社区再拆成中等社区；</li>
+<li>第 2 层、第 3 层：继续往下拆，直到每个社区规模都不超过阈值（<code>max_cluster_size</code>）。</li>
+</ul>
+<p>于是就得到一棵社区树：<strong>上面粗、下面细</strong>。</p>
+<p><img src="/img/RAG%20%E4%B8%BA%E4%BB%80%E4%B9%88%E7%AD%94%E4%B8%8D%E5%87%BA%E5%85%A8%E5%B1%80%E5%92%8C%E5%85%B3%E8%81%94%20GraphRAG%20%E4%B8%8E%20LightRAG%20%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3/graphrag-community-hierarchy.png" alt="Leiden 分层社区：上层社区概括性强，下层社区更具体"></p>
+<p><strong>为什么一定要分层？</strong> 因为不同粒度服务不同问题：</p>
+<ul>
+<li>问「这套文档主要讲哪几个方向」，需要看上层的粗粒度社区；</li>
+<li>问「智能体编排具体怎么做」，需要看下层的细粒度社区。</li>
+</ul>
+<p><strong>为什么是 Leiden，而不是更常见的 Louvain？</strong> 关键在于连通性。Louvain 有可能切出内部不连通的社区，甚至把本该连在一起的节点强行拆散；Leiden 在此基础上做了细化与保证，产出的社区内部是连通的，而且层级结构更稳定。对一个要拿来做检索的图来说，「社区内部连通」不是学术洁癖，而是<strong>检索时能不能顺着边走通</strong>的实际问题。</p>
+<p>还有两个工程参数值得知道：</p>
+<ul>
+<li><code>max_cluster_size</code>：控制继续往下拆的停止条件，太大会让摘要变粗，太小会让社区数量爆炸；</li>
+<li><code>use_lcc</code>：只处理最大连通分量，把游离的孤立节点排除掉，避免它们污染社区划分。</li>
+</ul>
+<h3 id="3-7-第六步-社区报告"><a href="#3-7-第六步-社区报告" class="headerlink" title="3.7 第六步 社区报告"></a>3.7 第六步 社区报告</h3><p>对每一个社区，GraphRAG 让 LLM 读它的成员实体、成员关系和原文片段，然后写一份<strong>社区报告（Community Report）</strong>。</p>
+<p>报告的结构大致是：</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>title</td>
+<td>社区标题，比如「智能体能力编排」</td>
+</tr>
+<tr>
+<td>summary</td>
+<td>社区摘要，一段概括性描述</td>
+</tr>
+<tr>
+<td>rating</td>
+<td>重要度评分</td>
+</tr>
+<tr>
+<td>rating_explanation</td>
+<td>评分理由</td>
+</tr>
+<tr>
+<td>findings</td>
+<td>关键发现列表，每条含 <code>summary</code> 与 <code>explanation</code></td>
+</tr>
+</tbody></table>
+<p>一份报告实际生成出来，结构是这样：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">  <span class="attr">&quot;title&quot;</span><span class="punctuation">:</span> <span class="string">&quot;智能体能力编排&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;summary&quot;</span><span class="punctuation">:</span> <span class="string">&quot;该社区讨论智能体如何分析任务、选择 Skill、调用工具完成执行。&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;rating&quot;</span><span class="punctuation">:</span> <span class="number">8.5</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;rating_explanation&quot;</span><span class="punctuation">:</span> <span class="string">&quot;覆盖智能体执行链路的核心环节，对理解整体架构很重要。&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;findings&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span></span><br><span class="line">    <span class="punctuation">&#123;</span></span><br><span class="line">      <span class="attr">&quot;summary&quot;</span><span class="punctuation">:</span> <span class="string">&quot;智能体需要先分析当前任务&quot;</span><span class="punctuation">,</span></span><br><span class="line">      <span class="attr">&quot;explanation&quot;</span><span class="punctuation">:</span> <span class="string">&quot;任务分析决定了后续选择哪些 Skill 与工具。&quot;</span></span><br><span class="line">    <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">    <span class="punctuation">&#123;</span></span><br><span class="line">      <span class="attr">&quot;summary&quot;</span><span class="punctuation">:</span> <span class="string">&quot;系统可以根据任务选择 Skill&quot;</span><span class="punctuation">,</span></span><br><span class="line">      <span class="attr">&quot;explanation&quot;</span><span class="punctuation">:</span> <span class="string">&quot;Skill 把领域逻辑封装起来，供智能体按需调用。&quot;</span></span><br><span class="line">    <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">    <span class="punctuation">&#123;</span></span><br><span class="line">      <span class="attr">&quot;summary&quot;</span><span class="punctuation">:</span> <span class="string">&quot;工具调用负责执行具体操作&quot;</span><span class="punctuation">,</span></span><br><span class="line">      <span class="attr">&quot;explanation&quot;</span><span class="punctuation">:</span> <span class="string">&quot;工具补齐模型自身做不到的外部操作与数据获取。&quot;</span></span><br><span class="line">    <span class="punctuation">&#125;</span></span><br><span class="line">  <span class="punctuation">]</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+
+<p>落盘到 parquet 后，每条报告还会带上 <code>community</code>、<code>parent</code>、<code>children</code>、<code>level</code>、<code>rank</code>、<code>full_content</code> 这些字段。<code>rating</code> 是模型给的重要度评分，<code>rank</code> 是按成员实体显著度算出的相关性排序，两者不是一回事。</p>
+<p><strong>这就是 GraphRAG 全局能力的来源。</strong></p>
+<p>原本要回答「这套文档讲了哪些方向」，模型得读完几十上百个块才能归纳；现在它只需要读几份<strong>已经写好的摘要</strong>。</p>
+<p>代价也很明确：<strong>摘要必然丢细节，而且越靠近根部越抽象。</strong> 一份写到第 0 层的报告，可能只剩下「本知识库涉及智能体与检索两大领域」这种粒度，具体到「Skill 怎么选」就答不了了。</p>
+<h3 id="3-8-第七步-向量化与存储"><a href="#3-8-第七步-向量化与存储" class="headerlink" title="3.8 第七步 向量化与存储"></a>3.8 第七步 向量化与存储</h3><p>最后一步和传统 RAG 很像，只是要向量化的东西变多了。GraphRAG 默认会为三类内容建向量索引：</p>
+<ol>
+<li><strong>TextUnit 的原始文本</strong>；</li>
+<li><strong>实体的描述</strong>；</li>
+<li><strong>社区报告的文本</strong>。</li>
+</ol>
+<p>存储上通常是两层：结构化数据（实体、关系、社区、报告）落成 parquet 文件，向量落进 LanceDB 之类的向量库。</p>
+<p>至此，索引阶段完成。这个索引里同时躺着五样东西：</p>
+<table>
+<thead>
+<tr>
+<th>产物</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>原始文本单元</td>
+<td>最终证据与引用来源</td>
+</tr>
+<tr>
+<td>实体与关系图</td>
+<td>多跳遍历的骨架</td>
+</tr>
+<tr>
+<td>层级社区</td>
+<td>全局归纳的切分单位</td>
+</tr>
+<tr>
+<td>社区报告</td>
+<td>全局问题的预写答案</td>
+</tr>
+<tr>
+<td>向量索引</td>
+<td>语义入口，用来找到第一个实体或第一份报告</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="四-GraphRAG-的查询阶段"><a href="#四-GraphRAG-的查询阶段" class="headerlink" title="四 GraphRAG 的查询阶段"></a>四 GraphRAG 的查询阶段</h2><p>索引建好之后，查询分两条路：</p>
+<ul>
+<li><strong>Local Search</strong>：从具体实体出发；</li>
+<li><strong>Global Search</strong>：从整个知识库出发。</li>
+</ul>
+<blockquote>
+<p>官方后来还补了一个 <strong>DRIFT Search</strong>，思路是先做一轮全局定位方向，再在局部深挖，用来补 Global 太粗、Local 太窄的问题。它的本质仍是这两条路的组合，理解了前两者，DRIFT 自然就懂了。</p>
+</blockquote>
+<h3 id="4-1-Local-Search-从具体实体出发"><a href="#4-1-Local-Search-从具体实体出发" class="headerlink" title="4.1 Local Search 从具体实体出发"></a>4.1 Local Search 从具体实体出发</h3><p>适合的问题长这样：「ReactAgent 和 Skill 是什么关系？」「卡托普利的禁忌症有哪些？」</p>
+<p><strong>第一步，把用户输入变成向量，去实体库里找一批实体。</strong></p>
+<p>注意是一批，不是一个。实体向量库会返回 Top-K 个候选，常见配置在 10 个上下。返回多个的原因很直接：一个问题往往牵扯多个实体，「卡托普利的禁忌症」里，卡托普利是主实体，但「禁忌症」「ACEI」这些概念也会命中相关实体。只取一个，很容易一开头就走偏。</p>
+<p>匹配时看的是实体名与描述，不是只比名字。名字只差一个字，含义可能天差地别，描述才是语义的主体。</p>
+<p><strong>第二步，以这批实体为起点，各取一跳邻居。</strong></p>
+<p>一跳的意思是：只沿一条边扩一层，不递归。对每个命中实体，取它直接相连的关系，以及这些关系另一端的实体。</p>
+<p>为什么要限定一跳？因为两跳、三跳会让候选数量指数级膨胀，噪声也跟着进来。GraphRAG 的 Local 设计是「以命中实体为中心的邻域」，不是全图遍历。多跳问题靠的是<strong>一次命中多个关键实体，再让它们的邻域在候选池里交汇</strong>，不是从单个实体一路走到底。</p>
+<p>除了邻居实体和关系，还要收三样东西：</p>
+<ul>
+<li>这些实体所属社区的报告，给模型一个该实体所在主题的背景；</li>
+<li>关系对应的原文 TextUnit，实体描述是压缩过的，细节要原文兜底；</li>
+<li>实体自身的描述，用来判断它到底是不是问题要找的那个东西。</li>
+</ul>
+<p><strong>第三步，把候选池收窄。</strong></p>
+<p>此时手里有四类材料：实体描述、关系描述、社区报告、原文块。全塞进去会撑爆上下文，所以要过三道闸。</p>
+<ol>
+<li><strong>排序</strong>：按与用户输入的相关度排序，关系权重也参与打分；</li>
+<li><strong>阈值</strong>：低于阈值的一律丢弃，宁可少给，不给错；</li>
+<li><strong>预算</strong>：给不同类型的材料分配 Token 配额。</li>
+</ol>
+<p>一个常见的预算划分示例：</p>
+<table>
+<thead>
+<tr>
+<th>材料类型</th>
+<th>Token 预算</th>
+<th>占比</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>原始文本块</td>
+<td>4000</td>
+<td>50%</td>
+</tr>
+<tr>
+<td>实体与关系</td>
+<td>3200</td>
+<td>40%</td>
+</tr>
+<tr>
+<td>社区报告</td>
+<td>800</td>
+<td>10%</td>
+</tr>
+</tbody></table>
+<p>假设总预算 8000 Token，就按这个比例分别截断。先排序、再按类型配额裁剪，能保证每一类证据都有位置，不会被某一类挤爆。原文占比最高，是因为最终答案必须落在事实上；社区报告占比最低，是因为它只起背景作用。</p>
+<p><strong>第四步，按模板组装，交给模型。</strong></p>
+<p>把筛选后的实体描述、关系描述、社区报告、原文片段按固定顺序拼好。顺序通常是「实体 → 关系 → 社区背景 → 原文证据」，让模型先知道有哪些节点、它们怎么连，再看背景，最后读原文。</p>
+<p><img src="/img/RAG%20%E4%B8%BA%E4%BB%80%E4%B9%88%E7%AD%94%E4%B8%8D%E5%87%BA%E5%85%A8%E5%B1%80%E5%92%8C%E5%85%B3%E8%81%94%20GraphRAG%20%E4%B8%8E%20LightRAG%20%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3/graphrag-local-search.png" alt="GraphRAG Local Search：实体匹配 → 邻域扩展 → 排序与预算 → 组装"></p>
+<p>整条链路的逻辑是：<strong>先用向量找到入口，再用图把入口周围的关系摊开，最后用预算决定哪些关系能进上下文。</strong> 少了任何一步都不行：没有向量，找不到入口；没有图，关系展不开；没有预算，上下文装不下。</p>
+<p>Local Search 的强项是「关系明确、实体明确」的问题。弱项也很明显，如果问题里的关键概念根本没被抽成实体，第一步就找不到入口，后面全白搭。</p>
+<h3 id="4-2-Global-Search-从整个知识库出发"><a href="#4-2-Global-Search-从整个知识库出发" class="headerlink" title="4.2 Global Search 从整个知识库出发"></a>4.2 Global Search 从整个知识库出发</h3><p>适合的问题长这样：</p>
+<blockquote>
+<p>根据整个知识库，智能体系统设计主要有哪些技术路线？它们分别解决什么问题？</p>
+</blockquote>
+<p>这类问题没有明确的实体入口。你没法说「去实体库里找哪个实体」，因为答案是跨实体的。此时还去检索 TextUnit，只能找到几段介绍「智能体系统」的文字，其他技术主题全被漏掉。</p>
+<p>Global Search 换了一个入口：<strong>不找块，找社区报告。</strong></p>
+<p><strong>第一步，决定读哪一层的报告。</strong></p>
+<p>社区是分层的。第 0 层是整个知识库，往下越拆越细。层级决定了报告的数量和粒度：</p>
+<ul>
+<li>层级低，社区大、报告少、每份更概括；</li>
+<li>层级高，社区小、报告多、每份更具体。</li>
+</ul>
+<p>命令行参数 <code>--community-level</code> 默认是 2。这个默认值是个折中：再低就只有几份大而空的摘要，再高报告数量就会涨得很快。</p>
+<p>选层的判断标准是问题粒度：</p>
+<table>
+<thead>
+<tr>
+<th>问题粒度</th>
+<th>建议层级</th>
+<th>理由</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>「整个知识库讲哪几大方向」</td>
+<td>较低层（0–1）</td>
+<td>需要最大的社区来归纳</td>
+</tr>
+<tr>
+<td>「某条技术路线怎么落地」</td>
+<td>较高层（2–3）</td>
+<td>需要更细的社区提供细节</td>
+</tr>
+<tr>
+<td>拿不准</td>
+<td>默认 2</td>
+<td>概括性与细节的折中</td>
+</tr>
+</tbody></table>
+<p>层级不是越高越好。报告越多，Map 阶段要读的份数越多，成本和延迟一起涨。这个问题到第五章还会再算一次账。</p>
+<p><strong>第二步，Map：逐批读报告，各写各的发现。</strong></p>
+<p>选中的报告不会一次性全塞进一个上下文，而是分批读。每一批单独交给 LLM，让它针对用户输入写出一组<strong>中间发现</strong>，并给每条发现打一个 0–100 的重要度评分。</p>
+<p>之所以要分批，是因为上下文装不下所有报告；之所以要打分，是因为 Reduce 阶段必须知道哪条发现更值得保留。</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">批次 1：</span><br><span class="line">- 智能体编排主要解决任务执行与能力选择。（85）</span><br><span class="line">- 工具调用主要解决外部操作与数据获取。（72）</span><br><span class="line"></span><br><span class="line">批次 2：</span><br><span class="line">- RAG 主要解决外部知识检索。（90）</span><br><span class="line">- 重排序用于改善候选结果的排序。（64）</span><br><span class="line"></span><br><span class="line">批次 3：</span><br><span class="line">- 工作流主要解决固定步骤的编排。（78）</span><br><span class="line">- 多智能体协作主要解决复杂任务的分工。（81）</span><br></pre></td></tr></table></figure>
+
+<p><strong>第三步，Reduce：把多批发现合成一个答案。</strong></p>
+<p>每批报告只看到知识库的一角，出来的发现是局部的、可能重复的。Reduce 要做三件事：去重、按分数排序、把高分发现合成一段连贯的答案。</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">100 份社区报告</span><br><span class="line">      ↓ 分批 Map</span><br><span class="line">多组中间发现 + 重要度评分</span><br><span class="line">      ↓ 排序与过滤</span><br><span class="line">筛选后的发现</span><br><span class="line">      ↓ Reduce</span><br><span class="line">全局综合答案</span><br></pre></td></tr></table></figure>
+
+<p>到这里，整条链路的逻辑也清楚了：<strong>Map 负责把「读一百份报告」拆成「读十批」，Reduce 负责把「十份局部结论」合成「一个全局结论」。</strong> 前者解决上下文容量，后者解决视角碎片。</p>
+<p><img src="/img/RAG%20%E4%B8%BA%E4%BB%80%E4%B9%88%E7%AD%94%E4%B8%8D%E5%87%BA%E5%85%A8%E5%B1%80%E5%92%8C%E5%85%B3%E8%81%94%20GraphRAG%20%E4%B8%8E%20LightRAG%20%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3/graphrag-global-search.png" alt="GraphRAG Global Search：分层选择 → 分批 Map → 评分 → Reduce"></p>
+<p><strong>成本就在这里暴露出来。</strong></p>
+<p>社区报告越多，Map 的批次越多，LLM 调用次数越多。如果选的是低层级、社区数量上百，一次查询就是上百次调用的量级。延迟和费用都不低，而且每次查询都要重跑。</p>
+<p>微软后来补了一个优化：<strong>动态社区选择（Dynamic Community Selection）</strong>。</p>
+<p>它不再无脑遍历选中的整层，而是从社区树的根开始，让 LLM 判断「这个社区和问题相关吗」：</p>
+<ul>
+<li>不相关 → 整枝剪掉，连同它的子社区一起跳过；</li>
+<li>相关 → 保留，继续往下看子社区。</li>
+</ul>
+<p>这样能把明显无关的分支提前砍掉，减少 Map 的份数。但要注意：<strong>它只是缓解，不是根治。</strong> 判断相关性本身也要调 LLM，而且相关分支多的时候，成本依然随规模上涨。</p>
+<blockquote>
+<p>再往后，微软还提出了 <strong>LazyGraphRAG</strong>：索引期不做任何 LLM 摘要，只做轻量的 NLP 统计，把 LLM 工作全部推迟到查询期。官方给出的口径是，它的索引成本与向量 RAG 相当，约为完整 GraphRAG 的 0.1%。这本质上是把「预算置」这个选择，又推回到了「实时算」那一侧，和 LightRAG 的取舍方向一致。</p>
+</blockquote>
+<h3 id="4-3-两种模式怎么选"><a href="#4-3-两种模式怎么选" class="headerlink" title="4.3 两种模式怎么选"></a>4.3 两种模式怎么选</h3><table>
+<thead>
+<tr>
+<th>维度</th>
+<th>Local Search</th>
+<th>Global Search</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>入口</td>
+<td>实体向量</td>
+<td>社区报告</td>
+</tr>
+<tr>
+<td>依赖</td>
+<td>实体抽取质量、邻域关系</td>
+<td>社区划分、报告质量</td>
+</tr>
+<tr>
+<td>LLM 调用次数</td>
+<td>少（1–2 次）</td>
+<td>多（随报告数增长）</td>
+</tr>
+<tr>
+<td>延迟</td>
+<td>低</td>
+<td>高</td>
+</tr>
+<tr>
+<td>适合</td>
+<td>「X 和 Y 什么关系」「X 的细节」</td>
+<td>「整体有哪些方向」「主题归纳」</td>
+</tr>
+<tr>
+<td>不适合</td>
+<td>全局归纳、没有实体入口的问题</td>
+<td>具体实体细节、精确事实</td>
+</tr>
+</tbody></table>
+<p><strong>Local 解决「关联」，Global 解决「全局」。</strong> 这也正好对应第一章的三道坎：切片断裂和多跳靠 Local 的邻域扩展，全局归纳靠 Global 的社区报告。</p>
+<hr>
+<h2 id="五-GraphRAG-的四个困点"><a href="#五-GraphRAG-的四个困点" class="headerlink" title="五 GraphRAG 的四个困点"></a>五 GraphRAG 的四个困点</h2><p>索引和查询都讲完了，接下来算账。GraphRAG 的四道硬伤，恰好也是 LightRAG 的四个发力点。</p>
+<h3 id="5-1-困点一-索引成本高-而且误差会叠加"><a href="#5-1-困点一-索引成本高-而且误差会叠加" class="headerlink" title="5.1 困点一 索引成本高 而且误差会叠加"></a>5.1 困点一 索引成本高 而且误差会叠加</h3><p>索引期有三笔 LLM 大开销：</p>
+<ol>
+<li><strong>逐块抽取</strong>：每个 TextUnit 至少一次调用，加上 gleaning 还要再来一次；</li>
+<li><strong>实体描述合并</strong>：每个实体一次；</li>
+<li><strong>社区报告生成</strong>：每个社区一次，而且是分层生成。</li>
+</ol>
+<p>粗略估一下调用量：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">索引 LLM 调用量 ≈ 块数 × (1 + 续抽轮数)</span><br><span class="line">                + 实体数 × 合并轮数</span><br><span class="line">                + 社区数</span><br></pre></td></tr></table></figure>
+
+<p>块越多、抽得越细、社区分得越细，这个数字涨得越快。</p>
+<p><strong>更麻烦的是误差叠加。</strong></p>
+<p>社区是分层的，上层摘要由下层内容汇总而来，下层摘要又由更下层的实体与文本汇总而来。<strong>如果最底层的抽取出错，错误会一层一层往上放大。</strong></p>
+<p>低层把「工具」和「维修工具」合并错了，中层就会写出一份错误的社区摘要，高层再基于这份摘要继续归纳。等你看到最终答案时，已经找不到错误是从哪一层开始的了。</p>
+<h3 id="5-2-困点二-实体消歧-图构建里最难的一步"><a href="#5-2-困点二-实体消歧-图构建里最难的一步" class="headerlink" title="5.2 困点二 实体消歧 图构建里最难的一步"></a>5.2 困点二 实体消歧 图构建里最难的一步</h3><p>同名问题可以拆成三种。前一种基本靠规则，后两种才是真正的难点：</p>
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>例子</th>
+<th>难点</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>同名同义</td>
+<td>「ReactAgent」与「react agent」</td>
+<td>规则能处理大部分，但缩写、别名容易漏</td>
+</tr>
+<tr>
+<td>异名同义</td>
+<td>「工具」与「Tool」</td>
+<td>需要跨语言、跨表述识别</td>
+</tr>
+<tr>
+<td>同名异义</td>
+<td>智能体文档的「工具」与维修文档的「工具」</td>
+<td>需要领域知识才能区分</td>
+</tr>
+</tbody></table>
+<p>第三种最要命。它错得很隐蔽：名字完全一样，合并时不会报错，但从那一刻起，图里就混进了另一个领域的语义。</p>
+<p>缓解思路是一套组合拳：</p>
+<ul>
+<li><strong>命名规范化</strong>：在抽取阶段就要求带上领域限定词。智能体的叫「智能体工具」，维修的叫「设备维修工具」。名字本身就消歧，是成本最低的做法。</li>
+<li><strong>名字 + 描述联合匹配</strong>：检索和合并时都不要只看名字，要把描述一起编码比较。名字相同但描述语义距离很远，就不该合并。</li>
+<li><strong>LLM 裁决</strong>：对候选合并对，让模型判断「这两个是同一个东西吗」，给出理由。</li>
+<li><strong>人工白名单</strong>：对高频、高价值的实体维护一张别名表，比如「AI &#x2F; 人工智能 &#x2F; Artificial Intelligence」。</li>
+<li><strong>合并 API</strong>：对确认是同一实体的别名，提供手动合并入口。</li>
+</ul>
+<p><strong>没有银弹。</strong> 消歧做到最后，一定是「自动策略 + 人工兜底」，而且兜底成本会随着语料领域变宽而上升。</p>
+<h3 id="5-3-困点三-增量更新"><a href="#5-3-困点三-增量更新" class="headerlink" title="5.3 困点三 增量更新"></a>5.3 困点三 增量更新</h3><p>传统 RAG 更新很简单：删掉旧文档对应的向量，插入新的，完事。</p>
+<p>GraphRAG 不行。新文档进来，会牵动四样东西：</p>
+<ul>
+<li>新实体、新关系要并入图；</li>
+<li>已有实体可能要更新描述；</li>
+<li>社区划分可能变化；</li>
+<li>变化的社区要重写报告；上层社区还要跟着重写。</li>
+</ul>
+<p>两条路，各有各的代价：</p>
+<table>
+<thead>
+<tr>
+<th>方案</th>
+<th>做法</th>
+<th>优点</th>
+<th>缺点</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>全量重建</td>
+<td>清空重跑整条索引</td>
+<td>结果一致、无漂移</td>
+<td>成本最高，语料越大越不可行</td>
+</tr>
+<tr>
+<td>局部增量</td>
+<td>只抽新文档，比对后改图，再更新受影响社区</td>
+<td>省很多</td>
+<td>容易出错，且错误会累积</td>
+</tr>
+</tbody></table>
+<p>局部增量的流程大致是：</p>
+<ol>
+<li>抽新文档的实体与关系；</li>
+<li>与已有图比对，判断是新增、更新还是已存在；</li>
+<li>更新对应节点与边；</li>
+<li>找出受影响的社区，重写它们的报告；</li>
+<li>上层社区递归更新。</li>
+</ol>
+<p>问题在于，<strong>社区划分是全局的</strong>。插进一批新实体后，原来的社区边界可能已经不再合理，但你只更新了「受影响的几个」，剩下的社区仍然按旧结构存在。久而久之，图会<strong>漂移</strong>——结构还在，语义已经偏了。</p>
+<p>所以工程上的现实做法是：<strong>少量更新走增量，累计到一定比例就全量重建。</strong> 这个阈值没有通用答案，得看语料的更新节奏和图的变化幅度。</p>
+<p>更根本的一点是：<strong>GraphRAG 官方流程本来就不是为高频更新设计的。</strong> 它的假设是「一批相对静态的语料，值得花大价钱建一次索引」。如果语料天天变，这个前提本身就不成立。</p>
+<h3 id="5-4-困点四-Global-查询慢且贵"><a href="#5-4-困点四-Global-查询慢且贵" class="headerlink" title="5.4 困点四 Global 查询慢且贵"></a>5.4 困点四 Global 查询慢且贵</h3><p>Global Search 的成本结构和 Local 完全不同：</p>
+<table>
+<thead>
+<tr>
+<th>环节</th>
+<th>调用量</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>社区相关性判断（开启动态选择时）</td>
+<td>逐层判断，与访问到的社区数相关</td>
+</tr>
+<tr>
+<td>Map</td>
+<td>社区报告数 ÷ 批大小</td>
+</tr>
+<tr>
+<td>Reduce</td>
+<td>1</td>
+</tr>
+</tbody></table>
+<p>Local 大概 1–2 次调用就能收工，Global 则是几十到上百次。<strong>报告越多、层级越低，这个数字越大。</strong></p>
+<p>动态社区选择能砍掉明显无关的分支，但砍不掉「相关分支本身就很多」这种情况。一个语料覆盖多个领域时，和问题相关的社区本来就不会少。</p>
+<p><strong>这就是 GraphRAG 的结构性矛盾：它的全局能力来自「预写了很多摘要」，而它的查询成本也来自「要读很多摘要」。</strong></p>
+<h3 id="5-5-四个困点汇总"><a href="#5-5-四个困点汇总" class="headerlink" title="5.5 四个困点汇总"></a>5.5 四个困点汇总</h3><table>
+<thead>
+<tr>
+<th>困点</th>
+<th>成因</th>
+<th>常见缓解</th>
+<th>残留风险</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>索引成本高</td>
+<td>抽取 + 合并 + 逐社区写报告，且分层放大</td>
+<td>限定实体类型、便宜模型抽取、控制社区数</td>
+<td>报告质量下降；小语料不划算</td>
+</tr>
+<tr>
+<td>实体消歧</td>
+<td>同名异义、异名同义，且错误向上传播</td>
+<td>命名规范化、名字+描述联合匹配、LLM 裁决、人工白名单</td>
+<td>领域变宽后兜底成本上升</td>
+</tr>
+<tr>
+<td>增量更新</td>
+<td>社区划分是全局的，局部更新会漂移</td>
+<td>少量增量 + 定期全量重建</td>
+<td>漂移难以量化，发现问题时已影响查询</td>
+</tr>
+<tr>
+<td>Global 查询慢</td>
+<td>调用次数随社区报告数增长</td>
+<td>动态社区选择、提高层级减少报告数</td>
+<td>相关分支多时仍然慢；层级高会丢细节</td>
+</tr>
+</tbody></table>
+<p><strong>LightRAG 的设计，几乎是照着这张表逐条改的。</strong> 下一章开始看它怎么改。</p>
+<hr>
+<h2 id="六-LightRAG-的索引阶段"><a href="#六-LightRAG-的索引阶段" class="headerlink" title="六 LightRAG 的索引阶段"></a>六 LightRAG 的索引阶段</h2><h3 id="6-1-砍掉重的那部分"><a href="#6-1-砍掉重的那部分" class="headerlink" title="6.1 砍掉重的那部分"></a>6.1 砍掉重的那部分</h3><p>LightRAG 保留了 GraphRAG 的前半段，砍掉了后半段：</p>
+<table>
+<thead>
+<tr>
+<th>环节</th>
+<th>GraphRAG</th>
+<th>LightRAG</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>切片</td>
+<td>有</td>
+<td>有（完全一样）</td>
+</tr>
+<tr>
+<td>实体关系抽取</td>
+<td>有</td>
+<td>有（基本一样）</td>
+</tr>
+<tr>
+<td>合并重复实体</td>
+<td>有（LLM 合并描述）</td>
+<td>有（同名合并，需自己补校验）</td>
+</tr>
+<tr>
+<td>建图</td>
+<td>有</td>
+<td>有</td>
+</tr>
+<tr>
+<td>社区发现</td>
+<td>有（分层 Leiden）</td>
+<td><strong>没有</strong></td>
+</tr>
+<tr>
+<td>社区报告</td>
+<td>有</td>
+<td><strong>没有</strong></td>
+</tr>
+<tr>
+<td>向量化</td>
+<td>文本、实体、报告</td>
+<td>文本、实体、关系</td>
+</tr>
+</tbody></table>
+<p>砍掉社区和社区报告，直接消掉了上一章的第一、第三、第四个困点：</p>
+<ul>
+<li>不用逐社区写报告 → 索引成本大降；</li>
+<li>没有全局社区结构 → 增量更新只需并图；</li>
+<li>查询不需要遍历报告 → 调用次数变成常数级。</li>
+</ul>
+<p>代价是<strong>全局归纳的质量</strong>问题，留到了查询期，靠现场推理来补。</p>
+<h3 id="6-2-切片与抽取-完全复用"><a href="#6-2-切片与抽取-完全复用" class="headerlink" title="6.2 切片与抽取 完全复用"></a>6.2 切片与抽取 完全复用</h3><p>这两步和 GraphRAG 没有本质区别：切 TextUnit、记录文档来源、用 LLM 抽实体与关系。</p>
+<p>差别在抽取的字段上。LightRAG 的关系抽取多要了一样东西：<strong>关系关键词（keywords）</strong>——用几个词概括这条关系的性质，比如「调用」「依赖」「协作」。落到图里，每条边还会带一个 <strong>weight（权重）</strong>，用于后续排序与截断。</p>
+<p>别小看这两个信息。<strong>它们正是后面 Global 模式检索的抓手</strong>：关系关键词参与关系向量的构建与匹配，权重用来排序、截断候选。</p>
+<h3 id="6-3-合并-同名只是候选"><a href="#6-3-合并-同名只是候选" class="headerlink" title="6.3 合并 同名只是候选"></a>6.3 合并 同名只是候选</h3><p>LightRAG 内置的合并只做一件事：<strong>按名字归一后合并</strong>。</p>
+<p>具体是：去掉实体名里的引号、统一大小写、压缩多余空格；归一后相同，就认定是同一个实体，把新描述并进旧描述；描述用固定分隔符拼接，片段数超过阈值时才让 LLM 压成一条。关系同理。</p>
+<p>这套逻辑能成立，靠的是一个前提：<strong>同一份语料里，同名基本同义。</strong> 在单领域知识库里，这个前提大多成立，所以它便宜、可预测、也不需要额外调模型。</p>
+<p>但前提一旦破了，问题就出来了：</p>
+<ul>
+<li>「工具」和「Tool」是同义不同名，它不会合并，图里长出两个节点，多跳在这里断掉；</li>
+<li>智能体的「工具」和维修手册的「工具」是同名不同义，它会合并，两个领域被强行焊在一起。</li>
+</ul>
+<p>第二种更危险。合并之后图里只剩一个「工具」节点，描述里既有「智能体调用的外部能力」，又有「扳手、螺丝刀」。之后检索「智能体怎么调用工具」，维修文档的关系也会被带进上下文，顺着边走两跳，整条链路就偏到另一个领域。<strong>这种错误不会报错，只会让答案悄悄变脏。</strong></p>
+<p>所以实际工程里，不能把「同名」当成合并的充分条件。常见的处理有三层，按成本从低到高。</p>
+<p><strong>第一层，把消歧前移到抽取阶段。</strong> 在 prompt 里要求实体名自带领域限定：智能体文档抽成「智能体工具」，维修文档抽成「设备维修工具」；跨语言统一成一个规范名。名字本身就带语义，后面的合并自然不会错。这一层成本最低，效果也最稳。</p>
+<p><strong>第二层，合并前加一道校验。</strong> 名字相同只是候选，不是结论。把两个实体的描述各做一次向量，比较相似度；再看实体类型是否一致。描述距离远、类型又对不上，就不合并。拿不准的交给 LLM 裁决，让它回答「这两个是同一个东西吗」并给出理由。这一层是 GraphRAG 默认在做、LightRAG 默认不做的事。</p>
+<p><strong>第三层，按领域分图。</strong> 如果语料本身就横跨多个领域，最稳的做法是每个领域建一张图，检索时先路由到对应领域，再在图内做同名合并。同名实体天然不会跨图相遇，代价是要多维护几套索引。</p>
+<p>已经合并错的，补救空间很小。LightRAG 提供的 <code>merge_entities</code> 只能把多个实体并成一个，没有对应的反向拆分接口；描述一旦混在一起，想还原只能删掉重建，或者重新抽一份干净的图。所以这三层里，预防比补救重要得多。</p>
+<p><strong>LightRAG 的内置合并是「单领域假设」下的省事方案，不是跨领域语料的正确方案。</strong> 第五章那个最难点，它没有解决，只是把责任留给了使用者。</p>
+<h3 id="6-4-四类存储"><a href="#6-4-四类存储" class="headerlink" title="6.4 四类存储"></a>6.4 四类存储</h3><p>LightRAG 把数据分成四类存放，各司其职：</p>
+<table>
+<thead>
+<tr>
+<th>存储类型</th>
+<th>保存什么</th>
+<th>为什么需要</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>KV Storage</td>
+<td>原始文档、Chunk、抽取结果、缓存</td>
+<td>保存文本与处理过程中的数据</td>
+</tr>
+<tr>
+<td>Vector Storage</td>
+<td>文本块、实体、关系的向量</td>
+<td>支持语义检索</td>
+</tr>
+<tr>
+<td>Graph Storage</td>
+<td>实体节点与关系边</td>
+<td>支持关系检索与关联扩展</td>
+</tr>
+<tr>
+<td>Document Status Storage</td>
+<td>文档处理状态</td>
+<td>支持任务追踪、去重与处理恢复</td>
+</tr>
+</tbody></table>
+<p>几个工程细节：</p>
+<ul>
+<li><strong>Graph Storage 可替换</strong>：默认用 NetworkX 就能跑，生产上可换 Neo4j 等图数据库；</li>
+<li><strong>Vector Storage 可替换</strong>：默认是轻量向量库，也支持 Milvus、Qdrant、pgvector 等；</li>
+<li><strong>Document Status Storage</strong> 是它做增量更新的基础：哪份文档处理到哪一步、内容哈希是否重复，都记在这里。</li>
+</ul>
+<p><img src="/img/RAG%20%E4%B8%BA%E4%BB%80%E4%B9%88%E7%AD%94%E4%B8%8D%E5%87%BA%E5%85%A8%E5%B1%80%E5%92%8C%E5%85%B3%E8%81%94%20GraphRAG%20%E4%B8%8E%20LightRAG%20%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3/lightrag-storage.png" alt="LightRAG 索引结构：图 + 多路向量 + KV + 文档状态"></p>
+<p>索引完成后的产物，比 GraphRAG 少了一样东西：</p>
+<table>
+<thead>
+<tr>
+<th>产物</th>
+<th>GraphRAG</th>
+<th>LightRAG</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>原始文本单元</td>
+<td>有</td>
+<td>有</td>
+</tr>
+<tr>
+<td>实体与关系图</td>
+<td>有</td>
+<td>有</td>
+</tr>
+<tr>
+<td>层级社区</td>
+<td>有</td>
+<td>无</td>
+</tr>
+<tr>
+<td>社区报告</td>
+<td>有</td>
+<td>无</td>
+</tr>
+<tr>
+<td>向量索引</td>
+<td>文本&#x2F;实体&#x2F;报告</td>
+<td>文本&#x2F;实体&#x2F;关系</td>
+</tr>
+</tbody></table>
+<p><strong>少了社区报告，全局能力就得靠别的东西补。</strong> 那就是下一章的查询设计。</p>
+<hr>
+<h2 id="七-LightRAG-的查询阶段"><a href="#七-LightRAG-的查询阶段" class="headerlink" title="七 LightRAG 的查询阶段"></a>七 LightRAG 的查询阶段</h2><h3 id="7-1-先拆关键词"><a href="#7-1-先拆关键词" class="headerlink" title="7.1 先拆关键词"></a>7.1 先拆关键词</h3><p>LightRAG 查询的第一步，是<strong>让 LLM 把用户输入拆成两类关键词</strong>，这一步还没到向量检索：</p>
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>含义</th>
+<th>例子</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>低层级关键词（Low-level）</td>
+<td>具体实体、技术概念、细节</td>
+<td>ReactAgent、Skill、卡托普利</td>
+</tr>
+<tr>
+<td>高层级关键词（High-level）</td>
+<td>主题、抽象问题、跨实体关系</td>
+<td>任务编排、复杂任务分工、用药禁忌</td>
+</tr>
+</tbody></table>
+<p>举个直观的对比：</p>
+<ul>
+<li>「Skill 是什么？」——偏具体概念，低层关键词为主；</li>
+<li>「智能体如何组织复杂任务？」——偏主题与关系，高层关键词为主。</li>
+</ul>
+<p><strong>这一步，本质上是在替代 GraphRAG 的「社区摘要」。</strong></p>
+<p>GraphRAG 用预先写好的报告回答「这类主题大概讲了什么」；LightRAG 则把问题翻译成主题词，再去图里找<strong>和这些主题词相关的关系</strong>，现场拼出答案。</p>
+<h3 id="7-2-五种查询模式"><a href="#7-2-五种查询模式" class="headerlink" title="7.2 五种查询模式"></a>7.2 五种查询模式</h3><p>五种模式不是五个独立功能，而是<strong>检索范围从窄到宽的五档</strong>。理解它们的关键，是看每一次分别用了哪类关键词、去哪个库里找什么。</p>
+<p><strong>naive，完全不碰图。</strong></p>
+<p>就是把 LightRAG 当传统 RAG 用：用户输入做向量，文本块库找 Top-K，拼上下文。它存在的意义主要是做对照，验证「建图到底有没有带来收益」。</p>
+<p><strong>local，低层关键词走实体。</strong></p>
+<p>这一档和 GraphRAG 的 Local Search 几乎一样。低层关键词先命中实体，再沿关系取一跳邻居，最后把关系描述和原文块一起拿回来。区别只有一个：它没有社区报告可拿，所以上下文里少了「这个实体所在主题的背景」。</p>
+<p>适合问「某个实体是什么」「它和谁有关」这类问题。</p>
+<p><strong>global，高层关键词走关系。</strong></p>
+<p>这一档最容易被误解。它不是「用高层关键词找实体」，而是先用高层关键词去<strong>关系向量库</strong>里找关系，再把关系两端的实体取出来。</p>
+<p>路径是：</p>
+<ol>
+<li>高层关键词 → 关系向量库，命中一批关系；</li>
+<li>取出这些关系两端的实体；</li>
+<li>取出关系描述与相关原文块；</li>
+<li>按配置和 Token 预算筛选；</li>
+<li>交给 LLM 组织答案。</li>
+</ol>
+<p>例如命中这样一组关系：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">ReactAgent -&gt; selects -&gt; Skill</span><br><span class="line">Skill      -&gt; invokes -&gt; 工具</span><br><span class="line">RAG        -&gt; retrieves -&gt; Knowledge</span><br><span class="line">Workflow   -&gt; organizes -&gt; ExecutionSteps</span><br></pre></td></tr></table></figure>
+
+<p>模型就能围绕「智能体如何组织任务」这个主题，用这些关系搭出一个有结构的回答，而不是只依赖某一段最相似的文本。</p>
+<p>但这里必须说清楚：LightRAG 的 global <strong>不等于自动发现知识之间的所有逻辑联系</strong>。它依赖三样东西：索引里已经抽出来的关系、关键词的质量、检索参数。索引里没抽到的关系，它一样找不到。</p>
+<p>这正是它和 GraphRAG 社区报告的差别：<strong>一个是离线精读后的结论，一个是现场从关系描述里拼出来的推断。</strong></p>
+<p><strong>hybrid，两路一起跑。</strong></p>
+<p>local 和 global 同时执行，结果取并集再去重。适合一个问题里既有具体实体、又有主题判断的情况。</p>
+<p><strong>mix，三路全上，默认模式。</strong></p>
+<p>mix 在 hybrid 的基础上再加一路 naive，把 local、global、naive 的结果合在一起：</p>
+<table>
+<thead>
+<tr>
+<th>来源</th>
+<th>补什么</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Local</td>
+<td>具体实体及其邻接关系</td>
+</tr>
+<tr>
+<td>Global</td>
+<td>与主题、跨实体关系有关的结构信息</td>
+</tr>
+<tr>
+<td>Naive</td>
+<td>原文中直接描述流程的细节段落</td>
+</tr>
+</tbody></table>
+<p>三者互补：图给结构，实体与关系描述给概括语义，原文块给细节与上下文。但 mix 的价值是「扩大信息来源」，不是「保证每条都相关」。三路合起来，噪声也会一起变多。</p>
+<blockquote>
+<p>另外还有一个 <code>bypass</code> 模式，完全不检索，只把用户输入交给模型，一般用于调试。</p>
+</blockquote>
+<p><img src="/img/RAG%20%E4%B8%BA%E4%BB%80%E4%B9%88%E7%AD%94%E4%B8%8D%E5%87%BA%E5%85%A8%E5%B1%80%E5%92%8C%E5%85%B3%E8%81%94%20GraphRAG%20%E4%B8%8E%20LightRAG%20%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3/lightrag-query-modes.png" alt="LightRAG 查询：关键词分层 → 实体路/关系路 → 合并重排"></p>
+<h3 id="7-3-筛选-重排与预算"><a href="#7-3-筛选-重排与预算" class="headerlink" title="7.3 筛选 重排与预算"></a>7.3 筛选 重排与预算</h3><p>三路召回之后，还要做和 GraphRAG 类似的三件事：</p>
+<ol>
+<li><strong>去重</strong>：同一实体、同一段原文可能被多路命中；</li>
+<li><strong>重排</strong>：LightRAG 支持接入 reranker，对候选做精排；</li>
+<li><strong>上下文预算</strong>：用 <code>max_total_tokens</code> 之类的参数控制总量，避免把上下文撑爆。</li>
+</ol>
+<p>需要说清楚的是：<strong>这一层不是 LightRAG 独有的能力。</strong> 去重、rerank、Token 预算，传统 RAG 和 GraphRAG 也都在做，思路完全一致。LightRAG 官方提供的是 reranker 接口和预算参数，更细的按来源配额、引用标注，通常要工程侧自己补。</p>
+<h3 id="7-4-和-GraphRAG-的查询对比"><a href="#7-4-和-GraphRAG-的查询对比" class="headerlink" title="7.4 和 GraphRAG 的查询对比"></a>7.4 和 GraphRAG 的查询对比</h3><table>
+<thead>
+<tr>
+<th>维度</th>
+<th>GraphRAG Local</th>
+<th>GraphRAG Global</th>
+<th>LightRAG local</th>
+<th>LightRAG global</th>
+<th>LightRAG mix</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>入口</td>
+<td>实体向量</td>
+<td>社区报告</td>
+<td>低层关键词 → 实体</td>
+<td>高层关键词 → 关系</td>
+<td>三路并行</td>
+</tr>
+<tr>
+<td>依赖社区</td>
+<td>是（取所属社区报告）</td>
+<td>是（核心依赖）</td>
+<td>否</td>
+<td>否</td>
+<td>否</td>
+</tr>
+<tr>
+<td>LLM 调用次数</td>
+<td>1–2</td>
+<td>随报告数增长</td>
+<td>1–2</td>
+<td>1–2</td>
+<td>2–3</td>
+</tr>
+<tr>
+<td>延迟</td>
+<td>低</td>
+<td>高</td>
+<td>低</td>
+<td>低</td>
+<td>中</td>
+</tr>
+<tr>
+<td>全局归纳深度</td>
+<td>中</td>
+<td>高</td>
+<td>低</td>
+<td>中</td>
+<td>中</td>
+</tr>
+</tbody></table>
+<p><strong>最后一行是重点。</strong> LightRAG 用「调用次数恒定」换来了「全局深度有限」，这就是它的核心取舍。</p>
+<hr>
+<h2 id="八-LightRAG-的代价"><a href="#八-LightRAG-的代价" class="headerlink" title="八 LightRAG 的代价"></a>八 LightRAG 的代价</h2><p>前面几章把 LightRAG 讲得很划算：便宜、快、能增量。但账要算全，它有四笔成本。</p>
+<h3 id="8-1-全局归纳深度不如社区报告"><a href="#8-1-全局归纳深度不如社区报告" class="headerlink" title="8.1 全局归纳深度不如社区报告"></a>8.1 全局归纳深度不如社区报告</h3><p>GraphRAG 的社区报告，是在索引期<strong>专门读过该社区的全部成员与原文之后</strong>写出来的；LightRAG 的 Global 模式，是查询期<strong>临时从一组关系描述里拼</strong>出来的。</p>
+<p>差别在语料变复杂时会被放大：</p>
+<ul>
+<li>一个社区里如果有一百条关系，GraphRAG 会先压成一份有主次的摘要；LightRAG 则把这些关系的描述按相关度截断后直接塞给模型。</li>
+<li>前者是「已经消化过的结论」，后者是「还没消化的原料」。</li>
+</ul>
+<p><strong>所以「这套文档的主题思想是什么」这类问题，LightRAG 通常能答个大概，但很难答得像 GraphRAG 那样有层次。</strong></p>
+<h3 id="8-2-消歧更弱"><a href="#8-2-消歧更弱" class="headerlink" title="8.2 消歧更弱"></a>8.2 消歧更弱</h3><p>LightRAG 内置只做同名合并，第五章那个最难点就落到了使用者身上：</p>
+<ul>
+<li>跨语言别名（「工具」与「Tool」）不会自动合并，要用 <code>merge_entities</code> 手动并；</li>
+<li>跨领域同名（智能体工具与维修工具）会被错误合并，而合并没有反向拆分接口，只能重建或提前分图；</li>
+<li>内置流程里没有名字加描述的相似度校验，也没有 LLM 裁决。</li>
+</ul>
+<p>GraphRAG 至少还有一遍「LLM 合并实体描述」的动作，能把同义描述揉在一起。LightRAG 只在描述片段超过阈值时才压一次。<strong>这一项，LightRAG 是更弱的。</strong></p>
+<h3 id="8-3-图质量决定上限-而且没有兜底"><a href="#8-3-图质量决定上限-而且没有兜底" class="headerlink" title="8.3 图质量决定上限 而且没有兜底"></a>8.3 图质量决定上限 而且没有兜底</h3><p>LightRAG 的全局能力全靠图。抽取漏了关键实体、关系断了，它就<strong>没有任何社区报告可以兜底</strong>。</p>
+<p>GraphRAG 也一样怕抽取错，但它有一层「社区摘要」做缓冲：个别关系错了，摘要里还有可能被其它信息纠正。LightRAG 没有这层缓冲，错误会直接进入检索结果。</p>
+<h3 id="8-4-上下文容易膨胀"><a href="#8-4-上下文容易膨胀" class="headerlink" title="8.4 上下文容易膨胀"></a>8.4 上下文容易膨胀</h3><p>Local 模式沿关系取一跳邻居，邻居数量不可控。一个热门实体可能连着几十个节点，全部展开会瞬间撑爆预算。</p>
+<p>靠截断能解决「装不下」，但解决不了「截断策略是否合理」。截错了，关键证据就丢了。</p>
+<h3 id="8-5-同一张表-把账算完"><a href="#8-5-同一张表-把账算完" class="headerlink" title="8.5 同一张表 把账算完"></a>8.5 同一张表 把账算完</h3><table>
+<thead>
+<tr>
+<th>困点</th>
+<th>GraphRAG</th>
+<th>LightRAG</th>
+<th>结论</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>索引成本</td>
+<td>高</td>
+<td>中</td>
+<td>LightRAG 明显更省</td>
+</tr>
+<tr>
+<td>实体消歧</td>
+<td>有 LLM 合并，较强</td>
+<td>仅同名合并，较弱</td>
+<td>GraphRAG 更好，但都不彻底</td>
+</tr>
+<tr>
+<td>增量更新</td>
+<td>弱，易漂移</td>
+<td>强，按文档并图</td>
+<td>LightRAG 明显更好</td>
+</tr>
+<tr>
+<td>全局查询成本</td>
+<td>高，随报告数增长</td>
+<td>低，基本恒定</td>
+<td>LightRAG 明显更好</td>
+</tr>
+<tr>
+<td>全局归纳深度</td>
+<td>高</td>
+<td>中</td>
+<td>GraphRAG 明显更好</td>
+</tr>
+<tr>
+<td>工程复杂度</td>
+<td>高</td>
+<td>中</td>
+<td>LightRAG 更容易落地</td>
+</tr>
+</tbody></table>
+<p><strong>没有全能选手，只有取舍。</strong></p>
+<hr>
+<h2 id="九-场景与选型"><a href="#九-场景与选型" class="headerlink" title="九 场景与选型"></a>九 场景与选型</h2><h3 id="9-1-四个决策维度"><a href="#9-1-四个决策维度" class="headerlink" title="9.1 四个决策维度"></a>9.1 四个决策维度</h3><p>选型别一上来就比效果，先回答四个问题：</p>
+<ol>
+<li><strong>语料更新频率有多高？</strong> 天天变 → LightRAG；一年建一次 → GraphRAG 可接受。</li>
+<li><strong>问题里「全局归纳」占多大比例？</strong> 大量「总结、研判、有哪些方向」→ GraphRAG；多是「某个实体怎么样」→ LightRAG 足够。</li>
+<li><strong>成本与延迟的容忍度？</strong> 面向内部决策、可以等几十秒 → GraphRAG；面向在线客服、要求秒级 → LightRAG。</li>
+<li><strong>语料规模多大？</strong> 只有几百个块，建图本身就不划算，先用传统 RAG 的混合检索 + rerank。</li>
+</ol>
+<h3 id="9-2-GraphRAG-适合什么"><a href="#9-2-GraphRAG-适合什么" class="headerlink" title="9.2 GraphRAG 适合什么"></a>9.2 GraphRAG 适合什么</h3><p><strong>特征：语料相对静态、价值高、问题偏全局研判。</strong></p>
+<ul>
+<li>行业研究报告库：问「这个赛道的主要技术路线与玩家格局」；</li>
+<li>合规与法务卷宗：问「这批合同里有哪些共性风险条款」；</li>
+<li>情报与尽调材料：问「这家公司的关联方网络里有哪些异常节点」；</li>
+<li>文献综述：问「这个领域近三年的主要方法演进」。</li>
+</ul>
+<p>这些场景的共同点是：<strong>答错代价高，愿意为一次深度索引付费，而且语料不会天天变。</strong></p>
+<h3 id="9-3-LightRAG-适合什么"><a href="#9-3-LightRAG-适合什么" class="headerlink" title="9.3 LightRAG 适合什么"></a>9.3 LightRAG 适合什么</h3><p><strong>特征：语料动态、成本敏感、要求低延迟。</strong></p>
+<ul>
+<li>企业知识库：制度、流程、产品文档持续更新；</li>
+<li>客服与内部助手：要秒级响应，问题多为具体实体与流程；</li>
+<li>工单与新闻流：每天新增，需要增量入库；</li>
+<li>中小规模专业库：预算有限，先跑起来再迭代。</li>
+</ul>
+<h3 id="9-4-混合架构-两个都要-但要分类"><a href="#9-4-混合架构-两个都要-但要分类" class="headerlink" title="9.4 混合架构 两个都要 但要分类"></a>9.4 混合架构 两个都要 但要分类</h3><p>两者并不互斥。常见的混合做法是：</p>
+<ol>
+<li><strong>双写</strong>：同一份抽取结果，同时写入两套索引——GraphRAG 建社区报告，LightRAG 建多路向量；</li>
+<li><strong>路由</strong>：在入口加一个轻量分类器，判断问题类型：<ul>
+<li>局部&#x2F;实体类 → LightRAG local；</li>
+<li>主题&#x2F;全局类 → GraphRAG global；</li>
+<li>多跳类 → 两边都可，优先 LightRAG 的低延迟；</li>
+</ul>
+</li>
+<li><strong>降级</strong>：GraphRAG 查询超时或成本超限时，回落到 LightRAG。</li>
+</ol>
+<p>代价是<strong>索引成本翻倍、运维复杂度上升</strong>，而且路由分错时会同时拿到两份不好的答案。<strong>只有当全局研判确实是核心业务时，这个复杂度才值得。</strong></p>
+<h3 id="9-5-迁移路径"><a href="#9-5-迁移路径" class="headerlink" title="9.5 迁移路径"></a>9.5 迁移路径</h3><p>如果现在还在用传统 RAG，建议按这个顺序走：</p>
+<ol>
+<li><strong>先把传统 RAG 的混合检索 + rerank 做好</strong>。父子块 + 相邻块合并，能解决相当一部分「切片断裂」，成本几乎为零。</li>
+<li><strong>再上 LightRAG 试水</strong>。索引成本可控、能增量、延迟低，用来验证「图到底有没有带来收益」。</li>
+<li><strong>只有当全局研判成为明确需求时，再上 GraphRAG</strong>。此时你已经有了 LightRAG 的对照数据，能算清这笔钱花得值不值。</li>
+</ol>
+<p><img src="/img/RAG%20%E4%B8%BA%E4%BB%80%E4%B9%88%E7%AD%94%E4%B8%8D%E5%87%BA%E5%85%A8%E5%B1%80%E5%92%8C%E5%85%B3%E8%81%94%20GraphRAG%20%E4%B8%8E%20LightRAG%20%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3/graphrag-lightrag-selection.png" alt="选型决策树：更新频率 → 问题类型 → 成本延迟 → 方案"></p>
+<h3 id="9-6-场景对照表"><a href="#9-6-场景对照表" class="headerlink" title="9.6 场景对照表"></a>9.6 场景对照表</h3><table>
+<thead>
+<tr>
+<th>场景</th>
+<th>推荐方案</th>
+<th>关键理由</th>
+<th>主要风险</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>静态研报库、尽调材料</td>
+<td>GraphRAG</td>
+<td>需要跨文档归纳与全局研判</td>
+<td>索引成本高；更新要重建</td>
+</tr>
+<tr>
+<td>合规审查、法务卷宗</td>
+<td>GraphRAG</td>
+<td>全局风险条款汇总</td>
+<td>消歧错误会放大</td>
+</tr>
+<tr>
+<td>企业知识库（持续更新）</td>
+<td>LightRAG</td>
+<td>增量更新、低成本</td>
+<td>全局归纳深度不足</td>
+</tr>
+<tr>
+<td>客服 &#x2F; 内部助手</td>
+<td>LightRAG（mix）</td>
+<td>低延迟、多路互补</td>
+<td>邻居膨胀、噪声</td>
+</tr>
+<tr>
+<td>单文档问答 &#x2F; FAQ</td>
+<td>传统 RAG</td>
+<td>问题局部、延迟敏感</td>
+<td>无需建图</td>
+</tr>
+<tr>
+<td>既要全局又要实时</td>
+<td>混合架构</td>
+<td>按问题类型路由</td>
+<td>成本翻倍、路由误差</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="十-收尾-回到那三道坎"><a href="#十-收尾-回到那三道坎" class="headerlink" title="十 收尾 回到那三道坎"></a>十 收尾 回到那三道坎</h2><p>现在回到开头那三个例子，看看两套系统分别怎么走。</p>
+<p><strong>医疗那个「卡托普利 + 禁忌症」。</strong></p>
+<p>LightRAG 的 local 模式会用低层关键词命中「卡托普利」这个实体，沿边取到「属于 ACEI」和「肾功能不全禁用」两条关系，再把对应的原文块一起交给模型。GraphRAG 的 Local Search 走的是同一条路，只是还能额外拿到所属社区的报告。<strong>两者都能把断裂的关系重新接上</strong>——前提是抽取阶段把这两条关系都抽出来了。</p>
+<p><strong>「刘备是个怎么样的人？」</strong></p>
+<p>GraphRAG 的 Global Search 会选中较高层社区，读「蜀汉人物」相关的一组报告，Map 出若干性格侧面，再 Reduce 成一段有层次的评价。LightRAG 的 global 模式则用「人物评价、性格、生平」这类高层关键词去命中关系，现场拼。<strong>前者更完整，后者更快。</strong></p>
+<p><strong>「哪些欧洲供应商审计没过还在处理 PII」。</strong></p>
+<p>这是一次典型的多跳遍历。GraphRAG 的 Local Search 从「欧洲」相关实体出发，沿供应商—审计—合同的关系链逐步收窄；LightRAG 的 local 模式同样从实体出发，沿着关系走三跳。<strong>两者都靠图，不靠向量排序</strong>——这也正是知识图谱存在的意义。</p>
+<p>三句话总结：</p>
+<ol>
+<li><strong>GraphRAG 用索引期的重投入，换查询期的全局深度</strong>，适合静态、高价值、要研判的语料。</li>
+<li><strong>LightRAG 用「不预写摘要」换成本、增量与延迟</strong>，适合动态、成本敏感、要快速上线的场景。</li>
+<li><strong>两者都不解决消歧</strong>，只是 GraphRAG 多垫了一层 LLM 合并。真要做生产，命名规范化和人工白名单躲不掉。</li>
+</ol>
+<p>最后一句提醒：</p>
+<blockquote>
+<p><strong>先量化你的失败模式，再决定要不要上图。</strong></p>
+</blockquote>
+<p>把线上真实问题抽 100 条，按「切片断裂 &#x2F; 全局归纳 &#x2F; 多跳推理 &#x2F; 普通事实」四类分桶，看占比。如果 80% 都是普通事实问答，上图谱纯属负优化；如果全局归纳占了三成，那 GraphRAG 的索引钱就花得值。</p>
+<p>工具是手段，问题是起点。</p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://LI-S-H.github.io">青山木</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://li-s-h.github.io/2026/10/29/RAG%20%E4%B8%BA%E4%BB%80%E4%B9%88%E7%AD%94%E4%B8%8D%E5%87%BA%E5%85%A8%E5%B1%80%E5%92%8C%E5%85%B3%E8%81%94%EF%BC%9FGraphRAG%20%E4%B8%8E%20LightRAG%20%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3/">https://li-s-h.github.io/2026/10/29/RAG%20%E4%B8%BA%E4%BB%80%E4%B9%88%E7%AD%94%E4%B8%8D%E5%87%BA%E5%85%A8%E5%B1%80%E5%92%8C%E5%85%B3%E8%81%94%EF%BC%9FGraphRAG%20%E4%B8%8E%20LightRAG%20%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://LI-S-H.github.io" target="_blank">青山木</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/RAG/">RAG</a><a class="post-meta__tags" href="/tags/GraphRAG/">GraphRAG</a><a class="post-meta__tags" href="/tags/LightRAG/">LightRAG</a><a class="post-meta__tags" href="/tags/%E7%9F%A5%E8%AF%86%E5%9B%BE%E8%B0%B1/">知识图谱</a><a class="post-meta__tags" href="/tags/%E7%A4%BE%E5%8C%BA%E5%8F%91%E7%8E%B0/">社区发现</a><a class="post-meta__tags" href="/tags/%E5%AE%9E%E4%BD%93%E6%B6%88%E6%AD%A7/">实体消歧</a></div><div class="post-share"><div class="social-share" data-image="/img/title-picture/RAG%20%E4%B8%BA%E4%BB%80%E4%B9%88%E7%AD%94%E4%B8%8D%E5%87%BA%E5%85%A8%E5%B1%80%E5%92%8C%E5%85%B3%E8%81%94%20GraphRAG%20%E4%B8%8E%20LightRAG%20%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3.jpg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/2026/10/20/RAG%20%E4%B8%BA%E4%BB%80%E4%B9%88%E6%80%BB%E7%AD%94%E4%B8%8D%E5%87%86%EF%BC%9F%E4%BB%8E%E5%88%87%E5%9D%97%E5%88%B0%E6%B7%B7%E5%90%88%E6%A3%80%E7%B4%A2%E7%9A%84%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3/" title="RAG 为什么总答不准？从切块到混合检索的全链路拆解"><img class="cover" src="/img/title-picture/RAG%E4%B8%BA%E4%BB%80%E4%B9%88%E7%AD%94%E4%B8%8D%E5%87%86.jpg" onerror="onerror=null;src='/img/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">RAG 为什么总答不准？从切块到混合检索的全链路拆解</div></div><div class="info-2"><div class="info-item-1">围绕「RAG 为什么总答不准」这条线索，讲透全流程原理。从 LLM 的知识截止、私有知识缺失与幻觉讲起，把 RAG 拆成「离线存储」与「在线检索」两大阶段：切块的六种策略与父子块、Embedding 三代演进（Word2Vec/BERT/BGE-M3）与多向量检索、向量库的 HNSW/IVF/PQ 三大索引、Bi-Encoder 与 Cross-Encoder 的取舍、Rerank 精排、BM25+向量的混合检索与融合、查询改写，以及检索与生成两层评测指标、RAGAS 框架和幻觉的不确定性量化。</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/2026/06/11/%E4%B8%80%E6%96%87%E5%90%83%E9%80%8F%20Spring%20AI%20Alibaba%20RAG%EF%BC%9A%E4%B8%89%E7%A7%8D%E6%9E%B6%E6%9E%84%E6%A8%A1%E5%BC%8F%20+%20%E5%85%A8%E6%B5%81%E7%A8%8B%E4%BC%98%E5%8C%96%E8%AF%A6%E8%A7%A3/" title="一文吃透 Spring AI Alibaba RAG：三种架构模式 + 全流程优化详解"><img class="cover" src="/img/%E4%B8%80%E6%96%87%E5%90%83%E9%80%8F%20Spring%20AI%20Alibaba%20RAG%EF%BC%9A%E4%B8%89%E7%A7%8D%E6%9E%B6%E6%9E%84%E6%A8%A1%E5%BC%8F%20+%20%E5%85%A8%E6%B5%81%E7%A8%8B%E4%BC%98%E5%8C%96%E8%AF%A6%E8%A7%A3/%E4%B8%80%E6%96%87%E5%90%83%E9%80%8FRAG.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-06-11</div><div class="info-item-2">一文吃透 Spring AI Alibaba RAG：三种架构模式 + 全流程优化详解</div></div><div class="info-2"><div class="info-item-1">系统讲解 RAG 核心原理与替代方案（Skill、MCP、Wiki）的取舍，详细拆解 Spring AI Alibaba 三种 RAG 架构模式（两步 RAG、Agentic RAG、混合 RAG）与四阶段全链路优化（Pre-Retrieval 查询压缩与扩展、Retrieval 向量检索、Post-Retrieval 重排序与压缩、Generation 上下文增强），并提供 ReactAgent 钩子、FunctionToolCallback 多工具调用等完整可运行代码示例。</div></div></div></a><a class="pagination-related" href="/2026/06/02/%E4%BB%8ELLM%E5%88%B0Agent%EF%BC%9APrompt%C2%B7RAG%C2%B7ToolCalling%C2%B7MCP%E5%A6%82%E4%BD%95%E6%8A%8A%E5%87%BD%E6%95%B0%E5%8F%98%E6%88%90%E6%99%BA%E8%83%BD%E4%BD%93/" title="从 LLM 到 Agent：Prompt·RAG·Tool Calling·MCP 如何把函数变成智能体"><img class="cover" src="/img/title-picture/%E5%8A%9B%E6%89%A3.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-06-02</div><div class="info-item-2">从 LLM 到 Agent：Prompt·RAG·Tool Calling·MCP 如何把函数变成智能体</div></div><div class="info-2"><div class="info-item-1">大模型本质上只是一个预测下一个Token的函数，天生有四个缺陷。本文从大模型本质出发，拆解每个缺陷及解决方案，帮助理解什么是智能体及其构建思路。</div></div></div></a><a class="pagination-related" href="/2026/10/20/RAG%20%E4%B8%BA%E4%BB%80%E4%B9%88%E6%80%BB%E7%AD%94%E4%B8%8D%E5%87%86%EF%BC%9F%E4%BB%8E%E5%88%87%E5%9D%97%E5%88%B0%E6%B7%B7%E5%90%88%E6%A3%80%E7%B4%A2%E7%9A%84%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3/" title="RAG 为什么总答不准？从切块到混合检索的全链路拆解"><img class="cover" src="/img/title-picture/RAG%E4%B8%BA%E4%BB%80%E4%B9%88%E7%AD%94%E4%B8%8D%E5%87%86.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-20</div><div class="info-item-2">RAG 为什么总答不准？从切块到混合检索的全链路拆解</div></div><div class="info-2"><div class="info-item-1">围绕「RAG 为什么总答不准」这条线索，讲透全流程原理。从 LLM 的知识截止、私有知识缺失与幻觉讲起，把 RAG 拆成「离线存储」与「在线检索」两大阶段：切块的六种策略与父子块、Embedding 三代演进（Word2Vec/BERT/BGE-M3）与多向量检索、向量库的 HNSW/IVF/PQ 三大索引、Bi-Encoder 与 Cross-Encoder 的取舍、Rerank 精排、BM25+向量的混合检索与融合、查询改写，以及检索与生成两层评测指标、RAGAS 框架和幻觉的不确定性量化。</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/%E5%A4%B4%E5%83%8F.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">青山木</div><div class="author-info-description">正在学习Java后端开发＋智能体开发，希望能与大家多多交流</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">120</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">283</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">9</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/LI-S-H"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/LI-S-H" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">欢迎来到我的博客，记录学习与成长的点滴。</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%80-%E4%BC%A0%E7%BB%9F-RAG-%E7%9A%84%E4%B8%89%E9%81%93%E5%9D%8E"><span class="toc-number">1.</span> <span class="toc-text">一 传统 RAG 的三道坎</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1-1-%E5%85%88%E7%9C%8B%E4%BC%A0%E7%BB%9F-RAG-%E7%9A%84%E6%A3%80%E7%B4%A2%E5%81%87%E8%AE%BE"><span class="toc-number">1.1.</span> <span class="toc-text">1.1 先看传统 RAG 的检索假设</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-2-%E7%AC%AC%E4%B8%80%E9%81%93%E5%9D%8E-%E5%88%87%E7%89%87%E6%8A%8A%E9%80%BB%E8%BE%91%E5%85%B3%E7%B3%BB%E5%88%87%E6%96%AD%E4%BA%86"><span class="toc-number">1.2.</span> <span class="toc-text">1.2 第一道坎 切片把逻辑关系切断了</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-3-%E7%AC%AC%E4%BA%8C%E9%81%93%E5%9D%8E-%E5%85%A8%E5%B1%80%E6%80%A7%E9%97%AE%E9%A2%98%E6%A0%B9%E6%9C%AC%E6%A3%80%E7%B4%A2%E4%B8%8D%E5%87%BA%E6%9D%A5"><span class="toc-number">1.3.</span> <span class="toc-text">1.3 第二道坎 全局性问题根本检索不出来</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-4-%E7%AC%AC%E4%B8%89%E9%81%93%E5%9D%8E-%E5%A4%9A%E8%B7%B3%E6%8E%A8%E7%90%86%E7%BC%BA%E5%B0%91%E4%BA%A4%E9%9B%86%E6%9C%BA%E5%88%B6"><span class="toc-number">1.4.</span> <span class="toc-text">1.4 第三道坎 多跳推理缺少交集机制</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-5-%E4%B8%89%E7%B1%BB%E9%97%AE%E9%A2%98%E7%9A%84%E5%85%B1%E5%90%8C%E7%82%B9"><span class="toc-number">1.5.</span> <span class="toc-text">1.5 三类问题的共同点</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%8C-GraphRAG-%E4%B8%8E-LightRAG-%E7%9A%84%E4%B8%A4%E7%A7%8D%E9%A2%84%E7%AE%97"><span class="toc-number">2.</span> <span class="toc-text">二 GraphRAG 与 LightRAG 的两种预算</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#2-1-GraphRAG-%E6%98%AF%E4%BB%80%E4%B9%88"><span class="toc-number">2.1.</span> <span class="toc-text">2.1 GraphRAG 是什么</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-2-LightRAG-%E6%98%AF%E4%BB%80%E4%B9%88"><span class="toc-number">2.2.</span> <span class="toc-text">2.2 LightRAG 是什么</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-3-%E4%B8%89%E7%A7%8D%E6%A3%80%E7%B4%A2%E5%8D%95%E5%85%83-%E4%B8%89%E6%9D%A1%E5%9B%9E%E7%AD%94%E8%B7%AF%E5%BE%84"><span class="toc-number">2.3.</span> <span class="toc-text">2.3 三种检索单元 三条回答路径</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-4-%E5%94%AF%E4%B8%80%E5%88%86%E6%AD%A7-%E5%85%A8%E5%B1%80%E6%91%98%E8%A6%81%E6%8F%90%E5%89%8D%E7%AE%97%E8%BF%98%E6%98%AF%E5%AE%9E%E6%97%B6%E7%AE%97"><span class="toc-number">2.4.</span> <span class="toc-text">2.4 唯一分歧 全局摘要提前算还是实时算</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-5-%E4%B8%80%E5%BC%A0%E6%80%BB%E8%A7%88%E5%9B%BE"><span class="toc-number">2.5.</span> <span class="toc-text">2.5 一张总览图</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%89-GraphRAG-%E7%9A%84%E7%B4%A2%E5%BC%95%E9%98%B6%E6%AE%B5"><span class="toc-number">3.</span> <span class="toc-text">三 GraphRAG 的索引阶段</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#3-1-%E4%B8%83%E6%AD%A5%E6%80%BB%E8%A7%88"><span class="toc-number">3.1.</span> <span class="toc-text">3.1 七步总览</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-2-%E7%AC%AC%E4%B8%80%E6%AD%A5-%E5%88%87%E7%89%87-%E4%BB%A5%E5%8F%8A%E4%B8%80%E4%B8%AA%E5%AE%B9%E6%98%93%E5%BF%BD%E7%95%A5%E7%9A%84%E7%BB%86%E8%8A%82"><span class="toc-number">3.2.</span> <span class="toc-text">3.2 第一步 切片 以及一个容易忽略的细节</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-3-%E7%AC%AC%E4%BA%8C%E6%AD%A5-%E5%AE%9E%E4%BD%93%E4%B8%8E%E5%85%B3%E7%B3%BB%E6%8A%BD%E5%8F%96"><span class="toc-number">3.3.</span> <span class="toc-text">3.3 第二步 实体与关系抽取</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-4-%E7%AC%AC%E4%B8%89%E6%AD%A5-%E5%90%88%E5%B9%B6%E9%87%8D%E5%A4%8D%E5%AE%9E%E4%BD%93%E4%B8%8E%E5%85%B3%E7%B3%BB"><span class="toc-number">3.4.</span> <span class="toc-text">3.4 第三步 合并重复实体与关系</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-5-%E7%AC%AC%E5%9B%9B%E6%AD%A5-%E5%BB%BA%E5%9B%BE"><span class="toc-number">3.5.</span> <span class="toc-text">3.5 第四步 建图</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-6-%E7%AC%AC%E4%BA%94%E6%AD%A5-%E5%88%86%E5%B1%82%E7%A4%BE%E5%8C%BA%E5%8F%91%E7%8E%B0"><span class="toc-number">3.6.</span> <span class="toc-text">3.6 第五步 分层社区发现</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-7-%E7%AC%AC%E5%85%AD%E6%AD%A5-%E7%A4%BE%E5%8C%BA%E6%8A%A5%E5%91%8A"><span class="toc-number">3.7.</span> <span class="toc-text">3.7 第六步 社区报告</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-8-%E7%AC%AC%E4%B8%83%E6%AD%A5-%E5%90%91%E9%87%8F%E5%8C%96%E4%B8%8E%E5%AD%98%E5%82%A8"><span class="toc-number">3.8.</span> <span class="toc-text">3.8 第七步 向量化与存储</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%9B%9B-GraphRAG-%E7%9A%84%E6%9F%A5%E8%AF%A2%E9%98%B6%E6%AE%B5"><span class="toc-number">4.</span> <span class="toc-text">四 GraphRAG 的查询阶段</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#4-1-Local-Search-%E4%BB%8E%E5%85%B7%E4%BD%93%E5%AE%9E%E4%BD%93%E5%87%BA%E5%8F%91"><span class="toc-number">4.1.</span> <span class="toc-text">4.1 Local Search 从具体实体出发</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-2-Global-Search-%E4%BB%8E%E6%95%B4%E4%B8%AA%E7%9F%A5%E8%AF%86%E5%BA%93%E5%87%BA%E5%8F%91"><span class="toc-number">4.2.</span> <span class="toc-text">4.2 Global Search 从整个知识库出发</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-3-%E4%B8%A4%E7%A7%8D%E6%A8%A1%E5%BC%8F%E6%80%8E%E4%B9%88%E9%80%89"><span class="toc-number">4.3.</span> <span class="toc-text">4.3 两种模式怎么选</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%94-GraphRAG-%E7%9A%84%E5%9B%9B%E4%B8%AA%E5%9B%B0%E7%82%B9"><span class="toc-number">5.</span> <span class="toc-text">五 GraphRAG 的四个困点</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#5-1-%E5%9B%B0%E7%82%B9%E4%B8%80-%E7%B4%A2%E5%BC%95%E6%88%90%E6%9C%AC%E9%AB%98-%E8%80%8C%E4%B8%94%E8%AF%AF%E5%B7%AE%E4%BC%9A%E5%8F%A0%E5%8A%A0"><span class="toc-number">5.1.</span> <span class="toc-text">5.1 困点一 索引成本高 而且误差会叠加</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#5-2-%E5%9B%B0%E7%82%B9%E4%BA%8C-%E5%AE%9E%E4%BD%93%E6%B6%88%E6%AD%A7-%E5%9B%BE%E6%9E%84%E5%BB%BA%E9%87%8C%E6%9C%80%E9%9A%BE%E7%9A%84%E4%B8%80%E6%AD%A5"><span class="toc-number">5.2.</span> <span class="toc-text">5.2 困点二 实体消歧 图构建里最难的一步</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#5-3-%E5%9B%B0%E7%82%B9%E4%B8%89-%E5%A2%9E%E9%87%8F%E6%9B%B4%E6%96%B0"><span class="toc-number">5.3.</span> <span class="toc-text">5.3 困点三 增量更新</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#5-4-%E5%9B%B0%E7%82%B9%E5%9B%9B-Global-%E6%9F%A5%E8%AF%A2%E6%85%A2%E4%B8%94%E8%B4%B5"><span class="toc-number">5.4.</span> <span class="toc-text">5.4 困点四 Global 查询慢且贵</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#5-5-%E5%9B%9B%E4%B8%AA%E5%9B%B0%E7%82%B9%E6%B1%87%E6%80%BB"><span class="toc-number">5.5.</span> <span class="toc-text">5.5 四个困点汇总</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%85%AD-LightRAG-%E7%9A%84%E7%B4%A2%E5%BC%95%E9%98%B6%E6%AE%B5"><span class="toc-number">6.</span> <span class="toc-text">六 LightRAG 的索引阶段</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#6-1-%E7%A0%8D%E6%8E%89%E9%87%8D%E7%9A%84%E9%82%A3%E9%83%A8%E5%88%86"><span class="toc-number">6.1.</span> <span class="toc-text">6.1 砍掉重的那部分</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-2-%E5%88%87%E7%89%87%E4%B8%8E%E6%8A%BD%E5%8F%96-%E5%AE%8C%E5%85%A8%E5%A4%8D%E7%94%A8"><span class="toc-number">6.2.</span> <span class="toc-text">6.2 切片与抽取 完全复用</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-3-%E5%90%88%E5%B9%B6-%E5%90%8C%E5%90%8D%E5%8F%AA%E6%98%AF%E5%80%99%E9%80%89"><span class="toc-number">6.3.</span> <span class="toc-text">6.3 合并 同名只是候选</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-4-%E5%9B%9B%E7%B1%BB%E5%AD%98%E5%82%A8"><span class="toc-number">6.4.</span> <span class="toc-text">6.4 四类存储</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%83-LightRAG-%E7%9A%84%E6%9F%A5%E8%AF%A2%E9%98%B6%E6%AE%B5"><span class="toc-number">7.</span> <span class="toc-text">七 LightRAG 的查询阶段</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#7-1-%E5%85%88%E6%8B%86%E5%85%B3%E9%94%AE%E8%AF%8D"><span class="toc-number">7.1.</span> <span class="toc-text">7.1 先拆关键词</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#7-2-%E4%BA%94%E7%A7%8D%E6%9F%A5%E8%AF%A2%E6%A8%A1%E5%BC%8F"><span class="toc-number">7.2.</span> <span class="toc-text">7.2 五种查询模式</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#7-3-%E7%AD%9B%E9%80%89-%E9%87%8D%E6%8E%92%E4%B8%8E%E9%A2%84%E7%AE%97"><span class="toc-number">7.3.</span> <span class="toc-text">7.3 筛选 重排与预算</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#7-4-%E5%92%8C-GraphRAG-%E7%9A%84%E6%9F%A5%E8%AF%A2%E5%AF%B9%E6%AF%94"><span class="toc-number">7.4.</span> <span class="toc-text">7.4 和 GraphRAG 的查询对比</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%85%AB-LightRAG-%E7%9A%84%E4%BB%A3%E4%BB%B7"><span class="toc-number">8.</span> <span class="toc-text">八 LightRAG 的代价</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#8-1-%E5%85%A8%E5%B1%80%E5%BD%92%E7%BA%B3%E6%B7%B1%E5%BA%A6%E4%B8%8D%E5%A6%82%E7%A4%BE%E5%8C%BA%E6%8A%A5%E5%91%8A"><span class="toc-number">8.1.</span> <span class="toc-text">8.1 全局归纳深度不如社区报告</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#8-2-%E6%B6%88%E6%AD%A7%E6%9B%B4%E5%BC%B1"><span class="toc-number">8.2.</span> <span class="toc-text">8.2 消歧更弱</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#8-3-%E5%9B%BE%E8%B4%A8%E9%87%8F%E5%86%B3%E5%AE%9A%E4%B8%8A%E9%99%90-%E8%80%8C%E4%B8%94%E6%B2%A1%E6%9C%89%E5%85%9C%E5%BA%95"><span class="toc-number">8.3.</span> <span class="toc-text">8.3 图质量决定上限 而且没有兜底</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#8-4-%E4%B8%8A%E4%B8%8B%E6%96%87%E5%AE%B9%E6%98%93%E8%86%A8%E8%83%80"><span class="toc-number">8.4.</span> <span class="toc-text">8.4 上下文容易膨胀</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#8-5-%E5%90%8C%E4%B8%80%E5%BC%A0%E8%A1%A8-%E6%8A%8A%E8%B4%A6%E7%AE%97%E5%AE%8C"><span class="toc-number">8.5.</span> <span class="toc-text">8.5 同一张表 把账算完</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B9%9D-%E5%9C%BA%E6%99%AF%E4%B8%8E%E9%80%89%E5%9E%8B"><span class="toc-number">9.</span> <span class="toc-text">九 场景与选型</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#9-1-%E5%9B%9B%E4%B8%AA%E5%86%B3%E7%AD%96%E7%BB%B4%E5%BA%A6"><span class="toc-number">9.1.</span> <span class="toc-text">9.1 四个决策维度</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#9-2-GraphRAG-%E9%80%82%E5%90%88%E4%BB%80%E4%B9%88"><span class="toc-number">9.2.</span> <span class="toc-text">9.2 GraphRAG 适合什么</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#9-3-LightRAG-%E9%80%82%E5%90%88%E4%BB%80%E4%B9%88"><span class="toc-number">9.3.</span> <span class="toc-text">9.3 LightRAG 适合什么</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#9-4-%E6%B7%B7%E5%90%88%E6%9E%B6%E6%9E%84-%E4%B8%A4%E4%B8%AA%E9%83%BD%E8%A6%81-%E4%BD%86%E8%A6%81%E5%88%86%E7%B1%BB"><span class="toc-number">9.4.</span> <span class="toc-text">9.4 混合架构 两个都要 但要分类</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#9-5-%E8%BF%81%E7%A7%BB%E8%B7%AF%E5%BE%84"><span class="toc-number">9.5.</span> <span class="toc-text">9.5 迁移路径</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#9-6-%E5%9C%BA%E6%99%AF%E5%AF%B9%E7%85%A7%E8%A1%A8"><span class="toc-number">9.6.</span> <span class="toc-text">9.6 场景对照表</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%8D%81-%E6%94%B6%E5%B0%BE-%E5%9B%9E%E5%88%B0%E9%82%A3%E4%B8%89%E9%81%93%E5%9D%8E"><span class="toc-number">10.</span> <span class="toc-text">十 收尾 回到那三道坎</span></a></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/2026/10/29/RAG%20%E4%B8%BA%E4%BB%80%E4%B9%88%E7%AD%94%E4%B8%8D%E5%87%BA%E5%85%A8%E5%B1%80%E5%92%8C%E5%85%B3%E8%81%94%EF%BC%9FGraphRAG%20%E4%B8%8E%20LightRAG%20%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3/" title="RAG为什么答不出全局性和关联性问题? GraphRAG 与 LightRAG 全链路拆解"><img src="/img/title-picture/RAG%20%E4%B8%BA%E4%BB%80%E4%B9%88%E7%AD%94%E4%B8%8D%E5%87%BA%E5%85%A8%E5%B1%80%E5%92%8C%E5%85%B3%E8%81%94%20GraphRAG%20%E4%B8%8E%20LightRAG%20%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="RAG为什么答不出全局性和关联性问题? GraphRAG 与 LightRAG 全链路拆解"/></a><div class="content"><a class="title" href="/2026/10/29/RAG%20%E4%B8%BA%E4%BB%80%E4%B9%88%E7%AD%94%E4%B8%8D%E5%87%BA%E5%85%A8%E5%B1%80%E5%92%8C%E5%85%B3%E8%81%94%EF%BC%9FGraphRAG%20%E4%B8%8E%20LightRAG%20%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3/" title="RAG为什么答不出全局性和关联性问题? GraphRAG 与 LightRAG 全链路拆解">RAG为什么答不出全局性和关联性问题? GraphRAG 与 LightRAG 全链路拆解</a><time datetime="2026-10-29T15:30:00.000Z" title="发表于 2026-10-29 23:30:00">2026-10-29</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/10/20/RAG%20%E4%B8%BA%E4%BB%80%E4%B9%88%E6%80%BB%E7%AD%94%E4%B8%8D%E5%87%86%EF%BC%9F%E4%BB%8E%E5%88%87%E5%9D%97%E5%88%B0%E6%B7%B7%E5%90%88%E6%A3%80%E7%B4%A2%E7%9A%84%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3/" title="RAG 为什么总答不准？从切块到混合检索的全链路拆解"><img src="/img/title-picture/RAG%E4%B8%BA%E4%BB%80%E4%B9%88%E7%AD%94%E4%B8%8D%E5%87%86.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="RAG 为什么总答不准？从切块到混合检索的全链路拆解"/></a><div class="content"><a class="title" href="/2026/10/20/RAG%20%E4%B8%BA%E4%BB%80%E4%B9%88%E6%80%BB%E7%AD%94%E4%B8%8D%E5%87%86%EF%BC%9F%E4%BB%8E%E5%88%87%E5%9D%97%E5%88%B0%E6%B7%B7%E5%90%88%E6%A3%80%E7%B4%A2%E7%9A%84%E5%85%A8%E9%93%BE%E8%B7%AF%E6%8B%86%E8%A7%A3/" title="RAG 为什么总答不准？从切块到混合检索的全链路拆解">RAG 为什么总答不准？从切块到混合检索的全链路拆解</a><time datetime="2026-10-20T15:00:00.000Z" title="发表于 2026-10-20 23:00:00">2026-10-20</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/10/16/Java%20%E5%B9%B6%E5%8F%91%E5%9F%BA%E7%A1%80%E5%85%A8%E8%A7%A3%EF%BC%9A%E4%BB%8E%E8%BF%9B%E7%A8%8B%E4%B8%8E%E7%BA%BF%E7%A8%8B%E5%88%B0%E5%A4%9A%E7%BA%BF%E7%A8%8B%E3%80%81%E7%BA%BF%E7%A8%8B%E5%AE%89%E5%85%A8%E4%B8%8E%E6%AD%BB%E9%94%81/" title="Java 并发基础全解：从进程与线程到多线程、线程安全与死锁"><img src="/img/title-picture/Java%20%E5%B9%B6%E5%8F%91%E5%9F%BA%E7%A1%80%E5%85%A8%E8%A7%A3%EF%BC%9A%E4%BB%8E%E8%BF%9B%E7%A8%8B%E4%B8%8E%E7%BA%BF%E7%A8%8B%E5%88%B0%E5%A4%9A%E7%BA%BF%E7%A8%8B%E3%80%81%E7%BA%BF%E7%A8%8B%E5%AE%89%E5%85%A8%E4%B8%8E%E6%AD%BB%E9%94%81.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Java 并发基础全解：从进程与线程到多线程、线程安全与死锁"/></a><div class="content"><a class="title" href="/2026/10/16/Java%20%E5%B9%B6%E5%8F%91%E5%9F%BA%E7%A1%80%E5%85%A8%E8%A7%A3%EF%BC%9A%E4%BB%8E%E8%BF%9B%E7%A8%8B%E4%B8%8E%E7%BA%BF%E7%A8%8B%E5%88%B0%E5%A4%9A%E7%BA%BF%E7%A8%8B%E3%80%81%E7%BA%BF%E7%A8%8B%E5%AE%89%E5%85%A8%E4%B8%8E%E6%AD%BB%E9%94%81/" title="Java 并发基础全解：从进程与线程到多线程、线程安全与死锁">Java 并发基础全解：从进程与线程到多线程、线程安全与死锁</a><time datetime="2026-10-16T15:30:00.000Z" title="发表于 2026-10-16 23:30:00">2026-10-16</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/10/15/%E4%B8%80%E6%96%87%E6%90%9E%E6%87%82%20Spring%20AI%20Alibaba%20Graph%EF%BC%9A%E7%8A%B6%E6%80%81%E9%A9%B1%E5%8A%A8%E7%9A%84%20AI%20Agent%20%E7%BC%96%E6%8E%92%E5%BC%95%E6%93%8E/" title="一文搞懂 Spring AI Alibaba Graph：状态驱动的 AI Agent 编排引擎"><img src="/img/title-picture/%E4%B8%80%E6%96%87%E6%90%9E%E6%87%82%20Spring%20AI%20Alibaba%20Graph%EF%BC%9A%E7%8A%B6%E6%80%81%E9%A9%B1%E5%8A%A8%E7%9A%84%20AI%20Agent%20%E7%BC%96%E6%8E%92%E5%BC%95%E6%93%8E.png" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="一文搞懂 Spring AI Alibaba Graph：状态驱动的 AI Agent 编排引擎"/></a><div class="content"><a class="title" href="/2026/10/15/%E4%B8%80%E6%96%87%E6%90%9E%E6%87%82%20Spring%20AI%20Alibaba%20Graph%EF%BC%9A%E7%8A%B6%E6%80%81%E9%A9%B1%E5%8A%A8%E7%9A%84%20AI%20Agent%20%E7%BC%96%E6%8E%92%E5%BC%95%E6%93%8E/" title="一文搞懂 Spring AI Alibaba Graph：状态驱动的 AI Agent 编排引擎">一文搞懂 Spring AI Alibaba Graph：状态驱动的 AI Agent 编排引擎</a><time datetime="2026-10-15T15:00:00.000Z" title="发表于 2026-10-15 23:00:00">2026-10-15</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/10/14/Agent%20%E6%A0%B8%E5%BF%83%E6%A6%82%E5%BF%B5%E5%85%A8%E8%A7%A3%EF%BC%9A%E4%BB%8E%20Workflow%20%E4%B9%8B%E8%BE%A8%E5%88%B0%E5%A4%A7%E8%84%91%C2%B7%E8%A7%84%E5%88%92%C2%B7%E8%AE%B0%E5%BF%86%C2%B7%E5%B7%A5%E5%85%B7/" title="Agent 核心概念全解：从 Workflow 之辨到大脑·规划·记忆·工具"><img src="/img/title-picture/Agent%20%E6%A0%B8%E5%BF%83%E6%A6%82%E5%BF%B5%E5%85%A8%E8%A7%A3%EF%BC%9A%E4%BB%8E%20Workflow%20%E4%B9%8B%E8%BE%A8%E5%88%B0Agent%E7%9A%84%E6%A0%B8%E5%BF%83%E7%BB%84%E6%88%90.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Agent 核心概念全解：从 Workflow 之辨到大脑·规划·记忆·工具"/></a><div class="content"><a class="title" href="/2026/10/14/Agent%20%E6%A0%B8%E5%BF%83%E6%A6%82%E5%BF%B5%E5%85%A8%E8%A7%A3%EF%BC%9A%E4%BB%8E%20Workflow%20%E4%B9%8B%E8%BE%A8%E5%88%B0%E5%A4%A7%E8%84%91%C2%B7%E8%A7%84%E5%88%92%C2%B7%E8%AE%B0%E5%BF%86%C2%B7%E5%B7%A5%E5%85%B7/" title="Agent 核心概念全解：从 Workflow 之辨到大脑·规划·记忆·工具">Agent 核心概念全解：从 Workflow 之辨到大脑·规划·记忆·工具</a><time datetime="2026-10-14T14:00:00.000Z" title="发表于 2026-10-14 22:00:00">2026-10-14</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By 青山木</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.5.4"></script><script src="/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script>
+(function() {
+  /* 仅在首页标题上方插入头像 */
+  if (window.location.pathname !== '/' && !window.location.pathname.endsWith('/index.html')) return;
+  var siteTitle = document.getElementById('site-title');
+  if (siteTitle) {
+    var avatar = document.createElement('img');
+    avatar.src = '/img/头像.jpg';
+    avatar.alt = 'avatar';
+    avatar.className = 'avatar-img';
+    siteTitle.parentNode.insertBefore(avatar, siteTitle);
+  }
+})();
+</script>
+<script>
+(function() {
+  function initMermaid() {
+    if (window.mermaid) return Promise.resolve();
+    return new Promise(function(resolve, reject) {
+      var script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/mermaid@11.12.2/dist/mermaid.min.js';
+      script.onload = function() {
+        mermaid.initialize({
+          startOnLoad: false,
+          // 图表主题固定，避免站点深浅色切换时重新解析整篇文章的所有 Mermaid 图。
+          theme: 'dark',
+          securityLevel: 'loose'
+        });
+        resolve();
+      };
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  }
+
+  // Mermaid 会异步改变文章高度；目录跳转必须等所有图表完成布局后再读取标题位置。
+  window.mermaidReady = Promise.resolve();
+  var renderSequence = 0;
+
+  function waitForStableLayout() {
+    return new Promise(function(resolve) {
+      requestAnimationFrame(function() {
+        requestAnimationFrame(function() {
+          // 让 SVG 内的 foreignObject 完成一次实际布局，再刷新 Butterfly 的标题位置缓存。
+          setTimeout(resolve, 50);
+        });
+      });
+    });
+  }
+
+  function showMermaidSource(pre) {
+    pre.hidden = false;
+    pre.style.display = 'block';
+    pre.style.color = '#d32f2f';
+    pre.style.whiteSpace = 'pre-wrap';
+    pre.style.fontSize = '13px';
+  }
+
+  function refreshTocPositions() {
+    // Butterfly 只在 resize 时重新缓存标题坐标。
+    window.dispatchEvent(new Event('resize'));
+    document.dispatchEvent(new CustomEvent('mermaid:rendered'));
+  }
+
+  function renderMermaidDiagrams() {
+    var wraps = document.querySelectorAll('#article-container .mermaid-wrap');
+    if (wraps.length === 0) {
+      window.mermaidReady = Promise.resolve();
+      return window.mermaidReady;
+    }
+
+    var renderTask = initMermaid().then(function() {
+      return Promise.all(Array.prototype.map.call(wraps, function(wrap, index) {
+        var pre = wrap.querySelector('pre.mermaid-src');
+        if (!pre || pre.dataset.rendered === 'true') return Promise.resolve();
+
+        var code = pre.textContent;
+        var id = 'mermaid-' + index + '-' + (++renderSequence);
+        return Promise.resolve().then(function() {
+          return mermaid.render(id, code);
+        }).then(function(result) {
+          pre.dataset.rendered = 'true';
+          pre.style.display = 'none';
+          var div = document.createElement('div');
+          div.innerHTML = result.svg;
+          wrap.insertBefore(div.firstChild, pre.nextSibling);
+        }).catch(function(err) {
+          console.error('[Mermaid] Block #' + index + ' render failed:', err);
+          showMermaidSource(pre);
+        });
+      }));
+    }).then(function() {
+      return waitForStableLayout();
+    }).then(function() {
+      refreshTocPositions();
+    }).catch(function(err) {
+      console.error('[Mermaid] Failed to load mermaid.js:', err);
+      wraps.forEach(function(wrap) {
+        var pre = wrap.querySelector('pre.mermaid-src');
+        if (pre) showMermaidSource(pre);
+      });
+    });
+
+    window.mermaidReady = renderTask;
+    return renderTask;
+  }
+
+  // 页面加载完成后渲染
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', renderMermaidDiagrams);
+  } else {
+    renderMermaidDiagrams();
+  }
+
+  // 拦截目录点击：若图表仍在渲染，等待布局稳定后按实时坐标滚动。
+  // 使用捕获阶段，避免 Butterfly 先按渲染前的坐标启动平滑滚动。
+  var tocNavigationSequence = 0;
+  document.addEventListener('click', function(e) {
+    var link = e.target.closest('#card-toc .toc-link');
+    if (!link) return;
+
+    var href = link.getAttribute('href') || '';
+    var hashIndex = href.indexOf('#');
+    if (hashIndex < 0) return;
+
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    var navigationSequence = ++tocNavigationSequence;
+    var headingId = decodeURI(href.slice(hashIndex + 1));
+
+    (window.mermaidReady || Promise.resolve()).then(function() {
+      return waitForStableLayout();
+    }).then(function() {
+      if (navigationSequence !== tocNavigationSequence) return;
+      var heading = document.getElementById(headingId);
+      if (!heading) return;
+
+      // 使用点击时的实际位置，避免异步 SVG 插入改变标题高度后跳错章节。
+      var top = heading.getBoundingClientRect().top + window.scrollY;
+      if (window.btf && window.btf.scrollToDest) {
+        window.btf.scrollToDest(top, 300);
+      } else {
+        window.scrollTo({ top: top, behavior: 'smooth' });
+      }
+    });
+  }, true);
+
+})();
+</script>
+<script id="canvas_nest" defer="defer" color="107,159,255" opacity="0.6" zIndex="-1" count="99" mobile="false" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/dist/canvas-nest.min.js"></script></div></body></html>
